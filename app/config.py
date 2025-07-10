@@ -9,9 +9,14 @@ class Settings:
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = "gpt-4o"
     print(OPENAI_API_KEY)
+    
     # Application Configuration
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
+    
+    # Authentication Configuration
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production-please-make-it-very-long-and-random")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # Security Configuration
     FORBIDDEN_KEYWORDS: Set[str] = {

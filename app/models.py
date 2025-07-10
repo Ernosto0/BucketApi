@@ -1,7 +1,46 @@
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from pydantic import BaseModel, Field, EmailStr, model_validator
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 
+# Authentication Models
+class UserCreate(BaseModel):
+    email: EmailStr = Field(..., description="Valid email address")
+    password: str = Field(..., min_length=6, description="Password must be at least 6 characters")
+    password_confirm: str = Field(..., description="Password confirmation")
+
+    @model_validator(mode='after')
+    def validate_passwords_match(self):
+        if self.password != self.password_confirm:
+            raise ValueError('Passwords do not match')
+        return self
+
+class UserLogin(BaseModel):
+    email: EmailStr = Field(..., description="Email address")
+    password: str = Field(..., description="Password")
+
+class User(BaseModel):
+    id: str
+    email: str
+    is_active: bool = True
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: User
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+
+class UserProfile(BaseModel):
+    user: User
+    total_apis: int
+    saved_apis: List['SavedAPI']
+    recent_activity: List[Dict[str, Any]]
+
+# API Generation Models
 class APIGenerationRequest(BaseModel):
     prompt: str = Field(..., description="Description of the API functionality you want")
     sample_input: Optional[str] = Field(None, description="Example input data for the API")
@@ -32,4 +71,56 @@ class APIExecutionResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str = "healthy"
     timestamp: datetime
-    version: str = "1.0.0" 
+    version: str = "1.0.0"
+
+class SavedAPI(BaseModel):
+    api_slug: str
+    user_id: str
+    api_name: str
+    prompt: str
+    endpoint_url: str
+    documentation: str
+    curl_example: str
+    sample_input: Optional[str] = None
+    expected_output: Optional[str] = None
+    created_at: datetime
+    saved_at: datetime
+    is_saved: bool = True
+
+class SaveAPIRequest(BaseModel):
+    user_id: str
+    api_slug: str
+    api_name: str
+    prompt: str
+    endpoint_url: str
+    documentation: str
+    curl_example: str
+    sample_input: Optional[str] = None
+    expected_output: Optional[str] = None
+
+class SaveAPIResponse(BaseModel):
+    success: bool
+    message: str
+    api_slug: Optional[str] = None
+
+class ListAPIsResponse(BaseModel):
+    success: bool
+    user_id: str
+    apis: List[SavedAPI]
+    count: int
+
+# Authentication Response Models
+class AuthResponse(BaseModel):
+    success: bool
+    message: str
+    user: Optional[User] = None
+
+class LoginResponse(BaseModel):
+    success: bool
+    message: str
+    token: Optional[Token] = None
+
+class RegisterResponse(BaseModel):
+    success: bool
+    message: str
+    user: Optional[User] = None 

@@ -57,76 +57,45 @@ class OpenAIService:
          16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
          17. For file processing, always handle bytes properly - use io.BytesIO for binary data
         
-                 Example structure for AI-powered PDF name/date extraction:
-         ```python
-         import json
-         import io
-         import os
-         from datetime import datetime
-         from openai import OpenAI
-         from PyPDF2 import PdfReader
-         
-         def run(file_bytes=None, input_data=None):
-             '''
-             AI-powered PDF name and date extraction using GPT-3.5-turbo
-             '''
-             try:
-                 # Extract text from input
-                 if file_bytes:
-                     if file_bytes.startswith(b'%PDF'):
-                         # Handle PDF files properly
-                         pdf_file = io.BytesIO(file_bytes)
-                         reader = PdfReader(pdf_file)
-                         text = ""
-                         for page in reader.pages:
-                             text += page.extract_text()
-                     else:
-                         # Handle text files
-                         text = file_bytes.decode('utf-8')
-                 else:
-                     text = input_data.get('text', '') if input_data else ''
-                 
-                 if not text:
-                     return {"error": "No text content found", "message": "failed"}
-                 
-                 # Use MODERN OpenAI client (v1.0+)
-                 api_key = os.getenv('OPENAI_API_KEY')
-                 if not api_key:
-                     return {"error": "OpenAI API key not found", "message": "failed"}
-                 
-                 client = OpenAI(api_key=api_key)
-                 
-                 # Make AI API call for name and date extraction
-                 response = client.chat.completions.create(
-                     model="gpt-3.5-turbo",
-                     messages=[
-                         {"role": "system", "content": "Extract all person names and dates from the text. Return JSON with 'names' and 'dates' arrays."},
-                         {"role": "user", "content": f"Extract names and dates from: {text[:2000]}"}
-                     ],
-                     temperature=0.2,
-                     max_tokens=500
-                 )
-                 
-                 ai_response = response.choices[0].message.content
-                 
-                 # Try to parse AI response as JSON, fallback if needed
-                 try:
-                     extracted_data = json.loads(ai_response)
-                 except:
-                     extracted_data = {"raw_response": ai_response}
-                 
-                 result = {
-                     "extracted_data": extracted_data,
-                     "ai_model": "gpt-3.5-turbo",
-                     "text_length": len(text),
-                     "confidence": 0.9,
-                     "timestamp": datetime.now().isoformat()
-                 }
-                 
-                 return {"result": result, "message": "success"}
-                     
-             except Exception as e:
-                 return {"error": str(e), "message": "failed"}
+        
+        # Use MODERN OpenAI client (v1.0+)
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            return {"error": "OpenAI API key not found", "message": "failed"}
+        
+        client = OpenAI(api_key=api_key)
+        
+        # Make AI API call for name and date extraction
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Extract all person names and dates from the text. Return JSON with 'names' and 'dates' arrays."},
+                {"role": "user", "content": f"Extract names and dates from: {text[:2000]}"}
+            ],
+            temperature=0.2,
+            max_tokens=500
+        )
+        
+        ai_response = response.choices[0].message.content
+        
+        # Try to parse AI response as JSON, fallback if needed
+        try:
+            extracted_data = json.loads(ai_response)
+        except:
+            extracted_data = {"raw_response": ai_response}
+        
+        result = {
+            "extracted_data": extracted_data,
+            "ai_model": "gpt-3.5-turbo",
+            "text_length": len(text),
+            "confidence": 0.9,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        return {"result": result, "message": "success"}
+            
+    except Exception as e:
+        return {"error": str(e), "message": "failed"}
          ```
         """
         
@@ -172,12 +141,7 @@ class OpenAIService:
         Generated Code:
         {code}
         
-        Format your response as:
-        ## Documentation
-        [Your documentation here]
-        
-        ## Curl Example
-        [Your curl command here]
+     
         """
         
         try:
