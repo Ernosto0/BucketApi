@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Powered API Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .loading {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <h1 class="text-5xl font-bold text-white mb-4">🤖 AI-Powered API Generator</h1>
+            <p class="text-xl text-white opacity-90">Describe your API in plain text and get a working endpoint instantly!</p>
+        </div>
+
+        <!-- Main Form Card -->
+        <div class="max-w-4xl mx-auto glass rounded-2xl p-8 mb-8">
+            <form id="apiForm" class="space-y-6">
+                <!-- User ID -->
+                <div>
+                    <label for="userId" class="block text-white font-semibold mb-2">User ID</label>
+                    <input type="text" id="userId" name="userId" required
+                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                           placeholder="Enter your unique user ID (e.g., john_doe)">
+                </div>
+
+                <!-- API Description -->
+                <div>
+                    <label for="prompt" class="block text-white font-semibold mb-2">API Description *</label>
+                    <textarea id="prompt" name="prompt" rows="4" required
+                              class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                              placeholder="Describe what your API should do (e.g., 'Extract names and dates from uploaded PDF files')"></textarea>
+                </div>
+
+                <!-- Optional Fields Row -->
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="sampleInput" class="block text-white font-semibold mb-2">Sample Input (Optional)</label>
+                        <textarea id="sampleInput" name="sampleInput" rows="3"
+                                  class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                                  placeholder="Example input data your API expects"></textarea>
+                    </div>
+                    <div>
+                        <label for="expectedOutput" class="block text-white font-semibold mb-2">Expected Output (Optional)</label>
+                        <textarea id="expectedOutput" name="expectedOutput" rows="3"
+                                  class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                                  placeholder="Expected output format"></textarea>
+                    </div>
+                </div>
+
+                <!-- API Name -->
+                <div>
+                    <label for="apiName" class="block text-white font-semibold mb-2">API Name (Optional)</label>
+                    <input type="text" id="apiName" name="apiName"
+                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                           placeholder="Custom name for your API (auto-generated if empty)">
+                </div>
+
+                <!-- Submit Button -->
+                <div class="text-center">
+                    <button type="submit" id="generateBtn"
+                            class="bg-white text-purple-700 font-bold py-3 px-8 rounded-full hover:bg-opacity-90 transition duration-300 shadow-lg">
+                        <span id="generateBtnText">🚀 Generate API</span>
+                        <span id="generateBtnLoading" class="hidden">
+                            <svg class="loading w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Generating...
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="hidden max-w-4xl mx-auto">
+            <!-- Success Card -->
+            <div id="successCard" class="glass rounded-2xl p-8 mb-8 fade-in">
+                <div class="text-center mb-6">
+                    <h2 class="text-3xl font-bold text-white mb-2">🎉 API Generated Successfully!</h2>
+                    <p class="text-white opacity-90">Your API is ready to use</p>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6">
+                    <!-- Endpoint Info -->
+                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                        <h3 class="text-white font-semibold mb-2">📡 Endpoint URL</h3>
+                        <div class="bg-black bg-opacity-50 rounded p-3">
+                            <code id="endpointUrl" class="text-green-300 text-sm break-all"></code>
+                        </div>
+                        <button onclick="copyToClipboard('endpointUrl')" 
+                                class="mt-2 text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                            Copy URL
+                        </button>
+                    </div>
+
+                    <!-- Quick Test -->
+                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                        <h3 class="text-white font-semibold mb-2">🧪 Quick Test</h3>
+                        <div class="space-y-2">
+                            <input type="file" id="testFile" class="text-white text-sm">
+                            <textarea id="testInput" placeholder="JSON input data" 
+                                      class="w-full p-2 text-sm rounded bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70"></textarea>
+                            <button onclick="testAPI()" 
+                                    class="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 text-sm">
+                                Test API
+                            </button>
+                        </div>
+                        <div id="testResult" class="mt-2 text-xs"></div>
+                    </div>
+                </div>
+
+                <!-- Documentation -->
+                <div class="mt-6">
+                    <h3 class="text-white font-semibold mb-2">📚 Documentation</h3>
+                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                        <div id="documentation" class="text-white text-sm whitespace-pre-wrap"></div>
+                    </div>
+                </div>
+
+                <!-- cURL Example -->
+                <div class="mt-6">
+                    <h3 class="text-white font-semibold mb-2">💻 cURL Example</h3>
+                    <div class="bg-black bg-opacity-50 rounded-lg p-4">
+                        <pre><code id="curlExample" class="language-bash text-sm"></code></pre>
+                        <button onclick="copyToClipboard('curlExample')" 
+                                class="mt-2 text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                            Copy Command
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Section -->
+        <div id="errorCard" class="hidden max-w-4xl mx-auto glass rounded-2xl p-8 mb-8">
+            <div class="text-center">
+                <h2 class="text-2xl font-bold text-red-300 mb-4">❌ Error</h2>
+                <p id="errorMessage" class="text-white"></p>
+                <button onclick="hideError()" 
+                        class="mt-4 bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600">
+                    Try Again
+                </button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center text-white opacity-70 mt-12">
+            <p>Built with ❤️ using FastAPI + OpenAI GPT-4o</p>
+        </div>
+    </div>
+
+    <script>
+        let currentEndpoint = '';
+        let currentUserId = '';
+        let currentApiSlug = '';
+
+        document.getElementById('apiForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = {
+                prompt: formData.get('prompt'),
+                sample_input: formData.get('sampleInput') || null,
+                expected_output: formData.get('expectedOutput') || null,
+                user_id: formData.get('userId'),
+                api_name: formData.get('apiName') || null
+            };
+
+            // Show loading state
+            document.getElementById('generateBtnText').classList.add('hidden');
+            document.getElementById('generateBtnLoading').classList.remove('hidden');
+            document.getElementById('generateBtn').disabled = true;
+
+            try {
+                const response = await fetch('/generate-api', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showSuccess(result);
+                } else {
+                    showError(result.message || 'Unknown error occurred');
+                }
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            } finally {
+                // Reset button state
+                document.getElementById('generateBtnText').classList.remove('hidden');
+                document.getElementById('generateBtnLoading').classList.add('hidden');
+                document.getElementById('generateBtn').disabled = false;
+            }
+        });
+
+        function showSuccess(result) {
+            currentEndpoint = window.location.origin + result.endpoint_url;
+            currentUserId = result.user_id;
+            currentApiSlug = result.api_slug;
+
+            document.getElementById('endpointUrl').textContent = currentEndpoint;
+            document.getElementById('documentation').textContent = result.documentation;
+            document.getElementById('curlExample').textContent = result.curl_example;
+            
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('errorCard').classList.add('hidden');
+            
+            // Highlight code
+            Prism.highlightAll();
+            
+            // Scroll to results
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorCard').classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+            
+            document.getElementById('errorCard').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function hideError() {
+            document.getElementById('errorCard').classList.add('hidden');
+        }
+
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                // Show feedback
+                const button = event.target;
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.classList.add('bg-green-500');
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('bg-green-500');
+                }, 2000);
+            });
+        }
+
+        async function testAPI() {
+            if (!currentEndpoint) return;
+
+            const fileInput = document.getElementById('testFile');
+            const textInput = document.getElementById('testInput');
+            const resultDiv = document.getElementById('testResult');
+
+            const formData = new FormData();
+            
+            if (fileInput.files[0]) {
+                formData.append('file', fileInput.files[0]);
+            }
+            
+            if (textInput.value.trim()) {
+                formData.append('input_data', textInput.value);
+            }
+
+            resultDiv.innerHTML = '<span class="text-yellow-300">Testing...</span>';
+
+            try {
+                const response = await fetch(currentEndpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `<span class="text-green-300">✅ Success!</span><br><pre class="text-xs mt-1">${JSON.stringify(result.result, null, 2)}</pre>`;
+                } else {
+                    resultDiv.innerHTML = `<span class="text-red-300">❌ Error: ${result.error}</span>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<span class="text-red-300">❌ Network Error: ${error.message}</span>`;
+            }
+        }
+
+        // Generate a random user ID if not provided
+        document.addEventListener('DOMContentLoaded', () => {
+            const userIdField = document.getElementById('userId');
+            if (!userIdField.value) {
+                userIdField.value = 'user_' + Math.random().toString(36).substr(2, 8);
+            }
+        });
+    </script>
+</body>
+</html> 

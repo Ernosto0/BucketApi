@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""
+AI-Powered API Generator
+Main entry point for the application
+"""
+
+import uvicorn
+from app.main import app
+from app.config import settings
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        reload_dirs=["app"],
+        log_level="info"
+    ) 
+
+print(settings.OPENAI_API_KEY)
