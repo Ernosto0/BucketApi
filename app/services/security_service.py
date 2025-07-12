@@ -30,13 +30,18 @@ class SecurityService:
             # Allow os.getenv() but block dangerous os operations
         ]
         
-        # Allowed safe imports (including HTTP libraries for AI API calls)
-        self.allowed_imports = {
-            'json', 're', 'datetime', 'math', 'base64', 'hashlib', 
-            'typing', 'collections', 'itertools', 'functools',
-            'string', 'random', 'time', 'calendar', 'decimal',
-            'requests', 'urllib', 'http', 'httpx', 'openai', 'os',
-            'dotenv', 'PyPDF2', 'io'
+        # Forbidden dangerous imports
+        self.forbidden_imports = {
+            'subprocess', 'sys', 'importlib', 'builtins', '__builtin__',
+            'ctypes', 'multiprocessing', 'threading', 'socket', 'ssl',
+            'ftplib', 'telnetlib', 'smtplib', 'imaplib', 'poplib',
+            'webbrowser', 'tempfile', 'shutil', 'pickle', 'marshal',
+            'shelve', 'dbm', 'sqlite3', 'code', 'codeop', 'py_compile',
+            'compileall', 'dis', 'inspect', 'pkgutil', 'platform',
+            'resource', 'gc', 'weakref', 'copy_reg', 'new', 'imp',
+            'zipimport', 'runpy', 'ast', 'symtable', 'keyword',
+            'token', 'tokenize', 'tabnanny', 'pyclbr', 'modulefinder',
+            'trace', 'linecache', 'site', 'sysconfig'
         }
     
     def validate_code(self, code: str) -> Tuple[bool, List[str]]:
@@ -44,6 +49,10 @@ class SecurityService:
         Validate generated code for security issues.
         Returns (is_safe, list_of_violations)
         """
+        # If security service is disabled, skip validation
+        if not settings.SECURITY_SERVICE_ENABLED:
+            return True, []
+        
         violations = []
         
         # Check for forbidden keywords
@@ -85,7 +94,7 @@ class SecurityService:
         return violations
     
     def _check_imports(self, code: str) -> List[str]:
-        """Check if all imports are in the allowed list."""
+        """Check if any imports are in the forbidden list."""
         violations = []
         
         # Find all import statements
@@ -94,8 +103,8 @@ class SecurityService:
         
         for match in matches:
             module = match[0] or match[1]  # import module or from module import
-            if module and module not in self.allowed_imports:
-                violations.append(f"Unauthorized import detected: '{module}'")
+            if module and module in self.forbidden_imports:
+                violations.append(f"Forbidden import detected: '{module}'")
         
         return violations
     
@@ -144,15 +153,18 @@ class SecurityService:
     
     def sanitize_code(self, code: str) -> str:
         """Apply basic sanitization to the code."""
+        # If security service is disabled, return code as-is
+        if not settings.SECURITY_SERVICE_ENABLED:
+            return code
+        
         # Remove any shell commands or system calls
         sanitized = re.sub(r'os\.system\([^)]+\)', '', code)
         sanitized = re.sub(r'subprocess\.[^(]+\([^)]+\)', '', sanitized)
         
         # Remove dangerous imports
-        for keyword in self.forbidden_keywords:
-            if keyword in ['os', 'sys', 'subprocess']:
-                sanitized = re.sub(f'import\\s+{keyword}', '', sanitized)
-                sanitized = re.sub(f'from\\s+{keyword}\\s+import', '', sanitized)
+        for module in self.forbidden_imports:
+            sanitized = re.sub(f'import\\s+{module}', '', sanitized)
+            sanitized = re.sub(f'from\\s+{module}\\s+import', '', sanitized)
         
         return sanitized
 

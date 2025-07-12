@@ -16,7 +16,8 @@ from .models import (
     SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
     UserCreate, UserLogin, LoginResponse, RegisterResponse, User, UserProfile, Token
 )
-from .services.openai_service import openai_service
+from .services.claude_service import claude_service
+from .services.code_debugger import code_debugger
 from .services.security_service import security_service
 from .services.file_service import file_service
 from .services.auth_service import auth_service
@@ -210,26 +211,37 @@ async def generate_api(request: APIGenerationRequest):
     """
     logger.info(f"Generating API for user {request.user_id} with prompt: {request.prompt[:100]}...")
     try:
-        # Validate OpenAI API key
-        if not settings.OPENAI_API_KEY:
-            logger.error("OpenAI API key not configured")
+        # Validate Claude API key
+        if not settings.CLAUDE_API_KEY:
+            logger.error("Claude API key not configured")
             raise HTTPException(
                 status_code=500, 
-                detail="OpenAI API key not configured"
+                detail="Claude API key not configured"
             )
         
-        # Generate API code using OpenAI
-        logger.info("Calling OpenAI service to generate code...")
-        code = await openai_service.generate_api_code(
+        # Generate API code using Claude
+        logger.info("Calling Claude service to generate code...")
+        raw_code = await claude_service.generate_api_code(
             prompt=request.prompt,
             sample_input=request.sample_input,
             expected_output=request.expected_output
         )
         logger.info("Code generation completed successfully")
-        logger.debug(f"Generated code preview: {code[:300]}...")
+        logger.debug(f"Generated code preview: {raw_code[:300]}...")
+        
+        # Debug and fix the generated code
+        logger.info("Analyzing and fixing generated code...")
+        code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
+            raw_code, request.prompt
+        )
+        
+        if issues_found:
+            logger.info(f"Code debugger found {len(issues_found)} issues: {issues_found}")
+        if fixes_applied:
+            logger.info(f"Code debugger applied {len(fixes_applied)} fixes: {fixes_applied}")
         
         # Validate code for security
-        logger.info("Validating generated code for security...")
+        logger.info("Validating debugged code for security...")
         is_safe, violations = security_service.validate_code(code)
         logger.info(f"Security validation result: safe={is_safe}, violations={len(violations)}")
         if violations:
@@ -254,7 +266,7 @@ async def generate_api(request: APIGenerationRequest):
         file_service.save_api_code(api_slug, code)
         
         # Generate documentation
-        documentation, curl_example = await openai_service.generate_documentation(
+        documentation, curl_example = await claude_service.generate_documentation(
             code=code, 
             prompt=request.prompt
         )
@@ -274,7 +286,12 @@ async def generate_api(request: APIGenerationRequest):
             curl_example=curl_example,
             api_slug=clean_slug,
             user_id=request.user_id,
-            generated_at=datetime.now()
+            generated_at=datetime.now(),
+            debug_info={
+                "issues_found": issues_found,
+                "fixes_applied": fixes_applied,
+                "code_quality": "high" if not issues_found else "improved"
+            }
         )
         
     except HTTPException:

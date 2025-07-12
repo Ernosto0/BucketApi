@@ -10,6 +10,10 @@ class Settings:
     OPENAI_MODEL: str = "gpt-4o"
     print(OPENAI_API_KEY)
     
+    # Claude Configuration
+    CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
+    CLAUDE_MODEL: str = "claude-3-5-sonnet-20241022"
+    
     # Application Configuration
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
@@ -19,6 +23,8 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # Security Configuration
+    SECURITY_SERVICE_ENABLED: bool = os.getenv("SECURITY_SERVICE_ENABLED", "true").lower() == "true"
+    print("security service enabled", SECURITY_SERVICE_ENABLED)
     FORBIDDEN_KEYWORDS: Set[str] = {
         "os", "subprocess", "eval", "exec", "requests", "urllib", 
         "socket", "import", "__import__", "open", "file", "input",

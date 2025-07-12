@@ -57,6 +57,7 @@ class APIGenerationResponse(BaseModel):
     api_slug: Optional[str] = None
     user_id: Optional[str] = None
     generated_at: Optional[datetime] = None
+    debug_info: Optional[Dict[str, Any]] = None
 
 class APIExecutionRequest(BaseModel):
     file_data: Optional[str] = Field(None, description="Base64 encoded file data")
