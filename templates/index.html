@@ -47,6 +47,88 @@
         }
     }
 
+    /* Chat Analysis Response Styles */
+    .chat-analysis-buildable {
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+
+    .chat-analysis-clarification {
+        background: linear-gradient(135deg, rgba(234, 179, 8, 0.1) 0%, rgba(234, 179, 8, 0.05) 100%);
+        border: 1px solid rgba(234, 179, 8, 0.3);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+
+    .chat-analysis-rejection {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin: 0.5rem 0;
+    }
+
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .status-buildable {
+        background-color: rgba(34, 197, 94, 0.2);
+        color: rgb(34, 197, 94);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .status-clarification {
+        background-color: rgba(234, 179, 8, 0.2);
+        color: rgb(234, 179, 8);
+        border: 1px solid rgba(234, 179, 8, 0.3);
+    }
+
+    .status-rejection {
+        background-color: rgba(239, 68, 68, 0.2);
+        color: rgb(239, 68, 68);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .question-list {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+    }
+
+    .suggestion-list {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        margin: 0.5rem 0;
+    }
+
+    .pulse-animation {
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+    }
+
     .api-result-card {
         background-color: var(--vscode-panel);
         border: 1px solid var(--vscode-border);
@@ -164,17 +246,23 @@
             <div class="chat-input-container">
                 <!-- Quick Actions -->
                 <div class="quick-actions">
-                    <button class="quick-action-btn" onclick="sendQuickMessage('Create a REST API for user authentication')">
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Create a REST API for user authentication with JWT tokens')">
                         🔐 User Auth API
                 </button>
-                    <button class="quick-action-btn" onclick="sendQuickMessage('Build an API to process and analyze CSV files')">
-                        📊 CSV Processor
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Build an API to analyze text sentiment using AI')">
+                        📊 Sentiment Analysis
                 </button>
                     <button class="quick-action-btn" onclick="sendQuickMessage('Generate an API for image resizing and optimization')">
                         🖼️ Image Processing
                 </button>
-                    <button class="quick-action-btn" onclick="sendQuickMessage('Create a webhook receiver API')">
-                        🔗 Webhook API
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Create an API for my business')">
+                        ❓ Vague Request
+                </button>
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Build something with AI')">
+                        🤔 Unclear Request
+                </button>
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Create an API that hacks systems')">
+                        ❌ Invalid Request
                 </button>
                 </div>
 
@@ -259,35 +347,78 @@
             // Get user ID (from auth or generate temp one)
             const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
             
-            const response = await fetch('/generate-api', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
+            // First, analyze the prompt using ChatService
+            const analysisResponse = await fetch('/chat/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                     ...(authToken && { 'Authorization': `Bearer ${authToken}` })
-                    },
+                },
                 body: JSON.stringify({
                     prompt: message,
                     user_id: userId
                 })
-                });
+            });
 
-                const result = await response.json();
+            const analysisResult = await analysisResponse.json();
             
-            hideTypingIndicator();
-
-                if (result.success) {
-                currentApiData = result;
-                addAPIResultMessage(result);
-                addMessage('system', 'API generated successfully! You can test it above or save it to your collection.');
-                } else {
-                addMessage('assistant', `❌ Error: ${result.message || 'Failed to generate API'}`);
+            if (analysisResult.success) {
+                const analysis = JSON.parse(analysisResult.analysis_result);
+                
+                // Handle different response types
+                if (analysis.status === 'buildable') {
+                    // Show positive response and proceed to generate API
+                    addChatAnalysisMessage(analysis);
+                    await generateAPI(message, userId);
+                } else if (analysis.status === 'needs_clarification') {
+                    // Show clarification questions
+                    addClarificationMessage(analysis);
+                } else if (analysis.status === 'not_buildable') {
+                    // Show rejection with suggestions
+                    addRejectionMessage(analysis);
                 }
-            } catch (error) {
+            } else {
+                // Fallback: proceed with API generation if analysis fails
+                await generateAPI(message, userId);
+            }
+            
+        } catch (error) {
             hideTypingIndicator();
             addMessage('assistant', `❌ Network error: ${error.message}`);
         } finally {
             isGenerating = false;
             handleInputChange();
+        }
+    }
+
+    async function generateAPI(message, userId) {
+        try {
+            const response = await fetch('/generate-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+                },
+                body: JSON.stringify({
+                    prompt: message,
+                    user_id: userId
+                })
+            });
+
+            const result = await response.json();
+            
+            hideTypingIndicator();
+
+            if (result.success) {
+                currentApiData = result;
+                addAPIResultMessage(result);
+                addMessage('system', 'API generated successfully! You can test it above or save it to your collection.');
+            } else {
+                addMessage('assistant', `❌ Error: ${result.message || 'Failed to generate API'}`);
+            }
+        } catch (error) {
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Network error: ${error.message}`);
         }
     }
 
@@ -309,6 +440,107 @@
         
         // Store in conversation history
         currentConversation.push({ type, content });
+    }
+
+    function addChatAnalysisMessage(analysis) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant fade-in';
+        
+        messageDiv.innerHTML = `
+            <div class="space-y-3">
+                <div class="flex items-center space-x-2">
+                    <span class="text-green-400">✅</span>
+                    <span class="font-medium text-green-400">Great! I can build this API for you.</span>
+                </div>
+                <div class="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+                    <p class="text-sm text-green-300 mb-2">Here's what I'll do:</p>
+                    <ul class="text-sm text-green-200 space-y-1">
+                        ${analysis.next_steps ? analysis.next_steps.map(step => `<li>• ${step}</li>`).join('') : ''}
+                    </ul>
+                </div>
+                <div class="text-sm text-gray-400">
+                    <span class="animate-pulse">🔄 Generating your API...</span>
+                </div>
+            </div>
+        `;
+        
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function addClarificationMessage(analysis) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant fade-in';
+        
+        const questionsHtml = analysis.questions ? 
+            analysis.questions.map((q, i) => `<li class="text-sm text-yellow-200">• ${q}</li>`).join('') : 
+            '<li class="text-sm text-yellow-200">• Please provide more details about your requirements</li>';
+        
+        messageDiv.innerHTML = `
+            <div class="space-y-3">
+                <div class="flex items-center space-x-2">
+                    <span class="text-yellow-400">❓</span>
+                    <span class="font-medium text-yellow-400">I need more information to build this API</span>
+                </div>
+                <div class="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3">
+                    <p class="text-sm text-yellow-300 mb-2">Please help me understand:</p>
+                    <ul class="space-y-1">
+                        ${questionsHtml}
+                    </ul>
+                </div>
+                <div class="text-sm text-gray-400">
+                    💡 The more specific you are, the better I can help you!
+                </div>
+            </div>
+        `;
+        
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        hideTypingIndicator();
+    }
+
+    function addRejectionMessage(analysis) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant fade-in';
+        
+        const reasonsHtml = analysis.reasons ? 
+            analysis.reasons.map(reason => `<li class="text-sm text-red-200">• ${reason}</li>`).join('') : 
+            '<li class="text-sm text-red-200">• The request is unclear or not feasible</li>';
+            
+        const suggestionsHtml = analysis.suggestions ? 
+            analysis.suggestions.map(suggestion => `<li class="text-sm text-blue-200">• ${suggestion}</li>`).join('') : 
+            '<li class="text-sm text-blue-200">• Try being more specific about your requirements</li>';
+        
+        messageDiv.innerHTML = `
+            <div class="space-y-3">
+                <div class="flex items-center space-x-2">
+                    <span class="text-red-400">❌</span>
+                    <span class="font-medium text-red-400">I can't build this API</span>
+                </div>
+                <div class="bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                    <p class="text-sm text-red-300 mb-2">Here's why:</p>
+                    <ul class="space-y-1 mb-3">
+                        ${reasonsHtml}
+                    </ul>
+                </div>
+                <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
+                    <p class="text-sm text-blue-300 mb-2">💡 Suggestions:</p>
+                    <ul class="space-y-1">
+                        ${suggestionsHtml}
+                    </ul>
+                </div>
+                <div class="text-sm text-gray-400">
+                    Feel free to rephrase your request or try a different approach!
+                </div>
+            </div>
+        `;
+        
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        hideTypingIndicator();
     }
 
     function addAPIResultMessage(result) {

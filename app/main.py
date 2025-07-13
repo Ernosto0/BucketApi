@@ -14,13 +14,15 @@ from .models import (
     APIGenerationRequest, APIGenerationResponse, 
     APIExecutionRequest, APIExecutionResponse, HealthResponse,
     SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
-    UserCreate, UserLogin, LoginResponse, RegisterResponse, User, UserProfile, Token
+    UserCreate, UserLogin, LoginResponse, RegisterResponse, User, UserProfile, Token,
+    ChatAnalysisRequest, ChatAnalysisResponse
 )
 from .services.claude_service import claude_service
 from .services.code_debugger import code_debugger
 from .services.security_service import security_service
 from .services.file_service import file_service
 from .services.auth_service import auth_service
+from .services.chatservice import ChatService
 from .services.database import init_database
 from .config import settings
 
@@ -47,6 +49,9 @@ async def startup_event():
     cleaned_count = file_service.cleanup_orphaned_json_files()
     if cleaned_count > 0:
         logger.info(f"Cleaned up {cleaned_count} orphaned JSON metadata files")
+
+# Initialize ChatService
+chat_service = ChatService()
 
 # Add CORS middleware
 app.add_middleware(
@@ -219,13 +224,56 @@ async def get_current_user_info(current_user: Optional[User] = Depends(get_curre
     else:
         return {"authenticated": False, "user": None}
 
+@app.post("/chat/analyze", response_model=ChatAnalysisResponse)
+async def analyze_chat_prompt(request: ChatAnalysisRequest):
+    """
+    Analyze user prompt to determine if it's buildable, needs clarification, or is not feasible.
+    """
+    logger.info(f"Analyzing chat prompt for user {request.user_id}: {request.prompt[:100]}...")
+    try:
+        # Analyze the prompt using ChatService
+        analysis_result = await chat_service.CanIBuildThis(request.user_id, request.prompt)
+        
+        return ChatAnalysisResponse(
+            success=True,
+            user_id=request.user_id,
+            prompt=request.prompt,
+            analysis_result=analysis_result,
+            timestamp=datetime.now()
+        )
+        
+    except Exception as e:
+        logger.error(f"Error analyzing chat prompt: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze prompt: {str(e)}"
+        )
+
 @app.post("/generate-api", response_model=APIGenerationResponse)
 async def generate_api(request: APIGenerationRequest):
     """
     Generate a new API based on user prompt.
+    First analyzes the prompt, then generates if buildable.
     """
     logger.info(f"Generating API for user {request.user_id} with prompt: {request.prompt[:100]}...")
     try:
+        # First analyze the prompt using ChatService
+        logger.info("Analyzing prompt with ChatService...")
+        analysis_result = await chat_service.CanIBuildThis(request.user_id, request.prompt)
+        
+        # Parse the analysis result to check if it's buildable
+        import json
+        try:
+            analysis_data = json.loads(analysis_result)
+            if analysis_data.get("status") != "buildable":
+                logger.warning(f"Prompt analysis indicated non-buildable: {analysis_data.get('status')}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Prompt analysis result: {analysis_result}"
+                )
+        except json.JSONDecodeError:
+            logger.warning("Could not parse analysis result, proceeding with generation")
+        
         # Validate Claude API key
         if not settings.CLAUDE_API_KEY:
             logger.error("Claude API key not configured")
@@ -305,7 +353,8 @@ async def generate_api(request: APIGenerationRequest):
             debug_info={
                 "issues_found": issues_found,
                 "fixes_applied": fixes_applied,
-                "code_quality": "high" if not issues_found else "improved"
+                "code_quality": "high" if not issues_found else "improved",
+                "chat_analysis": analysis_result
             }
         )
         

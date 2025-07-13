@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from datetime import datetime
+from typing import AsyncGenerator
 import os
 from ..config import settings
 
@@ -65,7 +66,7 @@ class SavedAPIDB(Base):
     is_saved = Column(Boolean, default=True, nullable=False)
 
 # Database dependency
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get database session."""
     async with AsyncSessionLocal() as session:
         try:

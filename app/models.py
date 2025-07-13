@@ -125,3 +125,23 @@ class RegisterResponse(BaseModel):
     success: bool
     message: str
     user: Optional[User] = None 
+
+# Chat Models
+class ChatMessage(BaseModel):
+    id: str
+    user_id: str
+    message: str
+    response: str
+    timestamp: datetime
+    analysis_result: Optional[str] = None
+
+class ChatAnalysisRequest(BaseModel):
+    user_id: str = Field(..., description="User identifier")
+    prompt: str = Field(..., description="User's API request prompt")
+
+class ChatAnalysisResponse(BaseModel):
+    success: bool
+    user_id: str
+    prompt: str
+    analysis_result: str
+    timestamp: datetime 
