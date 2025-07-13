@@ -1,704 +1,424 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-Powered API Generator</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/themes/prism-tomorrow.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/components/prism-core.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/autoloader/prism-autoloader.min.js"></script>
+{% extends "base.html" %}
+
+{% block title %}AI API Generator - Chat Interface{% endblock %}
+
+{% block extra_head %}
     <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    .typing-indicator {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background-color: var(--vscode-panel);
+        border: 1px solid var(--vscode-border);
+        border-radius: 0.5rem;
+        margin-right: auto;
+        max-width: 70%;
+        margin-bottom: 1rem;
+    }
+
+    .typing-dots {
+        display: flex;
+        align-items: center;
+        space-x: 0.25rem;
+    }
+
+    .typing-dot {
+        width: 6px;
+        height: 6px;
+        background-color: var(--vscode-text-muted);
+        border-radius: 50%;
+        animation: typing 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+    @keyframes typing {
+        0%, 60%, 100% {
+            opacity: 0.3;
         }
-        .glass {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        30% {
+            opacity: 1;
         }
-        .loading {
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+    }
+
+    .api-result-card {
+        background-color: var(--vscode-panel);
+        border: 1px solid var(--vscode-border);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin-top: 0.5rem;
+    }
+
+    .code-block {
+        background-color: var(--vscode-bg);
+        border: 1px solid var(--vscode-border);
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 0.875rem;
+        overflow-x: auto;
+    }
+
+    .success-indicator {
+        color: var(--vscode-green);
+    }
+
+    .error-indicator {
+        color: var(--vscode-red);
+    }
+
+    .warning-indicator {
+        color: var(--vscode-yellow);
+    }
+
+    .info-indicator {
+        color: var(--vscode-blue);
+    }
+
+    .chat-input-area {
+        position: relative;
+    }
+
+    .chat-input {
+        width: 100%;
+        min-height: 60px;
+        max-height: 120px;
+        padding: 0.75rem 3rem 0.75rem 1rem;
+        border-radius: 0.5rem;
+        resize: none;
+        font-family: inherit;
+    }
+
+    .send-button {
+        position: absolute;
+        right: 0.5rem;
+        bottom: 0.5rem;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 0.375rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .send-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .quick-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .quick-action-btn {
+        background-color: var(--vscode-sidebar);
+        border: 1px solid var(--vscode-border);
+        color: var(--vscode-text);
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .quick-action-btn:hover {
+        background-color: var(--vscode-hover);
+        border-color: var(--vscode-blue);
+    }
+
+
     </style>
-</head>
-<body class="gradient-bg min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <!-- Header with Auth -->
-        <div class="flex justify-between items-center mb-8">
-            <div class="text-center flex-1">
-                <h1 class="text-5xl font-bold text-white mb-4">🤖 AI-Powered API Generator</h1>
-                <p class="text-xl text-white opacity-90">Describe your API in plain text and get a working endpoint instantly!</p>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <!-- Main Chat Interface -->
+    <div class="max-w-4xl mx-auto">
+        <!-- Chat Container -->
+        <div class="vscode-panel rounded-lg shadow-lg chat-container">
+            <!-- Chat Messages -->
+            <div id="chatMessages" class="chat-messages">
+                <!-- Welcome Message -->
+                <div class="message system fade-in">
+                    <div class="flex items-center justify-center space-x-2">
+                        <span class="text-2xl">🤖</span>
+                        <div>
+                            <p class="font-medium">Welcome to AI API Generator!</p>
+                            <p class="text-xs mt-1">Describe what kind of API you need and I'll generate it for you.</p>
             </div>
-            <div id="authButtons" class="flex space-x-4">
-                <button onclick="showLogin()" 
-                        class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition duration-300">
-                    Login
-                </button>
-                <button onclick="showRegister()" 
-                        class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition duration-300">
-                    Register
-                </button>
-            </div>
-            <div id="userMenu" class="hidden flex items-center space-x-4">
-                <span id="welcomeText" class="text-white"></span>
-                <button onclick="showProfile()" 
-                        class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition duration-300">
-                    Profile
-                </button>
-                <button onclick="logout()" 
-                        class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition duration-300">
-                    Logout
-                </button>
-            </div>
-        </div>
-
-        <!-- Login Form -->
-        <div id="loginSection" class="hidden max-w-md mx-auto glass rounded-2xl p-8 mb-8">
-            <h2 class="text-3xl font-bold text-white text-center mb-6">🔐 Login</h2>
-            <form id="loginForm" class="space-y-4">
-                <div>
-                    <input type="email" id="loginEmail" required
-                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                           placeholder="Email Address">
-                </div>
-                <div>
-                    <input type="password" id="loginPassword" required
-                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                           placeholder="Password">
-                </div>
-                <button type="submit" id="loginBtn"
-                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">
-                    Login
-                </button>
-                <div class="text-center">
-                    <button type="button" onclick="showRegister()" class="text-white opacity-70 hover:opacity-100">
-                        Don't have an account? Register here
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Register Form -->
-        <div id="registerSection" class="hidden max-w-md mx-auto glass rounded-2xl p-8 mb-8">
-            <h2 class="text-3xl font-bold text-white text-center mb-6">📝 Register</h2>
-            <form id="registerForm" class="space-y-4">
-                <div>
-                    <input type="email" id="registerEmail" required
-                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                           placeholder="Email Address">
-                </div>
-                <div>
-                    <input type="password" id="registerPassword" required
-                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                           placeholder="Password (6+ characters)">
-                </div>
-                <div>
-                    <input type="password" id="registerPasswordConfirm" required
-                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                           placeholder="Confirm Password">
-                </div>
-                <button type="submit" id="registerBtn"
-                        class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">
-                    Register
-                </button>
-                <div class="text-center">
-                    <button type="button" onclick="showLogin()" class="text-white opacity-70 hover:opacity-100">
-                        Already have an account? Login here
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Main Form Card -->
-        <div id="apiGeneratorSection" class="max-w-4xl mx-auto glass rounded-2xl p-8 mb-8">
-            <form id="apiForm" class="space-y-6">
-                <!-- User ID -->
-                <div>
-                    <label for="userId" class="block text-white font-semibold mb-2">User ID</label>
-                    <input type="text" id="userId" name="userId" required
-                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                           placeholder="Enter your unique user ID (e.g., john_doe)">
-                </div>
-
-                <!-- API Description -->
-                <div>
-                    <label for="prompt" class="block text-white font-semibold mb-2">API Description *</label>
-                    <textarea id="prompt" name="prompt" rows="4" required
-                              class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                              placeholder="Describe what your API should do (e.g., 'Extract names and dates from uploaded PDF files')"></textarea>
-                </div>
-
-                <!-- Optional Fields Row -->
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="sampleInput" class="block text-white font-semibold mb-2">Sample Input (Optional)</label>
-                        <textarea id="sampleInput" name="sampleInput" rows="3"
-                                  class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                                  placeholder="Example input data your API expects"></textarea>
-                    </div>
-                    <div>
-                        <label for="expectedOutput" class="block text-white font-semibold mb-2">Expected Output (Optional)</label>
-                        <textarea id="expectedOutput" name="expectedOutput" rows="3"
-                                  class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                                  placeholder="Expected output format"></textarea>
-                    </div>
-                </div>
-
-                <!-- API Name -->
-                <div>
-                    <label for="apiName" class="block text-white font-semibold mb-2">API Name (Optional)</label>
-                    <input type="text" id="apiName" name="apiName"
-                           class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border border-white border-opacity-30 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
-                           placeholder="Custom name for your API (auto-generated if empty)">
-                </div>
-
-                <!-- Submit Button -->
-                <div class="text-center">
-                    <button type="submit" id="generateBtn"
-                            class="bg-white text-purple-700 font-bold py-3 px-8 rounded-full hover:bg-opacity-90 transition duration-300 shadow-lg">
-                        <span id="generateBtnText">🚀 Generate API</span>
-                        <span id="generateBtnLoading" class="hidden">
-                            <svg class="loading w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            Generating...
-                        </span>
-                    </button>
-                </div>
-            </form>
-        </div>
-
-        <!-- Results Section -->
-        <div id="results" class="hidden max-w-4xl mx-auto">
-            <!-- Success Card -->
-            <div id="successCard" class="glass rounded-2xl p-8 mb-8 fade-in">
-                <div class="text-center mb-6">
-                    <h2 class="text-3xl font-bold text-white mb-2">🎉 API Generated Successfully!</h2>
-                    <p class="text-white opacity-90">Your API is ready to use</p>
-                    
-                    <!-- Save API Button -->
-                    <div class="mt-4">
-                        <button id="saveApiBtn" onclick="saveAPI()" 
-                                class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-6 rounded-full transition duration-300 mr-4">
-                            <span id="saveApiBtnText">💾 Save to My APIs</span>
-                            <span id="saveApiBtnLoading" class="hidden">
-                                <svg class="loading w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                Saving...
-                            </span>
-                        </button>
-                        <button onclick="showMyAPIs()" 
-                                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full transition duration-300">
-                            📋 View My APIs
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="grid md:grid-cols-2 gap-6">
-                    <!-- Endpoint Info -->
-                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
-                        <h3 class="text-white font-semibold mb-2">📡 Endpoint URL</h3>
-                        <div class="bg-black bg-opacity-50 rounded p-3">
-                            <code id="endpointUrl" class="text-green-300 text-sm break-all"></code>
-                        </div>
-                        <button onclick="copyToClipboard('endpointUrl')" 
-                                class="mt-2 text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
-                            Copy URL
-                        </button>
-                    </div>
-
-                    <!-- Quick Test -->
-                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
-                        <h3 class="text-white font-semibold mb-2">🧪 Quick Test</h3>
-                        <div class="space-y-2">
-                            <input type="file" id="testFile" class="text-white text-sm">
-                            <textarea id="testInput" placeholder="JSON input data" 
-                                      class="w-full p-2 text-sm rounded bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70"></textarea>
-                            <button onclick="testAPI()" 
-                                    class="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 text-sm">
-                                Test API
-                            </button>
-                        </div>
-                        <div id="testResult" class="mt-2 text-xs"></div>
-                    </div>
-                </div>
-
-                <!-- Documentation -->
-                <div class="mt-6">
-                    <h3 class="text-white font-semibold mb-2">📚 Documentation</h3>
-                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
-                        <div id="documentation" class="text-white text-sm whitespace-pre-wrap"></div>
-                    </div>
-                </div>
-
-                <!-- cURL Example -->
-                <div class="mt-6">
-                    <h3 class="text-white font-semibold mb-2">💻 cURL Example</h3>
-                    <div class="bg-black bg-opacity-50 rounded-lg p-4">
-                        <pre><code id="curlExample" class="language-bash text-sm"></code></pre>
-                        <button onclick="copyToClipboard('curlExample')" 
-                                class="mt-2 text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
-                            Copy Command
-                        </button>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Error Section -->
-        <div id="errorCard" class="hidden max-w-4xl mx-auto glass rounded-2xl p-8 mb-8">
-            <div class="text-center">
-                <h2 class="text-2xl font-bold text-red-300 mb-4">❌ Error</h2>
-                <p id="errorMessage" class="text-white"></p>
-                <button onclick="hideError()" 
-                        class="mt-4 bg-red-500 text-white px-6 py-2 rounded hover:bg-red-600">
-                    Try Again
+            <!-- Chat Input -->
+            <div class="chat-input-container">
+                <!-- Quick Actions -->
+                <div class="quick-actions">
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Create a REST API for user authentication')">
+                        🔐 User Auth API
                 </button>
-            </div>
-        </div>
-
-        <!-- Profile Section -->
-        <div id="profileSection" class="hidden max-w-6xl mx-auto">
-            <div class="glass rounded-2xl p-8 mb-8">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-3xl font-bold text-white">👤 My Profile</h2>
-                    <button onclick="hideProfile()" 
-                            class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
-                        ← Back to Generator
-                    </button>
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Build an API to process and analyze CSV files')">
+                        📊 CSV Processor
+                </button>
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Generate an API for image resizing and optimization')">
+                        🖼️ Image Processing
+                </button>
+                    <button class="quick-action-btn" onclick="sendQuickMessage('Create a webhook receiver API')">
+                        🔗 Webhook API
+                </button>
                 </div>
-                
-                <div id="profileContent">
-                    <div id="profileLoading" class="text-center text-white">
-                        <svg class="loading w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+
+                <!-- Input Area -->
+                <div class="chat-input-area">
+                    <textarea 
+                        id="chatInput" 
+                        class="chat-input vscode-input" 
+                        placeholder="Describe your API requirements... (e.g., 'Create an API that extracts text from PDF files')"
+                        rows="2"
+                        onkeydown="handleKeyDown(event)"
+                        oninput="handleInputChange()"
+                    ></textarea>
+                    <button 
+                        id="sendButton" 
+                        class="send-button vscode-button" 
+                        onclick="sendMessage()"
+                        disabled
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
                         </svg>
-                        Loading profile...
-                    </div>
-                    
-                    <div id="profileInfo" class="hidden">
-                        <!-- Profile info will be loaded here -->
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- My APIs Section -->
-        <div id="myApisSection" class="hidden max-w-6xl mx-auto">
-            <div class="glass rounded-2xl p-8 mb-8">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-3xl font-bold text-white">📋 My Saved APIs</h2>
-                    <button onclick="hideMyAPIs()" 
-                            class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">
-                        ← Back to Generator
                     </button>
                 </div>
-                
-                <div id="myApisContent">
-                    <div id="myApisLoading" class="text-center text-white">
-                        <svg class="loading w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Loading your APIs...
-                    </div>
-                    
-                    <div id="noApisMessage" class="hidden text-center text-white opacity-70 py-8">
-                        <p class="text-xl mb-4">No saved APIs yet</p>
-                        <p>Generate and save some APIs to see them here!</p>
-                    </div>
-                    
-                    <div id="myApisList" class="hidden grid gap-6">
-                        <!-- APIs will be dynamically loaded here -->
-                    </div>
-                </div>
+            </div>
+        </div>
             </div>
         </div>
 
-        <!-- Footer -->
-        <div class="text-center text-white opacity-70 mt-12">
-            <p>Built with ❤️ using FastAPI + OpenAI GPT-4o</p>
-        </div>
-    </div>
 
+
+
+
+
+{% endblock %}
+
+{% block extra_scripts %}
     <script>
-        let currentEndpoint = '';
-        let currentUserId = '';
-        let currentApiSlug = '';
-        let currentApiData = null; // Store full API generation data
-        let authToken = localStorage.getItem('authToken');
-        let currentUser = null;
+    let currentConversation = [];
+    let isGenerating = false;
+    let currentApiData = null;
 
-        document.getElementById('apiForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+    // Chat functionality
+    function handleKeyDown(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
+    }
+
+    function handleInputChange() {
+        const input = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        sendButton.disabled = !input.value.trim() || isGenerating;
+    }
+
+    function sendQuickMessage(message) {
+        document.getElementById('chatInput').value = message;
+        handleInputChange();
+        sendMessage();
+    }
+
+    async function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        
+        if (!message || isGenerating) return;
+
+        // Add user message to chat
+        addMessage('user', message);
+        
+        // Clear input
+        input.value = '';
+        handleInputChange();
+
+        // Show typing indicator
+        showTypingIndicator();
+
+        try {
+            isGenerating = true;
             
-            const formData = new FormData(e.target);
-            const data = {
-                prompt: formData.get('prompt'),
-                sample_input: formData.get('sampleInput') || null,
-                expected_output: formData.get('expectedOutput') || null,
-                user_id: formData.get('userId'),
-                api_name: formData.get('apiName') || null
-            };
-
-            // Show loading state
-            document.getElementById('generateBtnText').classList.add('hidden');
-            document.getElementById('generateBtnLoading').classList.remove('hidden');
-            document.getElementById('generateBtn').disabled = true;
-
-            try {
-                const response = await fetch('/generate-api', {
+            // Get user ID (from auth or generate temp one)
+            const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
+            
+            const response = await fetch('/generate-api', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                    ...(authToken && { 'Authorization': `Bearer ${authToken}` })
                     },
-                    body: JSON.stringify(data)
+                body: JSON.stringify({
+                    prompt: message,
+                    user_id: userId
+                })
                 });
 
                 const result = await response.json();
+            
+            hideTypingIndicator();
 
                 if (result.success) {
-                    showSuccess(result);
+                currentApiData = result;
+                addAPIResultMessage(result);
+                addMessage('system', 'API generated successfully! You can test it above or save it to your collection.');
                 } else {
-                    showError(result.message || 'Unknown error occurred');
+                addMessage('assistant', `❌ Error: ${result.message || 'Failed to generate API'}`);
                 }
             } catch (error) {
-                showError('Network error: ' + error.message);
-            } finally {
-                // Reset button state
-                document.getElementById('generateBtnText').classList.remove('hidden');
-                document.getElementById('generateBtnLoading').classList.add('hidden');
-                document.getElementById('generateBtn').disabled = false;
-            }
-        });
-
-        function showSuccess(result) {
-            currentEndpoint = window.location.origin + result.endpoint_url;
-            currentUserId = result.user_id;
-            currentApiSlug = result.api_slug;
-            currentApiData = result; // Store full result data
-
-            document.getElementById('endpointUrl').textContent = currentEndpoint;
-            document.getElementById('documentation').textContent = result.documentation;
-            document.getElementById('curlExample').textContent = result.curl_example;
-            
-            // Reset save button state
-            resetSaveButton();
-            
-            document.getElementById('results').classList.remove('hidden');
-            document.getElementById('errorCard').classList.add('hidden');
-            document.getElementById('myApisSection').classList.add('hidden');
-            
-            // Highlight code
-            Prism.highlightAll();
-            
-            // Scroll to results
-            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Network error: ${error.message}`);
+        } finally {
+            isGenerating = false;
+            handleInputChange();
         }
+    }
 
-        function showError(message) {
-            document.getElementById('errorMessage').textContent = message;
-            document.getElementById('errorCard').classList.remove('hidden');
-            document.getElementById('results').classList.add('hidden');
-            
-            document.getElementById('errorCard').scrollIntoView({ behavior: 'smooth' });
+    function addMessage(type, content) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type} fade-in`;
+        
+        if (type === 'user') {
+            messageDiv.textContent = content;
+        } else if (type === 'assistant') {
+            messageDiv.innerHTML = content;
+        } else if (type === 'system') {
+            messageDiv.innerHTML = `<div class="text-center text-sm">${content}</div>`;
         }
+        
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // Store in conversation history
+        currentConversation.push({ type, content });
+    }
 
-        function hideError() {
-            document.getElementById('errorCard').classList.add('hidden');
-        }
-
-        function copyToClipboard(elementId) {
-            const element = document.getElementById(elementId);
-            const text = element.textContent;
-            
-            navigator.clipboard.writeText(text).then(() => {
-                // Show feedback
-                const button = event.target;
-                const originalText = button.textContent;
-                button.textContent = 'Copied!';
-                button.classList.add('bg-green-500');
-                setTimeout(() => {
-                    button.textContent = originalText;
-                    button.classList.remove('bg-green-500');
-                }, 2000);
-            });
-        }
-
-        async function testAPI() {
-            if (!currentEndpoint) return;
-
-            const fileInput = document.getElementById('testFile');
-            const textInput = document.getElementById('testInput');
-            const resultDiv = document.getElementById('testResult');
-
-            const formData = new FormData();
-            
-            if (fileInput.files[0]) {
-                formData.append('file', fileInput.files[0]);
-            }
-            
-            if (textInput.value.trim()) {
-                formData.append('input_data', textInput.value);
-            }
-
-            resultDiv.innerHTML = '<span class="text-yellow-300">Testing...</span>';
-
-            try {
-                const response = await fetch(currentEndpoint, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-                
-                if (result.success) {
-                    resultDiv.innerHTML = `<span class="text-green-300">✅ Success!</span><br><pre class="text-xs mt-1">${JSON.stringify(result.result, null, 2)}</pre>`;
-                } else {
-                    resultDiv.innerHTML = `<span class="text-red-300">❌ Error: ${result.error}</span>`;
-                }
-            } catch (error) {
-                resultDiv.innerHTML = `<span class="text-red-300">❌ Network Error: ${error.message}</span>`;
-            }
-        }
-
-        // Save API functionality
-        async function saveAPI() {
-            if (!currentApiData || !currentUserId || !currentApiSlug) {
-                alert('No API to save. Please generate an API first.');
-                return;
-            }
-
-            // Show loading state
-            showSaveLoading();
-
-            try {
-                // Get the original form data
-                const formData = new FormData(document.getElementById('apiForm'));
-                
-                const saveRequest = {
-                    user_id: currentUserId,
-                    api_slug: currentApiSlug,
-                    api_name: formData.get('apiName') || `API ${currentApiSlug}`,
-                    prompt: formData.get('prompt'),
-                    endpoint_url: currentApiData.endpoint_url,
-                    documentation: currentApiData.documentation,
-                    curl_example: currentApiData.curl_example,
-                    sample_input: formData.get('sampleInput') || null,
-                    expected_output: formData.get('expectedOutput') || null
-                };
-
-                const response = await fetch('/save-api', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(saveRequest)
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    showSaveSuccess();
-                } else {
-                    showSaveError(result.message || 'Failed to save API');
-                }
-            } catch (error) {
-                showSaveError('Network error: ' + error.message);
-            }
-        }
-
-        function showSaveLoading() {
-            document.getElementById('saveApiBtnText').classList.add('hidden');
-            document.getElementById('saveApiBtnLoading').classList.remove('hidden');
-            document.getElementById('saveApiBtn').disabled = true;
-        }
-
-        function showSaveSuccess() {
-            document.getElementById('saveApiBtnText').innerHTML = '✅ Saved!';
-            document.getElementById('saveApiBtnLoading').classList.add('hidden');
-            document.getElementById('saveApiBtnText').classList.remove('hidden');
-            document.getElementById('saveApiBtn').disabled = true;
-            document.getElementById('saveApiBtn').classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
-            document.getElementById('saveApiBtn').classList.add('bg-green-500');
-        }
-
-        function showSaveError(message) {
-            document.getElementById('saveApiBtnText').innerHTML = '❌ Error';
-            document.getElementById('saveApiBtnLoading').classList.add('hidden');
-            document.getElementById('saveApiBtnText').classList.remove('hidden');
-            document.getElementById('saveApiBtn').disabled = false;
-            alert('Save failed: ' + message);
-            resetSaveButton();
-        }
-
-        function resetSaveButton() {
-            document.getElementById('saveApiBtnText').innerHTML = '💾 Save to My APIs';
-            document.getElementById('saveApiBtnLoading').classList.add('hidden');
-            document.getElementById('saveApiBtnText').classList.remove('hidden');
-            document.getElementById('saveApiBtn').disabled = false;
-            document.getElementById('saveApiBtn').classList.remove('bg-green-500');
-            document.getElementById('saveApiBtn').classList.add('bg-yellow-500', 'hover:bg-yellow-600');
-        }
-
-        // My APIs functionality
-        async function showMyAPIs() {
-            let userId;
-            let headers = {};
-            
-            if (authToken && currentUser) {
-                userId = currentUser.id;
-                headers['Authorization'] = `Bearer ${authToken}`;
-            } else {
-                userId = document.getElementById('userId').value.trim();
-                if (!userId) {
-                    alert('Please enter a User ID first or login');
-                    return;
-                }
-            }
-
-            // Hide other sections and show My APIs
-            document.getElementById('results').classList.add('hidden');
-            document.getElementById('errorCard').classList.add('hidden');
-            document.getElementById('profileSection').classList.add('hidden');
-            document.getElementById('apiGeneratorSection').classList.add('hidden');
-            document.getElementById('myApisSection').classList.remove('hidden');
-            
-            // Show loading state
-            document.getElementById('myApisLoading').classList.remove('hidden');
-            document.getElementById('noApisMessage').classList.add('hidden');
-            document.getElementById('myApisList').classList.add('hidden');
-
-            try {
-                const response = await fetch(`/api/${userId}`, { headers });
-                const result = await response.json();
-
-                document.getElementById('myApisLoading').classList.add('hidden');
-
-                if (result.success && result.apis.length > 0) {
-                    displayAPIs(result.apis);
-                } else {
-                    document.getElementById('noApisMessage').classList.remove('hidden');
-                }
-            } catch (error) {
-                document.getElementById('myApisLoading').classList.add('hidden');
-                alert('Failed to load APIs: ' + error.message);
-                hideMyAPIs();
-            }
-
-            // Scroll to My APIs section
-            document.getElementById('myApisSection').scrollIntoView({ behavior: 'smooth' });
-        }
-
-        function hideMyAPIs() {
-            document.getElementById('myApisSection').classList.add('hidden');
-            showGenerator();
-        }
-
-        function displayAPIs(apis) {
-            const container = document.getElementById('myApisList');
-            container.innerHTML = '';
-
-            apis.forEach(api => {
-                const apiCard = createAPICard(api);
-                container.appendChild(apiCard);
-            });
-
-            document.getElementById('myApisList').classList.remove('hidden');
-        }
-
-        function createAPICard(api) {
-            const card = document.createElement('div');
-            card.className = 'bg-white bg-opacity-10 rounded-lg p-6';
-            
-            const formatDate = (dateStr) => {
-                return new Date(dateStr).toLocaleString();
-            };
-
-            card.innerHTML = `
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="text-xl font-bold text-white mb-2">${api.api_name}</h3>
-                        <p class="text-white opacity-70 text-sm">Created: ${formatDate(api.created_at)}</p>
-                        <p class="text-white opacity-70 text-sm">Saved: ${formatDate(api.saved_at)}</p>
+    function addAPIResultMessage(result) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant fade-in';
+        
+        const endpointUrl = window.location.origin + result.endpoint_url;
+        
+        messageDiv.innerHTML = `
+            <div class="space-y-4">
+                <div class="flex items-center space-x-2">
+                    <span class="success-indicator">✅</span>
+                    <span class="font-medium">API Generated Successfully!</span>
                     </div>
+                
+                <div class="api-result-card">
+                    <div class="flex justify-between items-start mb-3">
+                        <h4 class="font-medium text-white">📡 Endpoint URL</h4>
                     <div class="flex space-x-2">
-                        <button onclick="testSavedAPI('${api.user_id}', '${api.api_slug}')" 
-                                class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
+                            <button onclick="copyToClipboard('${endpointUrl}')" 
+                                    class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors">
+                                Copy URL
+                            </button>
+                            <button onclick="testAPI('${endpointUrl}')" 
+                                    class="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors">
                             🧪 Test
                         </button>
-                        <button onclick="deleteSavedAPI('${api.user_id}', '${api.api_slug}')" 
-                                class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
-                            🗑️ Delete
-                        </button>
+                            ${currentUser ? `<button onclick="saveCurrentAPI()" 
+                                    class="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded transition-colors">
+                                💾 Save
+                            </button>` : ''}
                     </div>
                 </div>
-                
-                <div class="mb-4">
-                    <h4 class="text-white font-semibold mb-2">📝 Description</h4>
-                    <p class="text-white opacity-90 text-sm bg-black bg-opacity-30 rounded p-2">${api.prompt}</p>
+                    <div class="code-block">
+                        <code class="text-green-400">${endpointUrl}</code>
+                </div>
                 </div>
                 
-                <div class="mb-4">
-                    <h4 class="text-white font-semibold mb-2">📡 Endpoint URL</h4>
-                    <div class="bg-black bg-opacity-50 rounded p-2">
-                        <code class="text-green-300 text-sm break-all">${window.location.origin}${api.endpoint_url}</code>
-                        <button onclick="copyToClipboard('endpointUrl${api.api_slug}')" 
-                                class="ml-2 text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">
-                            Copy
-                        </button>
+                <div class="api-result-card">
+                    <h4 class="font-medium text-white mb-2">📚 Documentation</h4>
+                    <div class="text-sm text-gray-300 whitespace-pre-wrap">${result.documentation}</div>
+                </div>
+                
+                <div class="api-result-card">
+                    <h4 class="font-medium text-white mb-2">💻 cURL Example</h4>
+                    <div class="code-block">
+                        <pre class="text-sm text-green-400">${result.curl_example}</pre>
                     </div>
-                    <span id="endpointUrl${api.api_slug}" class="hidden">${window.location.origin}${api.endpoint_url}</span>
-                </div>
-                
-                <div class="mb-4">
-                    <h4 class="text-white font-semibold mb-2">📚 Documentation</h4>
-                    <div class="bg-white bg-opacity-10 rounded p-3 max-h-32 overflow-y-auto">
-                        <pre class="text-white text-xs whitespace-pre-wrap">${api.documentation}</pre>
-                    </div>
-                </div>
-                
-                <div>
-                    <h4 class="text-white font-semibold mb-2">💻 cURL Example</h4>
-                    <div class="bg-black bg-opacity-50 rounded p-3 max-h-32 overflow-y-auto">
-                        <pre><code class="text-green-300 text-xs">${api.curl_example}</code></pre>
-                        <button onclick="copyToClipboard('curlExample${api.api_slug}')" 
-                                class="mt-2 text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600">
+                    <button onclick="copyToClipboard(\`${result.curl_example.replace(/`/g, '\\`')}\`)" 
+                            class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors">
                             Copy cURL
                         </button>
                     </div>
-                    <span id="curlExample${api.api_slug}" class="hidden">${api.curl_example}</span>
                 </div>
             `;
 
-            return card;
-        }
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
 
-        async function testSavedAPI(userId, apiSlug) {
-            const endpoint = `${window.location.origin}/api/${userId}/${apiSlug}`;
+    function showTypingIndicator() {
+        const messagesContainer = document.getElementById('chatMessages');
+        const typingDiv = document.createElement('div');
+        typingDiv.id = 'typingIndicator';
+        typingDiv.className = 'typing-indicator';
+        typingDiv.innerHTML = `
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+            <span class="ml-2 text-sm text-gray-400">AI is generating your API...</span>
+        `;
+        messagesContainer.appendChild(typingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function hideTypingIndicator() {
+        const typingIndicator = document.getElementById('typingIndicator');
+        if (typingIndicator) {
+            typingIndicator.remove();
+        }
+    }
+
+    // Utility functions
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            // Show temporary feedback
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+            notification.textContent = 'Copied to clipboard!';
+            document.body.appendChild(notification);
             
-            // Create a simple test interface
-            const testInput = prompt('Enter JSON test data (optional):');
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 2000);
+        });
+    }
+
+    async function testAPI(endpointUrl) {
+        const testData = prompt('Enter test data (JSON format, optional):');
             
             try {
                 const formData = new FormData();
-                if (testInput && testInput.trim()) {
-                    formData.append('input_data', testInput);
+            if (testData && testData.trim()) {
+                formData.append('input_data', testData);
                 }
 
-                const response = await fetch(endpoint, {
+            const response = await fetch(endpointUrl, {
                     method: 'POST',
                     body: formData
                 });
@@ -706,178 +426,56 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('✅ Test successful!\n\nResult:\n' + JSON.stringify(result.result, null, 2));
+                addMessage('system', `✅ Test successful! Result: ${JSON.stringify(result.result, null, 2)}`);
                 } else {
-                    alert('❌ Test failed:\n' + (result.error || 'Unknown error'));
+                addMessage('system', `❌ Test failed: ${result.error || 'Unknown error'}`);
                 }
             } catch (error) {
-                alert('❌ Network error:\n' + error.message);
+            addMessage('system', `❌ Test error: ${error.message}`);
             }
         }
 
-        async function deleteSavedAPI(userId, apiSlug) {
-            if (!confirm(`Are you sure you want to delete the API "${apiSlug}"?`)) {
+    async function saveCurrentAPI() {
+        if (!currentApiData || !currentUser) {
+            addMessage('system', 'Please <a href="/login" class="text-blue-400 hover:text-blue-300">login</a> to save APIs');
                 return;
             }
 
             try {
-                const response = await fetch(`/api/${userId}/${apiSlug}`, {
-                    method: 'DELETE'
+            const response = await fetch('/save-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                    user_id: currentUser.id,
+                    api_slug: currentApiData.api_slug,
+                    api_name: currentApiData.api_name || `API ${currentApiData.api_slug}`,
+                    prompt: currentConversation.find(m => m.type === 'user')?.content || '',
+                    endpoint_url: currentApiData.endpoint_url,
+                    documentation: currentApiData.documentation,
+                    curl_example: currentApiData.curl_example
+                })
                 });
 
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('✅ API deleted successfully!');
-                    showMyAPIs(); // Refresh the list
+                addMessage('system', '✅ API saved successfully!');
                 } else {
-                    alert('❌ Failed to delete API: ' + (result.detail || 'Unknown error'));
+                addMessage('system', `❌ Failed to save API: ${result.message}`);
                 }
             } catch (error) {
-                alert('❌ Network error: ' + error.message);
-            }
+            addMessage('system', `❌ Save error: ${error.message}`);
         }
+    }
 
-        // Authentication functions
-        async function showLogin() {
-            document.getElementById('loginSection').classList.remove('hidden');
-            document.getElementById('registerSection').classList.add('hidden');
-            document.getElementById('apiGeneratorSection').classList.add('hidden');
-            document.getElementById('profileSection').classList.add('hidden');
-            document.getElementById('myApisSection').classList.add('hidden');
-            document.getElementById('results').classList.add('hidden');
-        }
 
-        async function showRegister() {
-            document.getElementById('registerSection').classList.remove('hidden');
-            document.getElementById('loginSection').classList.add('hidden');
-            document.getElementById('apiGeneratorSection').classList.add('hidden');
-            document.getElementById('profileSection').classList.add('hidden');
-            document.getElementById('myApisSection').classList.add('hidden');
-            document.getElementById('results').classList.add('hidden');
-        }
 
-        async function showGenerator() {
-            document.getElementById('apiGeneratorSection').classList.remove('hidden');
-            document.getElementById('loginSection').classList.add('hidden');
-            document.getElementById('registerSection').classList.add('hidden');
-            document.getElementById('profileSection').classList.add('hidden');
-            document.getElementById('myApisSection').classList.add('hidden');
-            document.getElementById('results').classList.add('hidden');
-        }
+    
 
-        async function showProfile() {
-            if (!authToken) {
-                alert('Please login first');
-                showLogin();
-                return;
-            }
 
-            document.getElementById('profileSection').classList.remove('hidden');
-            document.getElementById('apiGeneratorSection').classList.add('hidden');
-            document.getElementById('loginSection').classList.add('hidden');
-            document.getElementById('registerSection').classList.add('hidden');
-            document.getElementById('myApisSection').classList.add('hidden');
-            document.getElementById('results').classList.add('hidden');
-
-            await loadProfile();
-        }
-
-        function hideProfile() {
-            document.getElementById('profileSection').classList.add('hidden');
-            showGenerator();
-        }
-
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const email = document.getElementById('loginEmail').value;
-            const password = document.getElementById('loginPassword').value;
-
-            try {
-                const response = await fetch('/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        email: email,
-                        password: password
-                    })
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    authToken = result.token.access_token;
-                    currentUser = result.token.user;
-                    localStorage.setItem('authToken', authToken);
-                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                    
-                    updateAuthUI();
-                    showGenerator();
-                    alert('Login successful!');
-                } else {
-                    alert('Login failed: ' + result.message);
-                }
-            } catch (error) {
-                alert('Login error: ' + error.message);
-            }
-        });
-
-        document.getElementById('registerForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const email = document.getElementById('registerEmail').value;
-            const password = document.getElementById('registerPassword').value;
-            const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
-
-            // Client-side password validation
-            if (password !== passwordConfirm) {
-                alert('Passwords do not match!');
-                return;
-            }
-
-            if (password.length < 6) {
-                alert('Password must be at least 6 characters long!');
-                return;
-            }
-
-            try {
-                const response = await fetch('/auth/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        email: email,
-                        password: password,
-                        password_confirm: passwordConfirm
-                    })
-                });
-
-                const result = await response.json();
-                console.log('Registration response:', result); // Debug log
-
-                if (response.ok && result.success) {
-                    alert('Registration successful! You can now login.');
-                    showLogin();
-                } else {
-                    // Better error handling
-                    let errorMessage = 'Registration failed';
-                    if (result.detail) {
-                        errorMessage += ': ' + result.detail;
-                    } else if (result.message) {
-                        errorMessage += ': ' + result.message;
-                    } else if (!response.ok) {
-                        errorMessage += ': HTTP ' + response.status + ' ' + response.statusText;
-                    }
-                    alert(errorMessage);
-                }
-            } catch (error) {
-                alert('Registration error: ' + error.message);
-            }
-        });
 
         function logout() {
             authToken = null;
@@ -885,139 +483,43 @@
             localStorage.removeItem('authToken');
             localStorage.removeItem('currentUser');
             updateAuthUI();
-            showGenerator();
-            alert('Logged out successfully!');
-        }
+        addMessage('system', '👋 Logged out successfully!');
+    }
 
-        function updateAuthUI() {
-            if (authToken && currentUser) {
-                document.getElementById('authButtons').classList.add('hidden');
-                document.getElementById('userMenu').classList.remove('hidden');
-                document.getElementById('welcomeText').textContent = `Welcome, ${currentUser.email}!`;
-                
-                // Update user ID field
-                document.getElementById('userId').value = currentUser.id;
-                document.getElementById('userId').readOnly = true;
-            } else {
-                document.getElementById('authButtons').classList.remove('hidden');
-                document.getElementById('userMenu').classList.add('hidden');
-                
-                // Reset user ID field
-                document.getElementById('userId').value = 'user_' + Math.random().toString(36).substr(2, 8);
-                document.getElementById('userId').readOnly = false;
-            }
-        }
-
-        async function loadProfile() {
-            if (!authToken) return;
-
-            document.getElementById('profileLoading').classList.remove('hidden');
-            document.getElementById('profileInfo').classList.add('hidden');
-
-            try {
-                const response = await fetch('/auth/profile', {
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                const profile = await response.json();
-                document.getElementById('profileLoading').classList.add('hidden');
-
-                if (profile) {
-                    displayProfile(profile);
-                } else {
-                    alert('Failed to load profile');
-                }
-            } catch (error) {
-                document.getElementById('profileLoading').classList.add('hidden');
-                alert('Failed to load profile: ' + error.message);
-            }
-        }
-
-        function displayProfile(profile) {
-            const container = document.getElementById('profileInfo');
-            
-            const formatDate = (dateStr) => {
-                return new Date(dateStr).toLocaleString();
-            };
-
-            container.innerHTML = `
-                <div class="grid md:grid-cols-2 gap-8">
-                                         <div class="bg-white bg-opacity-10 rounded-lg p-6">
-                         <h3 class="text-2xl font-bold text-white mb-4">👤 User Information</h3>
-                         <div class="space-y-3 text-white">
-                             <p><strong>Email:</strong> ${profile.user.email}</p>
-                             <p><strong>User ID:</strong> ${profile.user.id}</p>
-                             <p><strong>Joined:</strong> ${formatDate(profile.user.created_at)}</p>
-                             ${profile.user.last_login ? `<p><strong>Last Login:</strong> ${formatDate(profile.user.last_login)}</p>` : ''}
+     // Initialize
+     document.addEventListener('DOMContentLoaded', () => {
+         // Focus on input
+         document.getElementById('chatInput').focus();
+         
+         // Add welcome message with quick start tips
+         setTimeout(() => {
+             addMessage('assistant', `
+                 👋 Hi there! I'm your AI assistant for generating APIs. Here's how to get started:
+                 
+                 <div class="mt-3 space-y-2 text-sm">
+                     <div class="flex items-center space-x-2">
+                         <span class="info-indicator">💡</span>
+                         <span>Describe what you want your API to do in plain English</span>
                          </div>
+                     <div class="flex items-center space-x-2">
+                         <span class="info-indicator">🔧</span>
+                         <span>I'll generate the code, documentation, and endpoint URL</span>
                      </div>
-                    
-                    <div class="bg-white bg-opacity-10 rounded-lg p-6">
-                        <h3 class="text-2xl font-bold text-white mb-4">📊 API Statistics</h3>
-                        <div class="space-y-3 text-white">
-                            <p><strong>Total APIs:</strong> ${profile.total_apis}</p>
-                            <p><strong>Saved APIs:</strong> ${profile.saved_apis.length}</p>
+                     <div class="flex items-center space-x-2">
+                         <span class="info-indicator">🧪</span>
+                         <span>Test your API directly from the chat interface</span>
                         </div>
-                        
-                        <div class="mt-6">
-                            <button onclick="showMyAPIsFromProfile()" 
-                                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition duration-300">
-                                📋 View My APIs
-                            </button>
-                        </div>
+                     <div class="flex items-center space-x-2">
+                         <span class="info-indicator">💾</span>
+                         <span>Login to save your APIs for later use</span>
                     </div>
                 </div>
                 
-                ${profile.saved_apis.length > 0 ? `
-                <div class="mt-8 bg-white bg-opacity-10 rounded-lg p-6">
-                    <h3 class="text-2xl font-bold text-white mb-4">🚀 Recent APIs</h3>
-                    <div class="grid gap-4">
-                        ${profile.saved_apis.slice(0, 3).map(api => `
-                            <div class="bg-black bg-opacity-30 rounded p-4">
-                                <h4 class="text-white font-semibold">${api.api_name}</h4>
-                                <p class="text-white opacity-70 text-sm mt-1">${api.prompt.substring(0, 100)}...</p>
-                                <p class="text-white opacity-50 text-xs mt-2">Created: ${formatDate(api.created_at)}</p>
+                 <div class="mt-4 text-sm text-gray-400">
+                     Try one of the quick actions below or describe your own API idea!
                             </div>
-                        `).join('')}
-                    </div>
-                </div>
-                ` : ''}
-            `;
-
-            document.getElementById('profileInfo').classList.remove('hidden');
-        }
-
-        function showMyAPIsFromProfile() {
-            hideProfile();
-            showMyAPIs();
-        }
-
-        // Generate a random user ID if not provided
-        document.addEventListener('DOMContentLoaded', () => {
-            // Check if user is already logged in
-            const storedUser = localStorage.getItem('currentUser');
-            if (authToken && storedUser) {
-                try {
-                    currentUser = JSON.parse(storedUser);
-                    updateAuthUI();
-                } catch (error) {
-                    // Clear invalid stored data
-                    localStorage.removeItem('authToken');
-                    localStorage.removeItem('currentUser');
-                    authToken = null;
-                    currentUser = null;
-                }
-            }
-            
-            const userIdField = document.getElementById('userId');
-            if (!userIdField.value && !currentUser) {
-                userIdField.value = 'user_' + Math.random().toString(36).substr(2, 8);
-            }
-            
-            updateAuthUI();
+             `);
+         }, 1000);
         });
     </script>
-</body>
-</html> 
+{% endblock %} 

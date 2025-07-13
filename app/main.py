@@ -92,6 +92,21 @@ async def read_root(request: Request):
     """Serve the main frontend page."""
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    """Serve the login page."""
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    """Serve the register page."""
+    return templates.TemplateResponse("register.html", {"request": request})
+
+@app.get("/profile", response_class=HTMLResponse)
+async def profile_page(request: Request):
+    """Serve the profile page."""
+    return templates.TemplateResponse("profile.html", {"request": request})
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint."""

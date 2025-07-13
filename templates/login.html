@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block title %}Login - AI API Generator{% endblock %}
+
+{% block extra_head %}
+    <style>
+        .auth-container {
+            min-height: calc(100vh - 200px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .auth-card {
+            background-color: var(--vscode-panel);
+            border: 1px solid var(--vscode-border);
+            border-radius: 0.5rem;
+            padding: 2rem;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .auth-header h1 {
+            color: var(--vscode-text);
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-header p {
+            color: var(--vscode-text-muted);
+            font-size: 0.875rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            color: var(--vscode-text);
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--vscode-input-bg);
+            border: 1px solid var(--vscode-border);
+            border-radius: 0.375rem;
+            color: var(--vscode-text);
+            font-size: 0.875rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--vscode-blue);
+            box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
+        }
+
+        .form-input::placeholder {
+            color: var(--vscode-text-muted);
+        }
+
+        .auth-button {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--vscode-blue);
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .auth-button:hover {
+            background-color: var(--vscode-blue-hover);
+        }
+
+        .auth-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .auth-link {
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+
+        .auth-link a {
+            color: var(--vscode-blue);
+            text-decoration: none;
+            font-size: 0.875rem;
+        }
+
+        .auth-link a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message {
+            color: var(--vscode-red);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+
+        .success-message {
+            color: var(--vscode-green);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <h1>🔐 Login</h1>
+            <p>Sign in to your AI API Generator account</p>
+        </div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email" class="form-label">Email Address</label>
+                <input 
+                    type="email" 
+                    id="email" 
+                    class="form-input" 
+                    placeholder="Enter your email"
+                    required
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password" class="form-label">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    class="form-input" 
+                    placeholder="Enter your password"
+                    required
+                >
+            </div>
+
+            <button type="submit" class="auth-button" id="loginButton">
+                Sign In
+            </button>
+
+            <div id="errorMessage" class="error-message"></div>
+            <div id="successMessage" class="success-message"></div>
+        </form>
+
+        <div class="auth-link">
+            <p>Don't have an account? <a href="/register">Create one here</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const loginButton = document.getElementById('loginButton');
+        const errorMessage = document.getElementById('errorMessage');
+        const successMessage = document.getElementById('successMessage');
+
+        // Reset messages
+        errorMessage.style.display = 'none';
+        successMessage.style.display = 'none';
+
+        // Disable button during request
+        loginButton.disabled = true;
+        loginButton.textContent = 'Signing in...';
+
+        try {
+            const response = await fetch('/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Store auth data
+                localStorage.setItem('authToken', result.token.access_token);
+                localStorage.setItem('currentUser', JSON.stringify(result.token.user));
+                
+                // Show success message
+                successMessage.textContent = 'Login successful! Redirecting...';
+                successMessage.style.display = 'block';
+                
+                // Update global auth state
+                window.authToken = result.token.access_token;
+                window.currentUser = result.token.user;
+                
+                // Redirect to main page after short delay
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 1500);
+            } else {
+                errorMessage.textContent = result.message || 'Login failed';
+                errorMessage.style.display = 'block';
+            }
+        } catch (error) {
+            errorMessage.textContent = 'Network error: ' + error.message;
+            errorMessage.style.display = 'block';
+        } finally {
+            // Re-enable button
+            loginButton.disabled = false;
+            loginButton.textContent = 'Sign In';
+        }
+    });
+
+    // Check if user is already logged in
+    document.addEventListener('DOMContentLoaded', () => {
+        const authToken = localStorage.getItem('authToken');
+        const currentUser = localStorage.getItem('currentUser');
+        
+        if (authToken && currentUser) {
+            // User is already logged in, redirect to main page
+            window.location.href = '/';
+        }
+    });
+</script>
+{% endblock %} 
