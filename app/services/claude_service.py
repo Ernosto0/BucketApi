@@ -92,6 +92,88 @@ class ClaudeService:
             logger.error(f"Failed to generate API code: {str(e)}")
             raise Exception(f"Failed to generate API code: {str(e)}")
     
+    async def modify_api_code(self, prompt: str, sample_input: Optional[str] = None, 
+                             expected_output: Optional[str] = None, existing_code: Optional[str] = None) -> str:
+        """Modify existing API code based on user prompt."""
+        
+        logger.info(f"Modifying API code with prompt: {prompt[:100]}...")
+        
+        system_prompt = """You are an expert Python developer specializing in AI-powered APIs using FastAPI. 
+        Modify the existing Python code based on the user's requirements while maintaining the original functionality.
+        
+        IMPORTANT: When the user requests AI-powered functionality (like text analysis, extraction, classification, etc.), 
+        you SHOULD make real API calls to AI services like OpenAI, Anthropic, or other AI APIs.
+        
+        CRITICAL - NEVER USE THESE DEPRECATED PATTERNS:
+        - openai.Completion.create() (DEPRECATED)
+        - openai.ChatCompletion.create() (DEPRECATED) 
+        - openai.api_key = "..." (DEPRECATED)
+        - engine="text-davinci-003" (DEPRECATED)
+        
+        ALWAYS USE MODERN OPENAI CLIENT:
+        - from openai import OpenAI
+        - client = OpenAI(api_key=api_key)
+        - client.chat.completions.create()
+        - model="gpt-3.5-turbo" or "gpt-4"
+        
+        MANDATORY REQUIREMENTS:
+        1. ALWAYS maintain the function signature `run(file_bytes=None, input_data=None)`
+        2. The function MUST accept either file_bytes (bytes) or input_data (dict)
+        3. ALWAYS return a JSON-serializable result
+        4. You CAN use HTTP libraries: requests, urllib, httpx, openai
+        5. You CAN make API calls to external AI services
+        6. Never use dangerous modules like os, subprocess, eval, exec for system operations
+        7. Use safe libraries: json, re, datetime, math, base64, hashlib, requests, openai, os (only for os.getenv)
+        8. Include proper error handling with try-catch blocks
+        9. Add docstrings and comments for clarity
+        10. If working with files, assume file_bytes contains the file content
+        11. For text processing, decode file_bytes to string first
+        12. Return results in a structured format: {"result": your_data, "message": "success"}
+        13. For AI-powered requests, make REAL API calls to OpenAI or other AI services
+        14. Include API keys as environment variables using os.getenv() or hardcode them for demo purposes
+        15. Always include confidence scores and detailed AI analysis in results
+        16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
+        17. For file processing, always handle bytes properly - use io.BytesIO for binary data
+        18. ENSURE PROPER PYTHON SYNTAX - all return statements must be properly formatted
+        19. ALWAYS include 'return' keyword before return statements in except blocks
+        20. Use os.getenv('OPENAI_API_KEY') instead of hardcoded API keys
+        21. Only import libraries that are commonly available or specified in requirements
+        22. NEVER have multiple return statements in the same except block
+        23. PRESERVE the core structure and functionality of the existing code
+        24. Only modify the parts that the user specifically requests
+        25. Maintain backward compatibility unless explicitly asked to break it
+        
+        CRITICAL: Ensure all Python syntax is correct, especially return statements in except blocks.
+        """
+        
+        user_prompt = f"""
+        Please modify the following Python code based on the requirements:
+        
+        Modification Request: {prompt}
+        
+        Existing Code:
+        {existing_code or "No existing code provided"}
+        """
+        
+        if sample_input:
+            user_prompt += f"\n\nSample Input: {sample_input}"
+        
+        if expected_output:
+            user_prompt += f"\n\nExpected Output: {expected_output}"
+        
+        user_prompt += "\n\nGenerate only the modified Python code, no explanations. Ensure the code maintains the same function signature and structure while implementing the requested changes."
+        
+        try:
+            logger.info("Making Claude API request for code modification...")
+            response = await self._make_claude_request(system_prompt, user_prompt)
+            logger.info("Claude API request for modification successful")
+            code = self._extract_code_from_response(response)
+            logger.info(f"Modified code length: {len(code)} characters")
+            return code
+        except Exception as e:
+            logger.error(f"Failed to modify API code: {str(e)}")
+            raise Exception(f"Failed to modify API code: {str(e)}")
+    
     async def generate_documentation(self, code: str, prompt: str) -> Tuple[str, str]:
         """Generate documentation and curl example for the generated API."""
         
@@ -118,6 +200,7 @@ class ClaudeService:
         except Exception as e:
             raise Exception(f"Failed to generate documentation: {str(e)}")
     
+
     async def _make_claude_request(self, system_prompt: str, user_prompt: str) -> str:
         """Make a request to Claude API."""
         import asyncio

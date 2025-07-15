@@ -11,18 +11,18 @@ from datetime import datetime, timedelta
 from typing import Optional
 import logging
 from .models import (
-    APIGenerationRequest, APIGenerationResponse, 
-    APIExecutionRequest, APIExecutionResponse, HealthResponse,
-    SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
-    UserCreate, UserLogin, LoginResponse, RegisterResponse, User, UserProfile, Token,
-    ChatAnalysisRequest, ChatAnalysisResponse
+    User, UserCreate, UserLogin, UserProfile, Token, TokenData,
+    APIGenerationRequest, APIGenerationResponse, APIModificationRequest, APIModificationResponse,
+    APIExecutionRequest, APIExecutionResponse, SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
+    ChatAnalysisRequest, ChatAnalysisResponse, HealthResponse, ChatMessage,
+    RegisterResponse, LoginResponse
 )
 from .services.claude_service import claude_service
 from .services.code_debugger import code_debugger
 from .services.security_service import security_service
 from .services.file_service import file_service
 from .services.auth_service import auth_service
-from .services.chatservice import ChatService
+from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database
 from .config import settings
 
@@ -50,8 +50,7 @@ async def startup_event():
     if cleaned_count > 0:
         logger.info(f"Cleaned up {cleaned_count} orphaned JSON metadata files")
 
-# Initialize ChatService
-chat_service = ChatService()
+
 
 # Add CORS middleware
 app.add_middleware(
@@ -224,30 +223,7 @@ async def get_current_user_info(current_user: Optional[User] = Depends(get_curre
     else:
         return {"authenticated": False, "user": None}
 
-@app.post("/chat/analyze", response_model=ChatAnalysisResponse)
-async def analyze_chat_prompt(request: ChatAnalysisRequest):
-    """
-    Analyze user prompt to determine if it's buildable, needs clarification, or is not feasible.
-    """
-    logger.info(f"Analyzing chat prompt for user {request.user_id}: {request.prompt[:100]}...")
-    try:
-        # Analyze the prompt using ChatService
-        analysis_result = await chat_service.CanIBuildThis(request.user_id, request.prompt)
-        
-        return ChatAnalysisResponse(
-            success=True,
-            user_id=request.user_id,
-            prompt=request.prompt,
-            analysis_result=analysis_result,
-            timestamp=datetime.now()
-        )
-        
-    except Exception as e:
-        logger.error(f"Error analyzing chat prompt: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to analyze prompt: {str(e)}"
-        )
+
 
 @app.post("/generate-api", response_model=APIGenerationResponse)
 async def generate_api(request: APIGenerationRequest):
@@ -257,20 +233,55 @@ async def generate_api(request: APIGenerationRequest):
     """
     logger.info(f"Generating API for user {request.user_id} with prompt: {request.prompt[:100]}...")
     try:
-        # First analyze the prompt using ChatService
-        logger.info("Analyzing prompt with ChatService...")
-        analysis_result = await chat_service.CanIBuildThis(request.user_id, request.prompt)
+        # First analyze the prompt using PromptService
+        logger.info("Analyzing prompt with PromptServiceBuild...")
+        prompt_service = PromptServiceBuild()
+        analysis_result = await prompt_service.CanIBuildThis(request.user_id, request.prompt)
         
         # Parse the analysis result to check if it's buildable
         import json
         try:
             analysis_data = json.loads(analysis_result)
-            if analysis_data.get("status") != "buildable":
-                logger.warning(f"Prompt analysis indicated non-buildable: {analysis_data.get('status')}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Prompt analysis result: {analysis_result}"
-                )
+            status = analysis_data.get("status")
+            
+            # If build needs clarification, return the questions to the frontend
+            if status == "needs_clarification":
+                logger.info(f"Build needs clarification: {analysis_data.get('message')}")
+                return {
+                    "success": False,
+                    "status": "needs_clarification",
+                    "message": analysis_data.get("message", "I need more information to build this API."),
+                    "questions": analysis_data.get("questions", []),
+                    "suggestions": analysis_data.get("suggestions", []),
+                    "original_prompt": request.prompt
+                }
+            
+            # If it's a modify request, redirect to modify endpoint
+            if status == "modify_request":
+                logger.info(f"Detected modify request, redirecting")
+                return {
+                    "success": False,
+                    "status": "modify_request",
+                    "message": analysis_data.get("message", "This appears to be a modification request."),
+                    "instructions": analysis_data.get("instructions", []),
+                    "next_steps": analysis_data.get("next_steps", [])
+                }
+            
+            # If not buildable, return appropriate message
+            if status == "not_buildable":
+                logger.warning(f"API request not buildable")
+                return {
+                    "success": False,
+                    "status": "not_buildable", 
+                    "message": analysis_data.get("message", "I'm sorry, but I can't build this API."),
+                    "reasons": analysis_data.get("reasons", []),
+                    "suggestions": analysis_data.get("suggestions", [])
+                }
+                
+            # If not buildable status, proceed with generation
+            if status != "buildable":
+                logger.warning(f"Unexpected build status: {status}, proceeding anyway")
+                
         except json.JSONDecodeError:
             logger.warning("Could not parse analysis result, proceeding with generation")
         
@@ -365,6 +376,157 @@ async def generate_api(request: APIGenerationRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate API: {str(e)}"
+        )
+
+@app.post("/modify-api", response_model=APIModificationResponse)
+async def modify_api(request: APIModificationRequest):
+    """
+    Modify an existing API based on user prompt.
+    """
+    logger.info(f"Modifying API {request.api_slug} for user {request.user_id} with prompt: {request.prompt[:100]}...")
+    try:
+        # Check if API exists
+        if not file_service.api_exists(request.user_id, request.api_slug):
+            raise HTTPException(
+                status_code=404,
+                detail=f"API not found: {request.user_id}/{request.api_slug}"
+            )
+        
+        # Load existing code
+        existing_code = file_service.load_api_code(request.user_id, request.api_slug)
+        
+        # Analyze the prompt using PromptService to determine if it's Modifyable
+        logger.info("Analyzing prompt with PromptServiceModify for modification...")
+        prompt_service_modify = PromptServiceModify()
+        analysis_result = await prompt_service_modify.CanIModifyThis(request.user_id, request.prompt)
+        
+        # Parse the analysis result to check if it's Modifyable
+        import json
+        try:
+            analysis_data = json.loads(analysis_result)
+            status = analysis_data.get("status")
+            
+            # If modification needs clarification, return the questions to the frontend
+            if status == "needs_clarification":
+                logger.info(f"Modification needs clarification: {analysis_data.get('message')}")
+                return {
+                    "success": False,
+                    "status": "needs_clarification",
+                    "message": analysis_data.get("message", "I need more information to modify this API."),
+                    "questions": analysis_data.get("questions", []),
+                    "suggestions": analysis_data.get("suggestions", []),
+                    "original_prompt": request.prompt
+                }
+            
+            # If modification has questions even though it's ready, show them first
+            if status == "modification_ready" and analysis_data.get("questions"):
+                logger.info(f"Modification ready but has clarification questions")
+                return {
+                    "success": False,
+                    "status": "needs_clarification", 
+                    "message": "I can modify this API, but I have some questions to ensure I do it correctly:",
+                    "questions": analysis_data.get("questions", []),
+                    "modification_type": analysis_data.get("modification_type"),
+                    "complexity": analysis_data.get("complexity"),
+                    "planned_changes": analysis_data.get("planned_changes", []),
+                    "original_prompt": request.prompt
+                }
+                
+            # If modification is ready and no questions, proceed
+            if status != "modification_ready":
+                logger.warning(f"Unexpected modification status: {status}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot proceed with modification. Analysis result: {analysis_result}"
+                )
+                
+        except json.JSONDecodeError:
+            logger.warning("Could not parse analysis result, proceeding with modification")
+        
+        # Validate Claude API key
+        if not settings.CLAUDE_API_KEY:
+            logger.error("Claude API key not configured")
+            raise HTTPException(
+                status_code=500, 
+                detail="Claude API key not configured"
+            )
+        
+        # Generate modified code using Claude
+        logger.info("Calling Claude service to modify existing code...")
+        raw_code = await claude_service.modify_api_code(
+            prompt=request.prompt,
+            sample_input=request.sample_input,
+            expected_output=request.expected_output,
+            existing_code=existing_code
+        )
+        logger.info("Code generation completed successfully")
+        logger.debug(f"Generated code preview: {raw_code[:300]}...")
+        
+        # Debug and fix the generated code
+        logger.info("Analyzing and fixing generated code...")
+        code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
+            raw_code, request.prompt
+        )
+        
+        if issues_found:
+            logger.info(f"Code debugger found {len(issues_found)} issues: {issues_found}")
+        if fixes_applied:
+            logger.info(f"Code debugger applied {len(fixes_applied)} fixes: {fixes_applied}")
+        
+        # Validate code for security
+        logger.info("Validating debugged code for security...")
+        is_safe, violations = security_service.validate_code(code)
+        logger.info(f"Security validation result: safe={is_safe}, violations={len(violations)}")
+        if violations:
+            logger.warning(f"Security violations found: {violations}")
+        if not is_safe:
+            logger.error(f"Code failed security validation: {violations}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Generated code failed security validation: {'; '.join(violations)}"
+            )
+        
+        # Save the new code
+        full_slug = f"{request.user_id}_{request.api_slug}"
+        file_service.save_api_code(full_slug, code)
+        
+        # Generate documentation
+        documentation, curl_example = await claude_service.generate_documentation(
+            code=code, 
+            prompt=request.prompt
+        )
+        
+        # Build endpoint URL
+        endpoint_url = f"{settings.API_PREFIX}/{request.user_id}/{request.api_slug}"
+        
+        # Update curl example with actual endpoint
+        if "your-endpoint-url" in curl_example:
+            curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
+        
+        return APIModificationResponse(
+            success=True,
+            message="API modified successfully!",
+            endpoint_url=endpoint_url,
+            documentation=documentation,
+            curl_example=curl_example,
+            api_slug=request.api_slug,
+            user_id=request.user_id,
+            modified_at=datetime.now(),
+            debug_info={
+                "issues_found": issues_found,
+                "fixes_applied": fixes_applied,
+                "code_quality": "high" if not issues_found else "improved",
+                "chat_analysis": analysis_result
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in modify_api: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to modify API: {str(e)}"
         )
 
 @app.post("/save-api", response_model=SaveAPIResponse)

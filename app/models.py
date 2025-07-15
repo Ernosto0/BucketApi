@@ -31,6 +31,16 @@ class Token(BaseModel):
     expires_in: int
     user: User
 
+class RegisterResponse(BaseModel):
+    success: bool
+    message: str
+    user: User
+
+class LoginResponse(BaseModel):
+    success: bool
+    message: str
+    token: Token
+
 class TokenData(BaseModel):
     username: Optional[str] = None
 
@@ -57,6 +67,27 @@ class APIGenerationResponse(BaseModel):
     api_slug: Optional[str] = None
     user_id: Optional[str] = None
     generated_at: Optional[datetime] = None
+    debug_info: Optional[Dict[str, Any]] = None
+
+# API Modification Models
+class APIModificationRequest(BaseModel):
+    prompt: str = Field(..., description="Description of what you want to modify in the API")
+    api_slug: str = Field(..., description="Slug of the existing API to modify")
+    user_id: str = Field(..., description="Unique user identifier")
+    sample_input: Optional[str] = Field(None, description="Example input data for the modified API")
+    expected_output: Optional[str] = Field(None, description="Expected output format for the modified API")
+
+class APIModificationResponse(BaseModel):
+    success: bool
+    message: str
+    endpoint_url: Optional[str] = None
+    documentation: Optional[str] = None
+    curl_example: Optional[str] = None
+    api_slug: Optional[str] = None
+    user_id: Optional[str] = None
+    modified_at: Optional[datetime] = None
+    original_prompt: Optional[str] = None
+    modification_prompt: Optional[str] = None
     debug_info: Optional[Dict[str, Any]] = None
 
 class APIExecutionRequest(BaseModel):
@@ -102,12 +133,12 @@ class SaveAPIRequest(BaseModel):
 class SaveAPIResponse(BaseModel):
     success: bool
     message: str
-    api_slug: Optional[str] = None
+    api_slug: str
 
 class ListAPIsResponse(BaseModel):
     success: bool
     user_id: str
-    apis: List[SavedAPI]
+    apis: List['SavedAPI']
     count: int
 
 # Authentication Response Models

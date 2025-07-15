@@ -373,6 +373,9 @@
                 } else if (analysis.status === 'needs_clarification') {
                     // Show clarification questions
                     addClarificationMessage(analysis);
+                } else if (analysis.status === 'modify_request') {
+                    // Show modify request message
+                    addModifyRequestMessage(analysis);
                 } else if (analysis.status === 'not_buildable') {
                     // Show rejection with suggestions
                     addRejectionMessage(analysis);
@@ -414,7 +417,17 @@
                 addAPIResultMessage(result);
                 addMessage('system', 'API generated successfully! You can test it above or save it to your collection.');
             } else {
-                addMessage('assistant', `❌ Error: ${result.message || 'Failed to generate API'}`);
+                // Handle different types of unsuccessful responses
+                if (result.status === 'needs_clarification') {
+                    addClarificationMessage(result);
+                } else if (result.status === 'modify_request') {
+                    addModifyRequestMessage(result);
+                } else if (result.status === 'not_buildable') {
+                    addRejectionMessage(result);
+                } else {
+                    // Fallback for any other error
+                    addMessage('assistant', `❌ Error: ${result.message || 'Failed to generate API'}`);
+                }
             }
         } catch (error) {
             hideTypingIndicator();
@@ -501,6 +514,46 @@
         hideTypingIndicator();
     }
 
+    function addModifyRequestMessage(analysis) {
+        const messagesContainer = document.getElementById('chatMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message assistant fade-in';
+        
+        const instructionsHtml = analysis.instructions ? 
+            analysis.instructions.map(instruction => `<li class="text-sm text-purple-200">• ${instruction}</li>`).join('') : 
+            '<li class="text-sm text-purple-200">• Please specify which API you want to modify</li>';
+            
+        const nextStepsHtml = analysis.next_steps ? 
+            analysis.next_steps.map(step => `<li class="text-sm text-blue-200">• ${step}</li>`).join('') : 
+            '<li class="text-sm text-blue-200">• Click the Modify button on your last generated API</li>';
+        
+        messageDiv.innerHTML = `
+            <div class="space-y-3">
+                <div class="flex items-center space-x-2">
+                    <span class="text-purple-400">✏️</span>
+                    <span class="font-medium text-purple-400">I can help you modify an existing API</span>
+                </div>
+                <div class="bg-purple-900/20 border border-purple-500/30 rounded-lg p-3">
+                    <p class="text-sm text-purple-300 mb-2">How to modify your API:</p>
+                    <ul class="space-y-1 mb-3">
+                        ${instructionsHtml}
+                    </ul>
+                    <p class="text-sm text-purple-300 mb-2">Next steps:</p>
+                    <ul class="space-y-1">
+                        ${nextStepsHtml}
+                    </ul>
+                </div>
+                <div class="text-sm text-gray-400">
+                    💡 Use the '✏️ Modify' button for recently generated APIs or tell me which API to modify!
+                </div>
+            </div>
+        `;
+        
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        hideTypingIndicator();
+    }
+
     function addRejectionMessage(analysis) {
         const messagesContainer = document.getElementById('chatMessages');
         const messageDiv = document.createElement('div');
@@ -569,6 +622,10 @@
                                     class="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors">
                             🧪 Test
                         </button>
+                            <button onclick="modifyCurrentAPI()" 
+                                    class="text-xs bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded transition-colors">
+                                ✏️ Modify
+                            </button>
                             ${currentUser ? `<button onclick="saveCurrentAPI()" 
                                     class="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded transition-colors">
                                 💾 Save
@@ -703,13 +760,68 @@
         }
     }
 
+    async function modifyCurrentAPI() {
+        if (!currentApiData) {
+            addMessage('system', '❌ No API available to modify');
+            return;
+        }
 
+        // Ask user for modification prompt
+        const modificationPrompt = prompt('What would you like to modify in this API?');
+        if (!modificationPrompt) {
+            return;
+        }
 
-    
+        try {
+            // Get user ID (from auth or generate temp one)
+            const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
+            
+            // Show modification in progress
+            addMessage('user', `Modify API: ${modificationPrompt}`);
+            showTypingIndicator();
+            
+            const response = await fetch('/modify-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+                },
+                body: JSON.stringify({
+                    prompt: modificationPrompt,
+                    api_slug: currentApiData.api_slug,
+                    user_id: userId
+                })
+            });
 
+            const result = await response.json();
+            
+            hideTypingIndicator();
 
+            if (result.success) {
+                // Update current API data
+                currentApiData = result;
+                addAPIResultMessage(result);
+                addMessage('system', 'API modified successfully! You can test the updated version above.');
+            } else {
+                // Handle different types of unsuccessful responses
+                if (result.status === 'needs_clarification') {
+                    addClarificationMessage(result);
+                } else if (result.status === 'modify_request') {
+                    addModifyRequestMessage(result);
+                } else if (result.status === 'not_buildable') {
+                    addRejectionMessage(result);
+                } else {
+                    // Fallback for any other error
+                    addMessage('assistant', `❌ Error: ${result.message || 'Failed to modify API'}`);
+                }
+            }
+        } catch (error) {
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Network error: ${error.message}`);
+        }
+    }
 
-        function logout() {
+    function logout() {
             authToken = null;
             currentUser = null;
             localStorage.removeItem('authToken');
