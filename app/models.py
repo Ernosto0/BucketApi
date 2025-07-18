@@ -57,6 +57,7 @@ class APIGenerationRequest(BaseModel):
     expected_output: Optional[str] = Field(None, description="Expected output format")
     user_id: str = Field(..., description="Unique user identifier")
     api_name: Optional[str] = Field(None, description="Optional API name (will be auto-generated if not provided)")
+    skip_analysis: Optional[bool] = Field(False, description="Skip analysis step if already done")
 
 class APIGenerationResponse(BaseModel):
     success: bool

@@ -96,20 +96,19 @@ class PromptServiceBuild:
                 elif decision == "MODIFY_REQUEST":
                     return await self.HandleModifyRequest(user_id, prompt)
                 else:
-                    return await self.ICantBuildThis(user_id, prompt)
+                    return await self.ICantBuildThis(user_id, prompt, analysis)
                     
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse analysis result: {analysis_result}")
-                return await self.ICantBuildThis(user_id, prompt)
+                return await self.ICantBuildThis(user_id, prompt, None)
                 
         except Exception as e:
             logger.error(f"Error analyzing prompt: {str(e)}")
-            return await self.ICantBuildThis(user_id, prompt)
+            return await self.ICantBuildThis(user_id, prompt, None)
 
     async def CanIBuildThis(self, user_id: str, prompt: str) -> str:
         """Main entry point for prompt analysis"""
         return await self.analyze_user_prompt(user_id, prompt)
-
     async def AskMoreQuestions(self, user_id: str, prompt: str, questions: List[str] = None) -> str:
         """Handle cases where more clarification is needed"""
         if not questions:
@@ -147,19 +146,28 @@ class PromptServiceBuild:
         logger.info(f"Confirmed buildable API for user {user_id}")
         return json.dumps(response, indent=2)
 
-    async def ICantBuildThis(self, user_id: str, prompt: str) -> str:
+    async def ICantBuildThis(self, user_id: str, prompt: str, analysis: dict = None) -> str:
         """Handle non-buildable requests"""
-        response = {
-            "status": "not_buildable",
-            "message": "I'm sorry, but I can't build this API.",
-            "reasons": [
+        # Use analysis reasoning if available, otherwise use generic message
+        if analysis and analysis.get("reasoning"):
+            reasons = [analysis.get("reasoning")]
+            # Use more specific message when we have analysis details
+            message = "I can't build this API based on the provided request."
+        else:
+            reasons = [
                 "The request may be too vague or unclear",
                 "The functionality might not be technically feasible",
                 "The request could involve inappropriate or harmful content"
-            ],
+            ]
+            message = "I'm sorry, but I can't build this API."
+        
+        response = {
+            "status": "not_buildable",
+            "message": message,
+            "reasons": reasons,
             "suggestions": [
                 "Try to be more specific about what you want the API to do",
-                "Provide examples of input and expected output",
+                "Provide examples of input and expected output", 
                 "Focus on legitimate business or educational use cases"
             ]
         }
@@ -187,11 +195,7 @@ class PromptServiceBuild:
         
         logger.info(f"Detected modify request for user {user_id}")
         return json.dumps(response, indent=2)
-
-
     
-
-
 class PromptServiceModify:
     def __init__(self):
         if not settings.OPENAI_API_KEY:
@@ -380,3 +384,8 @@ class PromptServiceModify:
                 "potential_issues": ["Validation system error"],
                 "recommendations": ["Please try again or rephrase your request"]
             }, indent=2)
+        
+class PromptServiceAnalyze:
+    def __init__(self):
+        pass
+    pass

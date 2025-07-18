@@ -223,67 +223,102 @@ async def get_current_user_info(current_user: Optional[User] = Depends(get_curre
     else:
         return {"authenticated": False, "user": None}
 
-
+@app.post("/chat/analyze", response_model=ChatAnalysisResponse)
+async def analyze_chat_prompt(request: ChatAnalysisRequest):
+    """
+    Analyze a chat prompt to determine if it's buildable and provide appropriate response.
+    """
+    logger.info(f"Analyzing chat prompt for user {request.user_id}: {request.prompt[:100]}...")
+    try:
+        # Use PromptService to analyze the prompt
+        prompt_service = PromptServiceBuild()
+        analysis_result = await prompt_service.CanIBuildThis(request.user_id, request.prompt)
+        
+        logger.info(f"Analysis completed for user {request.user_id}")
+        return {
+            "success": True,
+            "user_id": request.user_id,
+            "prompt": request.prompt,
+            "analysis_result": analysis_result,
+            "timestamp": datetime.now()
+        }
+        
+    except Exception as e:
+        logger.error(f"Error analyzing chat prompt: {str(e)}")
+        return {
+            "success": False,
+            "user_id": request.user_id,
+            "prompt": request.prompt,
+            "analysis_result": f'{{"status": "error", "message": "Error analyzing prompt: {str(e)}"}}',
+            "timestamp": datetime.now()
+        }
 
 @app.post("/generate-api", response_model=APIGenerationResponse)
 async def generate_api(request: APIGenerationRequest):
     """
     Generate a new API based on user prompt.
-    First analyzes the prompt, then generates if buildable.
+    Optionally analyzes the prompt first, then generates if buildable.
     """
     logger.info(f"Generating API for user {request.user_id} with prompt: {request.prompt[:100]}...")
     try:
-        # First analyze the prompt using PromptService
-        logger.info("Analyzing prompt with PromptServiceBuild...")
-        prompt_service = PromptServiceBuild()
-        analysis_result = await prompt_service.CanIBuildThis(request.user_id, request.prompt)
+        # Initialize analysis_result
+        analysis_result = None
         
-        # Parse the analysis result to check if it's buildable
-        import json
-        try:
-            analysis_data = json.loads(analysis_result)
-            status = analysis_data.get("status")
+        # Only analyze if skip_analysis is False (default behavior for backward compatibility)
+        if not request.skip_analysis:
+            # First analyze the prompt using PromptService
+            logger.info("Analyzing prompt with PromptServiceBuild...")
+            prompt_service = PromptServiceBuild()
+            analysis_result = await prompt_service.CanIBuildThis(request.user_id, request.prompt)
             
-            # If build needs clarification, return the questions to the frontend
-            if status == "needs_clarification":
-                logger.info(f"Build needs clarification: {analysis_data.get('message')}")
-                return {
-                    "success": False,
-                    "status": "needs_clarification",
-                    "message": analysis_data.get("message", "I need more information to build this API."),
-                    "questions": analysis_data.get("questions", []),
-                    "suggestions": analysis_data.get("suggestions", []),
-                    "original_prompt": request.prompt
-                }
-            
-            # If it's a modify request, redirect to modify endpoint
-            if status == "modify_request":
-                logger.info(f"Detected modify request, redirecting")
-                return {
-                    "success": False,
-                    "status": "modify_request",
-                    "message": analysis_data.get("message", "This appears to be a modification request."),
-                    "instructions": analysis_data.get("instructions", []),
-                    "next_steps": analysis_data.get("next_steps", [])
-                }
-            
-            # If not buildable, return appropriate message
-            if status == "not_buildable":
-                logger.warning(f"API request not buildable")
-                return {
-                    "success": False,
-                    "status": "not_buildable", 
-                    "message": analysis_data.get("message", "I'm sorry, but I can't build this API."),
-                    "reasons": analysis_data.get("reasons", []),
-                    "suggestions": analysis_data.get("suggestions", [])
-                }
+            # Parse the analysis result to check if it's buildable
+            import json
+            try:
+                analysis_data = json.loads(analysis_result)
+                status = analysis_data.get("status")
                 
-            # If not buildable status, proceed with generation
-            if status != "buildable":
-                logger.warning(f"Unexpected build status: {status}, proceeding anyway")
+                # If build needs clarification, return the questions to the frontend
+                if status == "needs_clarification":
+                    logger.info(f"Build needs clarification: {analysis_data.get('message')}")
+                    return {
+                        "success": False,
+                        "status": "needs_clarification",
+                        "message": analysis_data.get("message", "I need more information to build this API."),
+                        "questions": analysis_data.get("questions", []),
+                        "suggestions": analysis_data.get("suggestions", []),
+                        "original_prompt": request.prompt
+                    }
                 
-        except json.JSONDecodeError:
-            logger.warning("Could not parse analysis result, proceeding with generation")
+                # If it's a modify request, redirect to modify endpoint
+                if status == "modify_request":
+                    logger.info(f"Detected modify request, redirecting")
+                    return {
+                        "success": False,
+                        "status": "modify_request",
+                        "message": analysis_data.get("message", "This appears to be a modification request."),
+                        "instructions": analysis_data.get("instructions", []),
+                        "next_steps": analysis_data.get("next_steps", [])
+                    }
+                
+                # If not buildable, return appropriate message
+                if status == "not_buildable":
+                    logger.warning(f"API request not buildable")
+                    return {
+                        "success": False,
+                        "status": "not_buildable", 
+                        "message": analysis_data.get("message", "I'm sorry, but I can't build this API."),
+                        "reasons": analysis_data.get("reasons", []),
+                        "suggestions": analysis_data.get("suggestions", [])
+                    }
+                    
+                # If not buildable status, proceed with generation
+                if status != "buildable":
+                    logger.warning(f"Unexpected build status: {status}, proceeding anyway")
+                    
+            except json.JSONDecodeError:
+                logger.warning("Could not parse analysis result, proceeding with generation")
+        else:
+            logger.info("Skipping analysis step as requested")
         
         # Validate Claude API key
         if not settings.CLAUDE_API_KEY:
