@@ -129,22 +129,120 @@ class PromptServiceBuild:
         logger.info(f"Asking for clarification for user {user_id}")
         return json.dumps(response, indent=2)
 
-    async def IcanBuildThis(self, user_id: str, prompt: str) -> str:
-        """Handle buildable API requests"""
+    async def PropeseTheBuild(self, user_id: str, prompt: str) -> str:
+        """
+        Create a detailed explanation of what the API will do and ask for user confirmation.
+        Uses OpenAI to generate comprehensive API specifications.
+        """
+        try:
+            logger.info(f"Creating detailed API proposal for user {user_id}: {prompt[:100]}...")
+            
+            system_prompt = """You are an AI assistant that creates detailed API proposals. 
+            When given a user's API request, create a comprehensive explanation of what the API will do.
+            
+            Respond with ONLY a JSON object in this exact format:
+            {
+                "api_name": "suggested name for the API",
+                "description": "clear description of what the API does",
+                "functionality": ["list of main features the API will provide"],
+                "input_format": {
+                    "type": "description of input type (JSON, form data, etc.)",
+                    "fields": ["list of expected input fields"],
+                    "example": "example input data"
+                },
+                "output_format": {
+                    "type": "description of output type",
+                    "fields": ["list of output fields"],
+                    "example": "example response data"
+                },
+                                 "endpoints": [
+                     {
+                         "method": "GET/POST/PUT/DELETE",
+                         "path": "/api/endpoint-path",
+                         "description": "what this endpoint does"
+                     }
+                 ]
+            }
+            
+            Be specific and technical but also user-friendly. Make sure the proposal is comprehensive enough for the user to understand exactly what they'll get.
+            """
+            
+            user_prompt = f"Create a detailed API proposal for this request: {prompt}"
+            
+            response = self.client.chat.completions.create(
+                model="gpt-3.5-turbo",  # Using GPT-3.5 as requested
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=1000
+            )
+            
+            proposal_result = response.choices[0].message.content.strip()
+            logger.info(f"Generated API proposal: {proposal_result[:200]}...")
+            
+            # Parse the JSON response
+            try:
+                proposal = json.loads(proposal_result)
+                
+                # Create user-friendly response with the proposal
+                response_data = {
+                    "status": "proposal_ready",
+                    "message": "Here's what I propose to build for you:",
+                    "original_prompt": prompt,
+                    "proposal": proposal,
+                    "confirmation_needed": True,
+                    "options": {
+                        "build_it": "Yes, build this API exactly as described",
+                        "modify_proposal": "I want to modify some details first",
+                        "cancel": "No, don't build this"
+                    },
+                    "next_steps": [
+                        "Review the API proposal carefully",
+                        "Click 'Build It' if you're satisfied",
+                        "Or ask for modifications if needed"
+                    ]
+                }
+                
+                logger.info(f"Created detailed proposal for user {user_id}")
+                return json.dumps(response_data, indent=2)
+                
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse proposal result: {proposal_result}")
+                # Fallback to simpler proposal
+                return await self._create_simple_proposal(user_id, prompt)
+                
+        except Exception as e:
+            logger.error(f"Error creating API proposal: {str(e)}")
+            return await self._create_simple_proposal(user_id, prompt)
+
+    async def _create_simple_proposal(self, user_id: str, prompt: str) -> str:
+        """Fallback method to create a simple proposal if detailed generation fails"""
         response = {
-            "status": "buildable",
-            "message": "Great! I can build this API for you.",
-            "prompt": prompt,
-            "next_steps": [
-                "I'll analyze your requirements",
-                "Generate the API code",
-                "Create documentation",
-                "Provide testing examples"
-            ]
+            "status": "proposal_ready",
+            "message": "Here's what I propose to build for you:",
+            "original_prompt": prompt,
+            "proposal": {
+                "api_name": "Custom API",
+                "description": f"An API based on your request: {prompt}",
+                "functionality": ["Process your specified requirements"]
+            },
+            "confirmation_needed": True,
+            "options": {
+                "build_it": "Yes, build this API",
+                "modify_proposal": "I want to modify the requirements",
+                "cancel": "No, don't build this"
+            }
         }
         
-        logger.info(f"Confirmed buildable API for user {user_id}")
+        logger.info(f"Created simple proposal fallback for user {user_id}")
         return json.dumps(response, indent=2)
+
+    async def IcanBuildThis(self, user_id: str, prompt: str) -> str:
+        """Handle buildable API requests - now routes to proposal generation"""
+        logger.info(f"Routing buildable API request to proposal generation for user {user_id}")
+        return await self.PropeseTheBuild(user_id, prompt)
 
     async def ICantBuildThis(self, user_id: str, prompt: str, analysis: dict = None) -> str:
         """Handle non-buildable requests"""
@@ -196,6 +294,7 @@ class PromptServiceBuild:
         logger.info(f"Detected modify request for user {user_id}")
         return json.dumps(response, indent=2)
     
+
 class PromptServiceModify:
     def __init__(self):
         if not settings.OPENAI_API_KEY:
@@ -385,7 +484,3 @@ class PromptServiceModify:
                 "recommendations": ["Please try again or rephrase your request"]
             }, indent=2)
         
-class PromptServiceAnalyze:
-    def __init__(self):
-        pass
-    pass

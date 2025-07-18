@@ -107,7 +107,7 @@ async function sendMessage() {
     handleInputChange();
 
     // Show typing indicator
-    showTypingIndicator();
+    showTypingIndicator("Analyzing your request...");
 
     try {
         isGenerating = true;
@@ -139,6 +139,9 @@ async function sendMessage() {
                 // Show positive response and proceed to generate API
                 addChatAnalysisMessage(analysis);
                 await generateAPI(message, userId, true);
+            } else if (analysis.status === 'proposal_ready') {
+                // Show detailed API proposal and ask for confirmation
+                addProposalMessage(analysis, message, userId);
             } else if (analysis.status === 'needs_clarification') {
                 // Show clarification questions
                 addClarificationMessage(analysis);
@@ -377,6 +380,194 @@ function addRejectionMessage(analysis) {
     hideTypingIndicator();
 }
 
+function addProposalMessage(analysis, originalPrompt, userId) {
+    const proposal = analysis.proposal;
+    
+    // Create endpoints HTML
+    const endpointsHtml = proposal.endpoints ? 
+        proposal.endpoints.map(endpoint => 
+            `<div class="flex items-center space-x-2 text-sm">
+                <span class="px-2 py-1 bg-${endpoint.method === 'GET' ? 'green' : endpoint.method === 'POST' ? 'blue' : endpoint.method === 'PUT' ? 'yellow' : 'red'}-600/20 text-${endpoint.method === 'GET' ? 'green' : endpoint.method === 'POST' ? 'blue' : endpoint.method === 'PUT' ? 'yellow' : 'red'}-300 rounded font-mono text-xs">${endpoint.method}</span>
+                <span class="font-mono text-slate-300">${endpoint.path}</span>
+                <span class="text-slate-400">- ${endpoint.description}</span>
+            </div>`
+        ).join('') : 
+        '<div class="text-sm text-slate-400">Standard REST API endpoints</div>';
+
+    // Create functionality HTML
+    const functionalityHtml = proposal.functionality ? 
+        proposal.functionality.map(func => `<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">${func}</span></li>`).join('') : 
+        '<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">Custom API functionality</span></li>';
+
+
+
+    const content = `
+        <div class="space-y-6">
+            <div class="flex items-center space-x-2">
+                <span class="status-badge bg-blue-900/50 text-blue-400 border-blue-500/30">Proposal Ready</span>
+                <h3 class="font-semibold text-white">Here's what I propose to build for you:</h3>
+            </div>
+            
+            <!-- API Name and Description -->
+            <div class="glass-card rounded-xl p-6 border-blue-500/30">
+                <h4 class="font-bold text-xl text-white mb-2">${proposal.api_name || 'Custom API'}</h4>
+                <p class="text-slate-300">${proposal.description || 'A custom API based on your requirements'}</p>
+            </div>
+
+            <!-- Functionality -->
+            <div class="glass-card rounded-xl p-6">
+                <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
+                    <span class="text-blue-400">⚡</span>
+                    <span>Key Features</span>
+                </h4>
+                <ul class="space-y-2">
+                    ${functionalityHtml}
+                </ul>
+            </div>
+
+            <!-- Input/Output Format -->
+            ${proposal.input_format || proposal.output_format ? `
+            <div class="grid md:grid-cols-2 gap-4">
+                ${proposal.input_format ? `
+                <div class="glass-card rounded-xl p-4">
+                    <h5 class="font-semibold text-green-400 mb-2">📥 Input Format</h5>
+                    <p class="text-sm text-slate-300 mb-2">${proposal.input_format.type || 'JSON'}</p>
+                    ${proposal.input_format.example ? `
+                    <div class="code-highlight rounded p-3">
+                        <pre class="text-xs text-slate-300 font-mono">${proposal.input_format.example}</pre>
+                    </div>
+                    ` : ''}
+                </div>
+                ` : ''}
+                ${proposal.output_format ? `
+                <div class="glass-card rounded-xl p-4">
+                    <h5 class="font-semibold text-purple-400 mb-2">📤 Output Format</h5>
+                    <p class="text-sm text-slate-300 mb-2">${proposal.output_format.type || 'JSON'}</p>
+                    ${proposal.output_format.example ? `
+                    <div class="code-highlight rounded p-3">
+                        <pre class="text-xs text-slate-300 font-mono">${proposal.output_format.example}</pre>
+                    </div>
+                    ` : ''}
+                </div>
+                ` : ''}
+            </div>
+            ` : ''}
+
+            <!-- Endpoints -->
+            <div class="glass-card rounded-xl p-6">
+                <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
+                    <span class="text-yellow-400">🔗</span>
+                    <span>API Endpoints</span>
+                </h4>
+                <div class="space-y-2">
+                    ${endpointsHtml}
+                </div>
+            </div>
+
+
+
+            <!-- Confirmation Buttons -->
+            <div class="glass-card rounded-xl p-6 border-green-500/30">
+                <h4 class="font-semibold text-white mb-4 flex items-center space-x-2">
+                    <span class="text-green-400">✅</span>
+                    <span>Ready to build this API?</span>
+                </h4>
+                <div class="flex flex-wrap gap-3">
+                    <button onclick="confirmBuildAPI('${originalPrompt}', '${userId}')" 
+                            class="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                        🚀 Yes, Build It!
+                    </button>
+                    <button onclick="requestModifications('${originalPrompt}', '${userId}')" 
+                            class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                        ✏️ Modify Proposal
+                    </button>
+                    <button onclick="cancelAPIBuild()" 
+                            class="px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                        ❌ Cancel
+                    </button>
+                </div>
+                <p class="text-sm text-slate-400 mt-4">
+                    💡 Review the proposal carefully. You can request modifications or proceed with building the API.
+                </p>
+            </div>
+        </div>
+    `;
+    
+    addMessage('assistant', content);
+    hideTypingIndicator();
+}
+
+// Confirmation handler functions
+async function confirmBuildAPI(originalPrompt, userId) {
+    try {
+        // Add user confirmation message
+        addMessage('user', '🚀 Yes, build this API!');
+        
+        // Show building message
+        
+        
+        showTypingIndicator("Building your API...");
+        
+        // Generate the API with skip_analysis = true since we already analyzed
+        await generateAPI(originalPrompt, userId, true);
+        
+    } catch (error) {
+        hideTypingIndicator();
+        addMessage('assistant', `❌ Error building API: ${error.message}`);
+    }
+}
+
+function requestModifications(originalPrompt, userId) {
+    addMessage('user', '✏️ I want to modify the proposal');
+    
+    const content = `
+        <div class="space-y-4">
+            <div class="flex items-center space-x-2">
+                <span class="status-badge bg-blue-900/50 text-blue-400 border-blue-500/30">Modification Request</span>
+                <h3 class="font-semibold text-white">What would you like to modify?</h3>
+            </div>
+            <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+                <p class="text-blue-300 text-sm mb-3">
+                    Please describe the changes you'd like to make to the API proposal:
+                </p>
+                <ul class="text-sm text-blue-200 space-y-2">
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Add or remove features</span></li>
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Change input/output formats</span></li>
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Modify endpoints or functionality</span></li>
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Update technologies or approach</span></li>
+                </ul>
+            </div>
+            <div class="text-center text-sm text-slate-400">
+                Type your modification request in the chat input below
+            </div>
+        </div>
+    `;
+    
+    addMessage('assistant', content);
+}
+
+function cancelAPIBuild() {
+    addMessage('user', '❌ Cancel - Don\'t build this API');
+    
+    const content = `
+        <div class="space-y-4">
+            <div class="flex items-center space-x-2">
+                <h3 class="font-semibold text-white">No problem! API build cancelled.</h3>
+            </div>
+            <div class="bg-slate-900/20 border border-slate-500/30 rounded-xl p-4">
+                <p class="text-slate-300 text-sm">
+                    Feel free to describe a different API you'd like to build, or modify your original request.
+                </p>
+            </div>
+            <div class="text-center text-sm text-slate-400">
+                What else can I help you build today?
+            </div>
+        </div>
+    `;
+    
+    addMessage('assistant', content);
+}
+
 function addAPIResultMessage(result) {
     const endpointUrl = window.location.origin + result.endpoint_url;
     
@@ -437,7 +628,7 @@ function addAPIResultMessage(result) {
     addMessage('assistant', content);
 }
 
-function showTypingIndicator() {
+function showTypingIndicator(message) {
     const messagesContainer = document.getElementById('chatMessages');
     const typingDiv = document.createElement('div');
     typingDiv.id = 'typingIndicator';
@@ -455,7 +646,7 @@ function showTypingIndicator() {
                     <div class="typing-dot"></div>
                     <div class="typing-dot"></div>
                 </div>
-                <span class="text-sm text-slate-300">AI is generating your API...</span>
+                <span class="text-sm text-slate-300">${message}</span>
             </div>
         </div>
     `;
@@ -586,7 +777,7 @@ async function modifyCurrentAPI() {
         
         // Show modification in progress
         addMessage('user', `Modify API: ${modificationPrompt}`);
-        showTypingIndicator();
+        showTypingIndicator('Modifying API...');
         
         const response = await fetch('/modify-api', {
             method: 'POST',
