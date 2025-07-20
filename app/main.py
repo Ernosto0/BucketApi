@@ -111,6 +111,15 @@ async def profile_page(request: Request):
     """Serve the profile page."""
     return templates.TemplateResponse("profile.html", {"request": request})
 
+@app.get("/api/{user_id}/{api_slug}/details", response_class=HTMLResponse)
+async def api_details_page(request: Request, user_id: str, api_slug: str):
+    """Serve the API details page."""
+    return templates.TemplateResponse("api_details.html", {
+        "request": request,
+        "user_id": user_id,
+        "api_slug": api_slug
+    })
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint."""
@@ -742,6 +751,39 @@ async def delete_api(user_id: str, api_slug: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to delete API: {str(e)}"
+        )
+
+@app.get("/api/{user_id}/{api_slug}/apidetails")
+async def apidetails(user_id: str, api_slug: str):
+    """
+    Get details of a specific API.
+    """
+    try:
+        api_details = await file_service.get_api_details(user_id, api_slug)
+        return api_details
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get API details: {str(e)}"
+        )
+
+@app.get("/api/{user_id}/{api_slug}/code")
+async def get_api_code(user_id: str, api_slug: str):
+    """
+    Get the source code of a specific API.
+    """
+    try:
+        code = file_service.load_api_code(user_id, api_slug)
+        return {"success": True, "code": code}
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"API not found: {user_id}/{api_slug}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get API code: {str(e)}"
         )
 
 if __name__ == "__main__":

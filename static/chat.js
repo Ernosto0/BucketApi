@@ -497,6 +497,13 @@ function addProposalMessage(analysis, originalPrompt, userId) {
     hideTypingIndicator();
 }
 
+function hideProposalMessage() {
+    const proposalMessage = document.getElementById('proposalMessage');
+    if (proposalMessage) {
+        proposalMessage.remove();
+    }
+}
+
 // Confirmation handler functions
 async function confirmBuildAPI(originalPrompt, userId) {
     try {
@@ -508,6 +515,8 @@ async function confirmBuildAPI(originalPrompt, userId) {
         
         showTypingIndicator("Building your API...");
         
+
+        hideProposalMessage();
         // Generate the API with skip_analysis = true since we already analyzed
         await generateAPI(originalPrompt, userId, true);
         
@@ -571,6 +580,9 @@ function cancelAPIBuild() {
 function addAPIResultMessage(result) {
     const endpointUrl = window.location.origin + result.endpoint_url;
     
+    // Extract or generate smart test data based on the API
+    const testData = generateSmartTestData(result);
+    
     const content = `
         <div class="space-y-6">
             <div class="flex items-center space-x-2">
@@ -578,25 +590,160 @@ function addAPIResultMessage(result) {
                 <h3 class="font-semibold text-white">🎉 API Generated Successfully!</h3>
             </div>
             
-            <!-- Endpoint URL Card -->
-            <div class="glass-card rounded-xl p-6 border-emerald-500/30">
+            <!-- API Test Section -->
+            <div class="glass-card rounded-xl p-6 border-blue-500/30 test-section">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="font-semibold text-white flex items-center space-x-2">
-                        <span class="text-emerald-400">📡</span>
-                        <span>Endpoint URL</span>
+                        <span class="text-blue-400">🧪</span>
+                        <span>Test Your API</span>
                     </h4>
-                    <button onclick="copyToClipboard('${endpointUrl}')" 
-                            class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition-colors">
-                        Copy URL
-                    </button>
+                    <div class="flex items-center space-x-2">
+                        <div id="testStatus" class="w-3 h-3 bg-gray-500 rounded-full"></div>
+                        <span id="testStatusText" class="text-sm text-gray-400">Ready to test</span>
+                    </div>
                 </div>
-                <div class="code-highlight rounded-lg p-4">
-                    <code class="text-emerald-400 font-mono text-sm break-all">${endpointUrl}</code>
+                
+                <!-- API Documentation -->
+                <div class="mb-6 p-4 bg-slate-800/30 rounded-lg border border-slate-600/30">
+                    <div class="flex items-center justify-between mb-3">
+                        <h5 class="font-medium text-white flex items-center space-x-2">
+                            <span class="text-blue-400">📚</span>
+                            <span>API Documentation</span>
+                        </h5>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="copyToClipboard('${endpointUrl}')" 
+                                    class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded transition-colors">
+                                Copy URL
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="text-sm">
+                            <span class="text-slate-400">Endpoint:</span>
+                            <code class="ml-2 text-emerald-400 font-mono text-xs bg-slate-700/50 px-2 py-1 rounded">${endpointUrl}</code>
+                        </div>
+                        <div class="text-sm text-slate-300 leading-relaxed">
+                            ${result.documentation.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code class="bg-slate-700/50 px-1 py-0.5 rounded text-xs font-mono">$1</code>')}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Test Input Area -->
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-sm font-medium text-slate-300">Request Data (JSON)</label>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="formatTestInput()" class="text-xs text-blue-400 hover:text-blue-300 transition-colors format-json-btn">Format JSON</button>
+                                <button onclick="generateExampleData()" class="text-xs text-green-400 hover:text-green-300 transition-colors">Generate Example</button>
+                            </div>
+                        </div>
+                        <div class="test-input-container">
+                            <textarea 
+                                id="testInput" 
+                                class="w-full h-32 p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono text-sm" 
+                                placeholder="Generated example data will appear here..."
+                            >${testData.json}</textarea>
+                        </div>
+                        <div class="mt-2">
+                            <div class="flex items-center justify-between">
+                                <p class="text-xs text-slate-400">${testData.description}</p>
+                                <div class="flex items-center space-x-2">
+                                    ${testData.requiresFile ? '<span class="text-xs text-amber-400">📎 File upload supported</span>' : ''}
+                                </div>
+                            </div>
+                            ${testData.examples.length > 0 ? `
+                            <div class="mt-2">
+                                <details class="text-xs">
+                                    <summary class="text-slate-400 cursor-pointer hover:text-slate-300">More examples</summary>
+                                    <div class="mt-2 space-y-1 pl-4 border-l border-slate-600">
+                                        ${testData.examples.map(example => `
+                                            <button onclick="setTestData('${example.data.replace(/'/g, "\\'")}', '${example.label}')" 
+                                                    class="block text-blue-400 hover:text-blue-300 transition-colors">
+                                                ${example.label}
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </details>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    <!-- Test Controls -->
+                    <div class="flex items-center justify-between test-controls">
+                        <div class="flex items-center space-x-3">
+                            <button onclick="runAPITest('${endpointUrl}')" 
+                                    id="runTestBtn"
+                                    class="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2 test-button">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
+                                </svg>
+                                <span>Run Test</span>
+                            </button>
+                            <button onclick="clearTestData()" 
+                                    class="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">
+                                Clear
+                            </button>
+                        </div>
+                        <div class="flex items-center space-x-2 text-xs text-slate-400">
+                            <span>Method:</span>
+                            <span class="px-2 py-1 bg-blue-600/20 text-blue-300 rounded font-mono">POST</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Test Results Area -->
+                <div id="testResults" class="hidden mt-6 space-y-4 test-results-container">
+                    <!-- Response Status -->
+                    <div class="flex items-center justify-between response-info">
+                        <h5 class="font-medium text-white">Response</h5>
+                        <div class="flex items-center space-x-2">
+                            <span id="responseStatus" class="px-2 py-1 rounded text-xs font-mono"></span>
+                            <span id="responseTime" class="text-xs text-slate-400"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Response Body -->
+                    <div class="code-highlight rounded-lg p-4">
+                        <pre id="responseBody" class="text-sm text-slate-300 font-mono whitespace-pre-wrap overflow-x-auto"></pre>
+                    </div>
+                    
+                    <!-- Response Headers (Collapsible) -->
+                    <div>
+                        <button onclick="toggleResponseHeaders()" class="flex items-center space-x-2 text-sm text-slate-400 hover:text-slate-300 transition-colors headers-toggle-button">
+                            <svg id="headersChevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                            <span>Response Headers</span>
+                        </button>
+                        <div id="responseHeaders" class="hidden mt-2 code-highlight rounded-lg p-4 headers-content">
+                            <pre id="responseHeadersContent" class="text-xs text-slate-400 font-mono"></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Deploy Button (Initially Hidden) -->
+                <div id="deploySection" class="hidden mt-6 pt-6 border-t border-slate-600/50 deploy-section">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h5 class="font-medium text-white mb-1">Ready to Deploy?</h5>
+                            <p class="text-sm text-slate-400">Your API is working! Deploy it to make it publicly available.</p>
+                        </div>
+                        <button onclick="deployCurrentAPI()" 
+                                class="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                            </svg>
+                            <span>Deploy API</span>
+                            
+                        </button>
+                    </div>
                 </div>
             </div>
             
-            <!-- Documentation Card -->
-            <div class="glass-card rounded-xl p-6">
+            <!-- Documentation Card (Initially Hidden) -->
+            <div id="documentationSection" class="hidden glass-card rounded-xl p-6">
                 <h4 class="font-semibold text-white mb-4 flex items-center space-x-2">
                     <span class="text-blue-400">📚</span>
                     <span>Documentation</span>
@@ -606,8 +753,8 @@ function addAPIResultMessage(result) {
                 </div>
             </div>
             
-            <!-- cURL Example Card -->
-            <div class="glass-card rounded-xl p-6">
+            <!-- cURL Example Card (Initially Hidden) -->
+            <div id="curlSection" class="hidden glass-card rounded-xl p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h4 class="font-semibold text-white flex items-center space-x-2">
                         <span class="text-purple-400">💻</span>
@@ -626,6 +773,743 @@ function addAPIResultMessage(result) {
     `;
 
     addMessage('assistant', content);
+}
+
+// Smart test data generation based on API functionality
+function generateSmartTestData(result) {
+    const prompt = getCurrentPrompt() || '';
+    const documentation = result.documentation || '';
+    const curlExample = result.curl_example || '';
+    
+    // Store current API result for reference
+    window.currentAPIResult = result;
+    
+    // Analyze the API type and generate appropriate test data
+    const apiType = analyzeAPIType(prompt, documentation);
+    
+    let testData = {
+        json: '',
+        description: '',
+        examples: [],
+        requiresFile: false
+    };
+    
+    // Generate test data based on API type
+    switch (apiType.type) {
+        case 'text_analysis':
+            testData = generateTextAnalysisTestData(apiType.subtype);
+            break;
+        case 'file_processing':
+            testData = generateFileProcessingTestData(apiType.subtype);
+            break;
+        case 'data_extraction':
+            testData = generateDataExtractionTestData(apiType.subtype);
+            break;
+        case 'ai_processing':
+            testData = generateAIProcessingTestData(apiType.subtype);
+            break;
+        case 'image_processing':
+            testData = generateImageProcessingTestData(apiType.subtype);
+            break;
+        case 'authentication':
+            testData = generateAuthTestData(apiType.subtype);
+            break;
+        default:
+            testData = generateGenericTestData(prompt, curlExample);
+    }
+    
+    // Try to extract data from curl example if available
+    const curlData = extractDataFromCurl(curlExample);
+    if (curlData && !testData.json) {
+        testData.json = curlData;
+    }
+    
+    return testData;
+}
+
+function analyzeAPIType(prompt, documentation) {
+    const text = (prompt + ' ' + documentation).toLowerCase();
+    
+    // Text analysis APIs
+    if (text.includes('sentiment') || text.includes('emotion') || text.includes('mood')) {
+        return { type: 'text_analysis', subtype: 'sentiment' };
+    }
+    if (text.includes('summarize') || text.includes('summary') || text.includes('abstract')) {
+        return { type: 'text_analysis', subtype: 'summarization' };
+    }
+    if (text.includes('translate') || text.includes('translation') || text.includes('language')) {
+        return { type: 'text_analysis', subtype: 'translation' };
+    }
+    
+    // File processing APIs
+    if (text.includes('pdf') || text.includes('document') || text.includes('file')) {
+        return { type: 'file_processing', subtype: 'pdf' };
+    }
+    if (text.includes('csv') || text.includes('excel') || text.includes('spreadsheet')) {
+        return { type: 'file_processing', subtype: 'csv' };
+    }
+    
+    // Data extraction APIs
+    if (text.includes('extract') && (text.includes('email') || text.includes('contact'))) {
+        return { type: 'data_extraction', subtype: 'contacts' };
+    }
+    if (text.includes('extract') && (text.includes('name') || text.includes('person'))) {
+        return { type: 'data_extraction', subtype: 'names' };
+    }
+    if (text.includes('extract') && text.includes('date')) {
+        return { type: 'data_extraction', subtype: 'dates' };
+    }
+    
+    // AI processing APIs
+    if (text.includes('ai') || text.includes('artificial intelligence') || text.includes('machine learning')) {
+        return { type: 'ai_processing', subtype: 'general' };
+    }
+    if (text.includes('classify') || text.includes('classification') || text.includes('category')) {
+        return { type: 'ai_processing', subtype: 'classification' };
+    }
+    
+    // Image processing APIs
+    if (text.includes('image') || text.includes('photo') || text.includes('picture')) {
+        return { type: 'image_processing', subtype: 'general' };
+    }
+    if (text.includes('resize') || text.includes('compress') || text.includes('optimize')) {
+        return { type: 'image_processing', subtype: 'resize' };
+    }
+    
+    // Authentication APIs
+    if (text.includes('auth') || text.includes('login') || text.includes('jwt') || text.includes('token')) {
+        return { type: 'authentication', subtype: 'jwt' };
+    }
+    
+    return { type: 'generic', subtype: 'unknown' };
+}
+
+function generateTextAnalysisTestData(subtype) {
+    const examples = [];
+    let json = '';
+    let description = '';
+    
+    switch (subtype) {
+        case 'sentiment':
+            json = JSON.stringify({
+                text: "I absolutely love this new product! It's amazing and works perfectly. Highly recommend it to everyone."
+            }, null, 2);
+            description = "Example text for sentiment analysis";
+            examples.push(
+                { label: "Positive text", data: JSON.stringify({text: "This is fantastic! I love it!"}) },
+                { label: "Negative text", data: JSON.stringify({text: "This is terrible and disappointing."}) },
+                { label: "Neutral text", data: JSON.stringify({text: "The weather is cloudy today."}) }
+            );
+            break;
+        case 'summarization':
+            json = JSON.stringify({
+                text: "Artificial intelligence (AI) is intelligence demonstrated by machines, unlike the natural intelligence displayed by humans and animals. Leading AI textbooks define the field as the study of intelligent agents: any device that perceives its environment and takes actions that maximize its chance of successfully achieving its goals. The term artificial intelligence is often used to describe machines that mimic cognitive functions that humans associate with the human mind, such as learning and problem solving."
+            }, null, 2);
+            description = "Long text to be summarized";
+            examples.push(
+                { label: "Article text", data: JSON.stringify({text: "Long article content here..."}) },
+                { label: "Research paper", data: JSON.stringify({text: "Abstract and research content..."}) }
+            );
+            break;
+        case 'translation':
+            json = JSON.stringify({
+                text: "Hello, how are you?",
+                target_language: "es"
+            }, null, 2);
+            description = "Text to translate with target language";
+            examples.push(
+                { label: "English to Spanish", data: JSON.stringify({text: "Good morning", target_language: "es"}) },
+                { label: "English to French", data: JSON.stringify({text: "Thank you", target_language: "fr"}) }
+            );
+            break;
+    }
+    
+    return { json, description, examples, requiresFile: false };
+}
+
+function generateFileProcessingTestData(subtype) {
+    const examples = [];
+    let json = '';
+    let description = '';
+    
+    switch (subtype) {
+        case 'pdf':
+            json = JSON.stringify({
+                action: "extract_text",
+                options: {
+                    preserve_formatting: true
+                }
+            }, null, 2);
+            description = "Upload a PDF file and specify extraction options";
+            examples.push(
+                { label: "Extract text", data: JSON.stringify({action: "extract_text"}) },
+                { label: "Extract metadata", data: JSON.stringify({action: "extract_metadata"}) }
+            );
+            break;
+        case 'csv':
+            json = JSON.stringify({
+                operation: "analyze",
+                columns: ["name", "age", "city"]
+            }, null, 2);
+            description = "Upload a CSV file and specify analysis parameters";
+            examples.push(
+                { label: "Basic analysis", data: JSON.stringify({operation: "analyze"}) },
+                { label: "Filter data", data: JSON.stringify({operation: "filter", criteria: {age: ">18"}}) }
+            );
+            break;
+    }
+    
+    return { json, description, examples, requiresFile: true };
+}
+
+function generateDataExtractionTestData(subtype) {
+    const examples = [];
+    let json = '';
+    let description = '';
+    
+    switch (subtype) {
+        case 'contacts':
+            json = JSON.stringify({
+                text: "Contact John Doe at john.doe@email.com or call (555) 123-4567. You can also reach Mary Smith at mary.smith@company.com."
+            }, null, 2);
+            description = "Text containing contact information to extract";
+            examples.push(
+                { label: "Business card text", data: JSON.stringify({text: "Dr. Jane Wilson, MD\\nwilson@hospital.com\\n(555) 987-6543"}) },
+                { label: "Email signature", data: JSON.stringify({text: "Best regards,\\nMike Johnson\\nmjohnson@company.com"}) }
+            );
+            break;
+        case 'names':
+            json = JSON.stringify({
+                text: "The meeting was attended by John Smith, Mary Johnson, and Dr. Robert Brown from the university."
+            }, null, 2);
+            description = "Text containing person names to extract";
+            break;
+        case 'dates':
+            json = JSON.stringify({
+                text: "The project deadline is March 15, 2024. The meeting is scheduled for next Tuesday, January 10th."
+            }, null, 2);
+            description = "Text containing dates to extract and normalize";
+            break;
+    }
+    
+    return { json, description, examples, requiresFile: false };
+}
+
+function generateAIProcessingTestData(subtype) {
+    const examples = [];
+    let json = '';
+    let description = '';
+    
+    switch (subtype) {
+        case 'classification':
+            json = JSON.stringify({
+                text: "I need help with my account settings and password reset.",
+                categories: ["technical_support", "billing", "general_inquiry", "bug_report"]
+            }, null, 2);
+            description = "Text to classify with possible categories";
+            examples.push(
+                { label: "Customer service", data: JSON.stringify({text: "My order hasn't arrived yet", categories: ["shipping", "billing", "returns"]}) },
+                { label: "Product review", data: JSON.stringify({text: "Great product, works as expected", categories: ["positive", "negative", "neutral"]}) }
+            );
+            break;
+        default:
+            json = JSON.stringify({
+                input: "Sample data for AI processing",
+                parameters: {
+                    temperature: 0.7,
+                    max_tokens: 100
+                }
+            }, null, 2);
+            description = "Input data for AI model processing";
+            break;
+    }
+    
+    return { json, description, examples, requiresFile: false };
+}
+
+function generateImageProcessingTestData(subtype) {
+    const examples = [];
+    let json = '';
+    let description = '';
+    
+    switch (subtype) {
+        case 'resize':
+            json = JSON.stringify({
+                width: 800,
+                height: 600,
+                maintain_aspect_ratio: true,
+                quality: 85
+            }, null, 2);
+            description = "Upload an image and specify resize parameters";
+            examples.push(
+                { label: "Thumbnail", data: JSON.stringify({width: 150, height: 150}) },
+                { label: "High quality", data: JSON.stringify({width: 1920, height: 1080, quality: 95}) }
+            );
+            break;
+        default:
+            json = JSON.stringify({
+                operation: "analyze",
+                return_metadata: true
+            }, null, 2);
+            description = "Upload an image and specify processing options";
+            break;
+    }
+    
+    return { json, description, examples, requiresFile: true };
+}
+
+function generateAuthTestData(subtype) {
+    const examples = [];
+    let json = '';
+    let description = '';
+    
+    switch (subtype) {
+        case 'jwt':
+            json = JSON.stringify({
+                username: "testuser",
+                password: "testpassword"
+            }, null, 2);
+            description = "User credentials for authentication";
+            examples.push(
+                { label: "Login", data: JSON.stringify({username: "john_doe", password: "secure123"}) },
+                { label: "Register", data: JSON.stringify({username: "new_user", password: "newpass123", email: "user@example.com"}) }
+            );
+            break;
+        default:
+            json = JSON.stringify({
+                action: "authenticate",
+                credentials: {
+                    username: "user",
+                    password: "pass"
+                }
+            }, null, 2);
+            description = "Authentication request data";
+            break;
+    }
+    
+    return { json, description, examples, requiresFile: false };
+}
+
+function generateGenericTestData(prompt, curlExample) {
+    // Try to extract from curl first
+    const curlData = extractDataFromCurl(curlExample);
+    if (curlData) {
+        return {
+            json: curlData,
+            description: "Example data extracted from API documentation",
+            examples: [],
+            requiresFile: false
+        };
+    }
+    
+    // Generate based on common patterns in prompt
+    let json = '';
+    if (prompt.toLowerCase().includes('user') || prompt.toLowerCase().includes('account')) {
+        json = JSON.stringify({
+            name: "John Doe",
+            email: "john@example.com",
+            age: 30
+        }, null, 2);
+    } else if (prompt.toLowerCase().includes('product') || prompt.toLowerCase().includes('item')) {
+        json = JSON.stringify({
+            name: "Sample Product",
+            price: 29.99,
+            category: "electronics"
+        }, null, 2);
+    } else {
+        json = JSON.stringify({
+            message: "Hello World",
+            data: "sample data",
+            timestamp: new Date().toISOString()
+        }, null, 2);
+    }
+    
+    return {
+        json,
+        description: "Example data based on your API description",
+        examples: [
+            { label: "Basic example", data: JSON.stringify({test: "data"}) },
+            { label: "Empty request", data: JSON.stringify({}) }
+        ],
+        requiresFile: false
+    };
+}
+
+function extractDataFromCurl(curlExample) {
+    if (!curlExample) return null;
+    
+    try {
+        // Look for -d or --data flag in curl command
+        const dataMatch = curlExample.match(/-d\s+'([^']+)'|--data\s+'([^']+)'|-d\s+"([^"]+)"|--data\s+"([^"]+)"/);
+        if (dataMatch) {
+            const data = dataMatch[1] || dataMatch[2] || dataMatch[3] || dataMatch[4];
+            // Try to parse and reformat JSON
+            try {
+                const parsed = JSON.parse(data);
+                return JSON.stringify(parsed, null, 2);
+            } catch {
+                return data;
+            }
+        }
+        
+        // Look for JSON-like content in the curl example
+        const jsonMatch = curlExample.match(/\{[^}]+\}/);
+        if (jsonMatch) {
+            try {
+                const parsed = JSON.parse(jsonMatch[0]);
+                return JSON.stringify(parsed, null, 2);
+            } catch {
+                return jsonMatch[0];
+            }
+        }
+    } catch (error) {
+        console.warn('Error extracting data from curl example:', error);
+    }
+    
+    return null;
+}
+
+function getCurrentPrompt() {
+    // Get the last user message from the conversation
+    if (currentConversation && currentConversation.length > 0) {
+        for (let i = currentConversation.length - 1; i >= 0; i--) {
+            if (currentConversation[i].type === 'user') {
+                return currentConversation[i].content;
+            }
+        }
+    }
+    return '';
+}
+
+// New helper functions for the enhanced test interface
+function setTestData(data, label) {
+    const testInput = document.getElementById('testInput');
+    if (testInput) {
+        try {
+            const parsed = JSON.parse(data);
+            testInput.value = JSON.stringify(parsed, null, 2);
+        } catch {
+            testInput.value = data;
+        }
+        
+        // Show feedback
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-xl shadow-xl z-50 notification-slide-up';
+        notification.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>Loaded: ${label}</span>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 2000);
+    }
+}
+
+function generateExampleData() {
+    if (window.currentAPIResult) {
+        const testData = generateSmartTestData(window.currentAPIResult);
+        const testInput = document.getElementById('testInput');
+        if (testInput && testData.json) {
+            testInput.value = testData.json;
+            
+            // Show feedback
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-xl shadow-xl z-50 notification-slide-up';
+            notification.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <span>Generated example data</span>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 2000);
+        }
+    }
+}
+
+// Test-related functions
+async function runAPITest(endpointUrl) {
+    const testInput = document.getElementById('testInput');
+    const runTestBtn = document.getElementById('runTestBtn');
+    const testStatus = document.getElementById('testStatus');
+    const testStatusText = document.getElementById('testStatusText');
+    const testResults = document.getElementById('testResults');
+    const responseStatus = document.getElementById('responseStatus');
+    const responseTime = document.getElementById('responseTime');
+    const responseBody = document.getElementById('responseBody');
+    const responseHeadersContent = document.getElementById('responseHeadersContent');
+    const deploySection = document.getElementById('deploySection');
+    
+    // Update UI to show testing in progress
+    runTestBtn.disabled = true;
+    runTestBtn.innerHTML = `
+        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        <span>Testing...</span>
+    `;
+    testStatus.className = 'w-3 h-3 bg-yellow-500 rounded-full animate-pulse';
+    testStatusText.textContent = 'Running test...';
+    testStatusText.className = 'text-sm text-yellow-400';
+    
+    const startTime = Date.now();
+    
+    try {
+        // Prepare request data
+        let testData = testInput.value.trim();
+        const formData = new FormData();
+        
+        if (testData) {
+            try {
+                // Validate JSON if provided
+                JSON.parse(testData);
+                formData.append('input_data', testData);
+            } catch (jsonError) {
+                throw new Error('Invalid JSON format in test input');
+            }
+        }
+
+        // Make the API call
+        const response = await fetch(endpointUrl, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const endTime = Date.now();
+        const responseTimeMs = endTime - startTime;
+        
+        // Get response data
+        const responseText = await response.text();
+        let responseData;
+        
+        try {
+            responseData = JSON.parse(responseText);
+        } catch {
+            responseData = responseText;
+        }
+        
+        // Update UI with results
+        testResults.classList.remove('hidden');
+        
+        // Response status
+        responseStatus.textContent = `${response.status} ${response.statusText}`;
+        responseStatus.className = response.ok ? 
+            'px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono' :
+            'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
+        
+        responseTime.textContent = `${responseTimeMs}ms`;
+        
+        // Response body
+        responseBody.textContent = typeof responseData === 'object' ? 
+            JSON.stringify(responseData, null, 2) : responseData;
+        
+        // Response headers
+        const headers = {};
+        for (let [key, value] of response.headers.entries()) {
+            headers[key] = value;
+        }
+        responseHeadersContent.textContent = JSON.stringify(headers, null, 2);
+        
+        // Update status
+        if (response.ok) {
+            testStatus.className = 'w-3 h-3 bg-green-500 rounded-full';
+            testStatusText.textContent = 'Test successful';
+            testStatusText.className = 'text-sm text-green-400';
+            
+            // Show deploy section after successful test
+            deploySection.classList.remove('hidden');
+        } else {
+            testStatus.className = 'w-3 h-3 bg-red-500 rounded-full';
+            testStatusText.textContent = 'Test failed';
+            testStatusText.className = 'text-sm text-red-400';
+        }
+        
+    } catch (error) {
+        // Handle errors
+        testResults.classList.remove('hidden');
+        
+        responseStatus.textContent = 'Error';
+        responseStatus.className = 'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
+        
+        responseTime.textContent = `${Date.now() - startTime}ms`;
+        responseBody.textContent = `Error: ${error.message}`;
+        responseHeadersContent.textContent = 'No headers (request failed)';
+        
+        testStatus.className = 'w-3 h-3 bg-red-500 rounded-full';
+        testStatusText.textContent = 'Test error';
+        testStatusText.className = 'text-sm text-red-400';
+    } finally {
+        // Reset button
+        runTestBtn.disabled = false;
+        runTestBtn.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
+            </svg>
+            <span>Run Test</span>
+        `;
+    }
+}
+
+function formatTestInput() {
+    const testInput = document.getElementById('testInput');
+    const value = testInput.value.trim();
+    
+    if (!value) {
+        testInput.value = '{\n  "example": "value",\n  "key": "data"\n}';
+        return;
+    }
+    
+    try {
+        const parsed = JSON.parse(value);
+        testInput.value = JSON.stringify(parsed, null, 2);
+    } catch (error) {
+        // Show error feedback
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-xl shadow-xl z-50 notification-slide-up';
+        notification.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                <span>Invalid JSON format</span>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+}
+
+function clearTestData() {
+    const testInput = document.getElementById('testInput');
+    const testResults = document.getElementById('testResults');
+    const deploySection = document.getElementById('deploySection');
+    const testStatus = document.getElementById('testStatus');
+    const testStatusText = document.getElementById('testStatusText');
+    
+    testInput.value = '';
+    testResults.classList.add('hidden');
+    deploySection.classList.add('hidden');
+    
+    // Reset status
+    testStatus.className = 'w-3 h-3 bg-gray-500 rounded-full';
+    testStatusText.textContent = 'Ready to test';
+    testStatusText.className = 'text-sm text-gray-400';
+}
+
+function toggleResponseHeaders() {
+    const headers = document.getElementById('responseHeaders');
+    const chevron = document.getElementById('headersChevron');
+    
+    if (headers.classList.contains('hidden')) {
+        headers.classList.remove('hidden');
+        chevron.style.transform = 'rotate(90deg)';
+    } else {
+        headers.classList.add('hidden');
+        chevron.style.transform = 'rotate(0deg)';
+    }
+}
+
+function deployCurrentAPI() {
+    // Create API details URL
+    const apiDetailsUrl = `/api/${currentApiData.user_id}/${currentApiData.api_slug}/details`;
+    
+    // Add deployment success message
+    addMessage('system', `
+        🚀 API deployed successfully! Redirecting to API details page...
+        <div class="mt-4 p-4 bg-green-900/20 border border-green-500/30 rounded-xl">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h4 class="font-medium text-green-300 mb-1">Deployment Complete</h4>
+                    <p class="text-sm text-green-200">Taking you to the API management page where you can test, monitor, and manage your API.</p>
+                </div>
+            </div>
+        </div>
+    `);
+    
+    // Show a brief animation/delay then redirect
+    setTimeout(() => {
+        // Add a loading/redirect message
+        addMessage('system', `
+            <div class="flex items-center justify-center space-x-3 p-4">
+                <svg class="w-5 h-5 text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span class="text-blue-400">Redirecting to API details page...</span>
+            </div>
+        `);
+        
+        // Redirect after a short delay
+        setTimeout(() => {
+            window.location.href = apiDetailsUrl;
+        }, 1500);
+    }, 2000);
+}
+
+// Update the original quickTestAPI function to use the new test interface
+async function quickTestAPI() {
+    if (!currentApiData) {
+        addMessage('system', '❌ No API available to test. Please generate an API first.');
+        return;
+    }
+    
+    // Scroll to the test section if it exists
+    const testSection = document.querySelector('[data-test-section]');
+    if (testSection) {
+        testSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Focus on the test input
+        setTimeout(() => {
+            const testInput = document.getElementById('testInput');
+            if (testInput) {
+                testInput.focus();
+            }
+        }, 500);
+    } else {
+        // Fallback to original functionality if new test section not found
+        const endpointUrl = window.location.origin + currentApiData.endpoint_url;
+        const testData = prompt('Enter test data (JSON format, optional):');
+            
+        try {
+            const formData = new FormData();
+            if (testData && testData.trim()) {
+                formData.append('input_data', testData);
+            }
+
+            const response = await fetch(endpointUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                addMessage('system', `✅ Test successful! Result: <div class="code-highlight rounded p-3 mt-2"><pre class="text-sm">${JSON.stringify(result.result, null, 2)}</pre></div>`);
+            } else {
+                addMessage('system', `❌ Test failed: ${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            addMessage('system', `❌ Test error: ${error.message}`);
+        }
+    }
 }
 
 function showTypingIndicator(message) {
@@ -685,38 +1569,6 @@ function copyToClipboard(text) {
     });
 }
 
-
-async function quickTestAPI() {
-    if (!currentApiData) {
-        addMessage('system', '❌ No API available to test. Please generate an API first.');
-        return;
-    }
-    
-    const endpointUrl = window.location.origin + currentApiData.endpoint_url;
-    const testData = prompt('Enter test data (JSON format, optional):');
-        
-    try {
-        const formData = new FormData();
-        if (testData && testData.trim()) {
-            formData.append('input_data', testData);
-        }
-
-        const response = await fetch(endpointUrl, {
-            method: 'POST',
-            body: formData
-        });
-
-        const result = await response.json();
-        
-        if (result.success) {
-            addMessage('system', `✅ Test successful! Result: <div class="code-highlight rounded p-3 mt-2"><pre class="text-sm">${JSON.stringify(result.result, null, 2)}</pre></div>`);
-        } else {
-            addMessage('system', `❌ Test failed: ${result.error || 'Unknown error'}`);
-        }
-    } catch (error) {
-        addMessage('system', `❌ Test error: ${error.message}`);
-    }
-}
 
 async function saveCurrentAPI() {
     if (!currentApiData) {

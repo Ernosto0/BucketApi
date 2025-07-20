@@ -57,6 +57,14 @@
         background-color: #106bb3;
     }
 
+    .btn-primary.no-underline {
+        text-decoration: none;
+    }
+
+    .btn-primary.no-underline:hover {
+        text-decoration: none;
+    }
+
     .btn-secondary {
         background-color: var(--vscode-sidebar);
         color: var(--vscode-text);
@@ -332,6 +340,10 @@
                     </div>
                 </div>
                 <div class="flex space-x-2 ml-4">
+                    <a href="/api/${api.user_id}/${api.api_slug}/details" 
+                       class="btn-primary text-xs px-2 py-1 no-underline inline-block">
+                        📊 Details
+                    </a>
                     <button onclick="testAPI('${endpointUrl}')" class="btn-success text-xs px-2 py-1">
                         🧪 Test
                     </button>

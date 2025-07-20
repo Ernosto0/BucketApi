@@ -273,3 +273,9 @@ Return the corrected code with all issues fixed. Maintain the same functionality
 
 # Global instance
 code_debugger = CodeDebugger() 
+
+
+class CodeErrorSolver:
+    def __init__(self):
+        pass
+    pass

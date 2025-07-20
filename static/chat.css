@@ -123,35 +123,84 @@
 }
 
 .action-button {
-    @apply px-3 sm:px-4 py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+    transform: scale(1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.action-button:hover {
+    transform: scale(1.05);
+}
+
+.action-button:active {
+    transform: scale(0.95);
+}
+
+@media (max-width: 640px) {
+    .action-button {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.75rem;
+    }
 }
 
 .action-button-save {
-    @apply bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white;
+    background: linear-gradient(to right, #059669, #16a34a);
+    color: white;
+}
+
+.action-button-save:hover {
+    background: linear-gradient(to right, #047857, #15803d);
 }
 
 .action-button-test {
-    @apply bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white;
+    background: linear-gradient(to right, #2563eb, #4f46e5);
+    color: white;
+}
+
+.action-button-test:hover {
+    background: linear-gradient(to right, #1d4ed8, #4338ca);
 }
 
 .action-button-modify {
-    @apply bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white;
+    background: linear-gradient(to right, #9333ea, #ec4899);
+    color: white;
+}
+
+.action-button-modify:hover {
+    background: linear-gradient(to right, #7c3aed, #db2777);
 }
 
 .status-badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .status-buildable {
-    @apply bg-emerald-900/50 text-emerald-400 border border-emerald-500/30;
+    background: rgba(6, 78, 59, 0.5);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.3);
 }
 
 .status-clarification {
-    @apply bg-amber-900/50 text-amber-400 border border-amber-500/30;
+    background: rgba(120, 53, 15, 0.5);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
 .status-rejection {
-    @apply bg-red-900/50 text-red-400 border border-red-500/30;
+    background: rgba(127, 29, 29, 0.5);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.3);
 }
 
 .quick-action-grid {
@@ -164,5 +213,183 @@
     .quick-action-grid {
         grid-template-columns: repeat(3, 1fr);
         gap: 0.75rem;
+    }
+}
+
+/* Test Section Styles */
+.test-section {
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.test-input-container {
+    position: relative;
+}
+
+.test-input-container textarea:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.test-status-indicator {
+    transition: all 0.3s ease;
+}
+
+.test-status-indicator.success {
+    background-color: #10b981;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.test-status-indicator.error {
+    background-color: #ef4444;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.test-status-indicator.testing {
+    background-color: #f59e0b;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.test-results-container {
+    animation: slideInFromTop 0.3s ease-out;
+}
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 500px;
+    }
+}
+
+.response-status-success {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.response-status-error {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.deploy-section {
+    animation: slideInFromBottom 0.4s ease-out;
+    border-top: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+@keyframes slideInFromBottom {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.test-button {
+    position: relative;
+    overflow: hidden;
+}
+
+.test-button:hover {
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.25);
+}
+
+.test-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.test-button:disabled:hover {
+    box-shadow: none;
+}
+
+/* Response headers toggle animation */
+.headers-toggle-button:hover svg {
+    color: #cbd5e1;
+}
+
+.headers-content {
+    transition: all 0.2s ease;
+}
+
+/* JSON formatter button styling */
+.format-json-btn {
+    transition: all 0.2s ease;
+}
+
+.format-json-btn:hover {
+    color: #93c5fd !important;
+    text-decoration: underline;
+}
+
+/* Notification styles for better feedback */
+.notification-slide-up {
+    animation: notificationSlideUp 0.3s ease-out;
+}
+
+@keyframes notificationSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(50px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Test input validation styles */
+.test-input-invalid {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.test-input-valid {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+}
+
+/* Loading spinner for test button */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+/* Responsive adjustments for test section */
+@media (max-width: 640px) {
+    .test-controls {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .test-controls > div:first-child {
+        width: 100%;
+    }
+    
+    .test-controls button {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .response-info {
+        flex-direction: column;
+        gap: 0.5rem;
     }
 } 
