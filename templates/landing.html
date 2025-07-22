@@ -1,0 +1,416 @@
+{% extends "base.html" %}
+
+{% block title %}AI-Powered API Generator - Transform Ideas into APIs Instantly{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-800">
+    <!-- Hero Section -->
+    <section class="relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-pink-900/20"></div>
+        <div class="relative container mx-auto px-4 py-20 lg:py-32">
+            <div class="text-center max-w-5xl mx-auto">
+                <!-- Hero Badge -->
+                <div class="inline-flex items-center px-4 py-2 mb-8 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-full">
+                    <span class="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
+                    <span class="text-sm text-blue-300 font-medium">✨ Powered by GPT-4o Advanced AI</span>
+                </div>
+
+                <!-- Hero Title -->
+                <h1 class="text-5xl md:text-7xl lg:text-8xl font-bold mb-8 bg-gradient-to-r from-white via-blue-200 to-purple-300 bg-clip-text text-transparent leading-tight">
+                    Transform Ideas into 
+                    <span class="block bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+                        APIs Instantly
+                    </span>
+                </h1>
+
+                <!-- Hero Subtitle -->
+                <p class="text-xl md:text-2xl text-slate-300 mb-12 max-w-4xl mx-auto leading-relaxed">
+                    Describe your API in plain English and watch as our AI generates, validates, and deploys 
+                    <span class="text-blue-400 font-semibold">production-ready code</span> in seconds.
+                </p>
+
+                <!-- CTA Buttons -->
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
+                    <a href="/" class="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                        <span class="relative z-10 flex items-center space-x-2">
+                            <span>Start Building APIs</span>
+                            <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                            </svg>
+                        </span>
+                        <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl blur opacity-30 group-hover:opacity-50 transition-opacity"></div>
+                    </a>
+                    <a href="#demo" class="px-8 py-4 border border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white font-semibold rounded-xl transition-all duration-300 hover:bg-blue-500/10">
+                        Watch Demo
+                    </a>
+                </div>
+
+                <!-- Stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                    <div class="glass-effect rounded-xl p-6">
+                        <div class="text-3xl font-bold text-blue-400 mb-2">5-15s</div>
+                        <div class="text-sm text-slate-400">Generation Time</div>
+                    </div>
+                    <div class="glass-effect rounded-xl p-6">
+                        <div class="text-3xl font-bold text-purple-400 mb-2">100%</div>
+                        <div class="text-sm text-slate-400">AI-Generated</div>
+                    </div>
+                    <div class="glass-effect rounded-xl p-6">
+                        <div class="text-3xl font-bold text-green-400 mb-2">10MB</div>
+                        <div class="text-sm text-slate-400">File Support</div>
+                    </div>
+                    <div class="glass-effect rounded-xl p-6">
+                        <div class="text-3xl font-bold text-yellow-400 mb-2">24/7</div>
+                        <div class="text-sm text-slate-400">Available</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="py-20 lg:py-32 relative">
+        <div class="container mx-auto px-4">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    Everything You Need to Build APIs
+                </h2>
+                <p class="text-xl text-slate-400 max-w-3xl mx-auto">
+                    From idea to deployment in minutes, not hours. Our AI handles the heavy lifting while you focus on innovation.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="group glass-effect rounded-2xl p-8 hover:border-blue-500/50 transition-all duration-300 hover:transform hover:scale-105">
+                    <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-4">Natural Language Processing</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        Simply describe what you want your API to do in plain English. Our AI understands context, requirements, and generates the perfect solution.
+                    </p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="group glass-effect rounded-2xl p-8 hover:border-green-500/50 transition-all duration-300 hover:transform hover:scale-105">
+                    <div class="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-4">Instant Deployment</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        Generated APIs are immediately available via REST endpoints. No manual deployment, no configuration - just instant, working APIs.
+                    </p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="group glass-effect rounded-2xl p-8 hover:border-purple-500/50 transition-all duration-300 hover:transform hover:scale-105">
+                    <div class="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-4">Security First</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        Multi-layer code validation, sandboxing, and security checks ensure your APIs are safe and production-ready from day one.
+                    </p>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="group glass-effect rounded-2xl p-8 hover:border-yellow-500/50 transition-all duration-300 hover:transform hover:scale-105">
+                    <div class="w-16 h-16 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-4">Built-in Testing</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        Test your APIs instantly with our integrated testing interface. Send requests, view responses, and debug in real-time.
+                    </p>
+                </div>
+
+                <!-- Feature 5 -->
+                <div class="group glass-effect rounded-2xl p-8 hover:border-cyan-500/50 transition-all duration-300 hover:transform hover:scale-105">
+                    <div class="w-16 h-16 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-4">File Processing</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        Handle file uploads, process documents, images, and data files with AI-generated parsing and processing logic.
+                    </p>
+                </div>
+
+                <!-- Feature 6 -->
+                <div class="group glass-effect rounded-2xl p-8 hover:border-red-500/50 transition-all duration-300 hover:transform hover:scale-105">
+                    <div class="w-16 h-16 bg-gradient-to-r from-red-500 to-pink-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-4">Auto Documentation</h3>
+                    <p class="text-slate-400 leading-relaxed">
+                        Every API comes with comprehensive documentation, curl examples, and usage guides generated automatically by AI.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="demo" class="py-20 lg:py-32 bg-gradient-to-r from-slate-900/50 to-slate-800/50">
+        <div class="container mx-auto px-4">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    How It Works
+                </h2>
+                <p class="text-xl text-slate-400 max-w-3xl mx-auto">
+                    Three simple steps to transform your ideas into production-ready APIs
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <!-- Step 1 -->
+                <div class="relative">
+                    <div class="glass-effect rounded-2xl p-8 text-center">
+                        <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-white">
+                            1
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-4">Describe Your API</h3>
+                        <p class="text-slate-400 mb-6">
+                            Tell us what you want your API to do in plain English. Be as detailed or as simple as you like.
+                        </p>
+                        <div class="bg-slate-800/50 rounded-xl p-4 text-left">
+                            <div class="text-sm text-green-400 mb-2">Example:</div>
+                            <div class="text-sm text-slate-300 italic">
+                                "Create an API that extracts email addresses from uploaded text files and returns them as JSON"
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Arrow -->
+                    <div class="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 text-slate-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="relative">
+                    <div class="glass-effect rounded-2xl p-8 text-center">
+                        <div class="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-white">
+                            2
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-4">AI Generation</h3>
+                        <p class="text-slate-400 mb-6">
+                            Our GPT-4o AI analyzes your requirements and generates secure, optimized code with documentation.
+                        </p>
+                        <div class="bg-slate-800/50 rounded-xl p-4">
+                            <div class="flex items-center justify-center space-x-2 text-blue-400">
+                                <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                <span class="text-sm">Generating your API...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Arrow -->
+                    <div class="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 text-slate-600">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="glass-effect rounded-2xl p-8 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-6 text-2xl font-bold text-white">
+                        3
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-4">Test & Deploy</h3>
+                    <p class="text-slate-400 mb-6">
+                        Your API is instantly deployed and ready to use. Test it, save it, and integrate it into your applications.
+                    </p>
+                    <div class="bg-slate-800/50 rounded-xl p-4 text-left">
+                        <div class="text-sm text-green-400 mb-2">Ready:</div>
+                        <div class="text-sm text-slate-300 font-mono">
+                            POST /api/john_doe/email_extractor
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Section -->
+    <section class="py-20 lg:py-32">
+        <div class="container mx-auto px-4">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    Popular Use Cases
+                </h2>
+                <p class="text-xl text-slate-400 max-w-3xl mx-auto">
+                    From data processing to AI integration, build APIs for any use case
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Use Case 1 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
+                    <div class="text-4xl mb-4">📊</div>
+                    <h3 class="text-lg font-bold text-white mb-3">Data Processing</h3>
+                    <p class="text-slate-400 text-sm mb-4">CSV to JSON conversion, data validation, format transformation</p>
+                    <div class="text-xs text-blue-400 bg-blue-900/20 px-3 py-2 rounded-lg">
+                        "Convert CSV files to structured JSON with data validation"
+                    </div>
+                </div>
+
+                <!-- Use Case 2 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-green-500/50 transition-all duration-300">
+                    <div class="text-4xl mb-4">🔐</div>
+                    <h3 class="text-lg font-bold text-white mb-3">Authentication</h3>
+                    <p class="text-slate-400 text-sm mb-4">JWT tokens, user validation, session management</p>
+                    <div class="text-xs text-green-400 bg-green-900/20 px-3 py-2 rounded-lg">
+                        "Build a secure user authentication system with JWT"
+                    </div>
+                </div>
+
+                <!-- Use Case 3 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-purple-500/50 transition-all duration-300">
+                    <div class="text-4xl mb-4">🖼️</div>
+                    <h3 class="text-lg font-bold text-white mb-3">Image Processing</h3>
+                    <p class="text-slate-400 text-sm mb-4">Resize, optimize, format conversion, metadata extraction</p>
+                    <div class="text-xs text-purple-400 bg-purple-900/20 px-3 py-2 rounded-lg">
+                        "Create an API for image resizing and optimization"
+                    </div>
+                </div>
+
+                <!-- Use Case 4 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-yellow-500/50 transition-all duration-300">
+                    <div class="text-4xl mb-4">📝</div>
+                    <h3 class="text-lg font-bold text-white mb-3">Text Analysis</h3>
+                    <p class="text-slate-400 text-sm mb-4">Sentiment analysis, keyword extraction, summarization</p>
+                    <div class="text-xs text-yellow-400 bg-yellow-900/20 px-3 py-2 rounded-lg">
+                        "Analyze text sentiment and extract key insights"
+                    </div>
+                </div>
+
+                <!-- Use Case 5 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-cyan-500/50 transition-all duration-300">
+                    <div class="text-4xl mb-4">📧</div>
+                    <h3 class="text-lg font-bold text-white mb-3">Email Processing</h3>
+                    <p class="text-slate-400 text-sm mb-4">Validation, extraction, formatting, template generation</p>
+                    <div class="text-xs text-cyan-400 bg-cyan-900/20 px-3 py-2 rounded-lg">
+                        "Extract and validate email addresses from documents"
+                    </div>
+                </div>
+
+                <!-- Use Case 6 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-red-500/50 transition-all duration-300">
+                    <div class="text-4xl mb-4">🔍</div>
+                    <h3 class="text-lg font-bold text-white mb-3">Web Scraping</h3>
+                    <p class="text-slate-400 text-sm mb-4">Data extraction, content parsing, structured output</p>
+                    <div class="text-xs text-red-400 bg-red-900/20 px-3 py-2 rounded-lg">
+                        "Scrape product information and return as JSON"
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 lg:py-32 bg-gradient-to-r from-blue-900/30 via-purple-900/30 to-pink-900/30">
+        <div class="container mx-auto px-4 text-center">
+            <div class="max-w-4xl mx-auto">
+                <h2 class="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    Ready to Build Your First API?
+                </h2>
+                <p class="text-xl text-slate-300 mb-12 max-w-2xl mx-auto">
+                    Join thousands of developers who are already using AI to accelerate their API development
+                </p>
+                
+                <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
+                    <a href="/register" class="group relative px-12 py-5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-lg rounded-xl shadow-2xl hover:shadow-blue-500/25 transition-all duration-300 transform hover:scale-105">
+                        <span class="relative z-10 flex items-center space-x-3">
+                            <span>Get Started Free</span>
+                            <svg class="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                            </svg>
+                        </span>
+                        <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl blur opacity-40 group-hover:opacity-60 transition-opacity"></div>
+                    </a>
+                    <a href="/" class="px-12 py-5 border-2 border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white font-bold text-lg rounded-xl transition-all duration-300 hover:bg-blue-500/10">
+                        Try Demo
+                    </a>
+                </div>
+
+                <!-- Trust Indicators -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+                    <div>
+                        <div class="text-3xl font-bold text-blue-400 mb-2">GPT-4o</div>
+                        <div class="text-sm text-slate-400">Powered by OpenAI</div>
+                    </div>
+                    <div>
+                        <div class="text-3xl font-bold text-green-400 mb-2">100%</div>
+                        <div class="text-sm text-slate-400">Secure</div>
+                    </div>
+                    <div>
+                        <div class="text-3xl font-bold text-purple-400 mb-2">24/7</div>
+                        <div class="text-sm text-slate-400">Available</div>
+                    </div>
+                    <div>
+                        <div class="text-3xl font-bold text-yellow-400 mb-2">Free</div>
+                        <div class="text-sm text-slate-400">To Start</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Floating Action Button -->
+<div class="fixed bottom-8 right-8 z-50">
+    <a href="/" class="group flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 transform hover:scale-110">
+        <svg class="w-8 h-8 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+        </svg>
+        <div class="absolute -left-24 top-1/2 transform -translate-y-1/2 bg-slate-800 text-white px-3 py-2 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+            Start Building
+        </div>
+    </a>
+</div>
+
+<style>
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+.glass-effect {
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(100, 116, 139, 0.2);
+}
+
+.glass-effect:hover {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom animations */
+.animate-float {
+    animation: float 6s ease-in-out infinite;
+}
+</style>
+
+{% endblock %}

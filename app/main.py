@@ -91,6 +91,11 @@ async def require_auth(current_user: User = Depends(get_current_user)) -> User:
         )
     return current_user
 
+@app.get("/landing", response_class=HTMLResponse)
+async def landing_page(request: Request):
+    """Serve the landing page."""
+    return templates.TemplateResponse("landing.html", {"request": request})
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Serve the main frontend page."""
