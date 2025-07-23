@@ -52,10 +52,10 @@ class OpenAIService:
         11. For text processing, decode file_bytes to string first
         12. Return results in a structured format: {"result": your_data, "message": "success"}
         13. For AI-powered requests, make REAL API calls to OpenAI or other AI services
-                 14. Include API keys as environment variables or hardcode them for demo purposes
-         15. Always include confidence scores and detailed AI analysis in results
-         16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
-         17. For file processing, always handle bytes properly - use io.BytesIO for binary data
+        14. Include API keys as environment variables or hardcode them for demo purposes
+        15. Always include confidence scores and detailed AI analysis in results
+        16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
+        17. For file processing, always handle bytes properly - use io.BytesIO for binary data
         
         
         # Use MODERN OpenAI client (v1.0+)
@@ -156,16 +156,29 @@ class OpenAIService:
         
         # Run the synchronous OpenAI call in a thread pool
         def make_request():
-            response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.3,
-                max_tokens=2000
-            )
-            return response.choices[0].message.content
+            try:
+                logger.info(f"Making OpenAI request with model: {settings.OPENAI_MODEL}")
+                response = self.client.chat.completions.create(
+                    model=settings.OPENAI_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=2000
+                )
+                
+                content = response.choices[0].message.content
+                if content is None:
+                    logger.error("OpenAI returned None content")
+                    return ""
+                
+                logger.info(f"OpenAI response received, length: {len(content)}")
+                return content
+                
+            except Exception as e:
+                logger.error(f"Error in OpenAI request: {str(e)}")
+                raise e
         
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, make_request)

@@ -7,7 +7,7 @@ load_dotenv()
 class Settings:
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
     print(OPENAI_API_KEY)
     
     # Claude Configuration

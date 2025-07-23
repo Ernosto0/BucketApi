@@ -177,3 +177,79 @@ class ChatAnalysisResponse(BaseModel):
     prompt: str
     analysis_result: str
     timestamp: datetime 
+
+
+# ... existing code ...
+class ListAPIsResponse(BaseModel):
+    success: bool
+    user_id: str
+    apis: List['SavedAPI']
+    count: int
+
+# Test Models
+class TestRequest(BaseModel):
+    user_id: str = Field(..., description="User identifier")
+    api_slug: str = Field(..., description="API slug to test")
+    test_data: Optional[Dict[str, Any]] = Field(None, description="JSON test data")
+    file_data: Optional[str] = Field(None, description="Base64 encoded file data for file uploads")
+    file_name: Optional[str] = Field(None, description="Original filename for uploaded file")
+    test_type: Optional[str] = Field("manual", description="Type of test: manual, auto, performance")
+
+class TestResponse(BaseModel):
+    success: bool
+    test_id: str = Field(..., description="Unique test execution ID")
+    api_slug: str
+    user_id: str
+    request_data: Optional[Dict[str, Any]] = None
+    response_data: Any = None
+    error: Optional[str] = None
+    execution_time: float
+    status_code: int
+    response_headers: Dict[str, str]
+    timestamp: datetime
+    test_type: str = "manual"
+    validation: Optional[Dict[str, Any]] = Field(None, description="AI validation results if validation was requested")
+
+class TestHistoryEntry(BaseModel):
+    test_id: str
+    api_slug: str
+    user_id: str
+    test_type: str
+    success: bool
+    execution_time: float
+    status_code: int
+    timestamp: datetime
+    request_summary: Optional[str] = None
+    response_summary: Optional[str] = None
+
+class TestHistoryResponse(BaseModel):
+    success: bool
+    user_id: str
+    api_slug: Optional[str] = None
+    tests: List[TestHistoryEntry]
+    total_tests: int
+    success_rate: float
+    average_execution_time: float
+
+class PerformanceTestRequest(BaseModel):
+    user_id: str = Field(..., description="User identifier")
+    api_slug: str = Field(..., description="API slug to test")
+    test_data: Optional[Dict[str, Any]] = Field(None, description="JSON test data")
+    iterations: int = Field(10, ge=1, le=100, description="Number of test iterations (1-100)")
+    concurrent: bool = Field(False, description="Run tests concurrently")
+
+class PerformanceTestResponse(BaseModel):
+    success: bool
+    test_id: str
+    api_slug: str
+    user_id: str
+    iterations: int
+    concurrent: bool
+    total_time: float
+    average_time: float
+    min_time: float
+    max_time: float
+    success_rate: float
+    failed_tests: int
+    timestamp: datetime
+    detailed_results: List[Dict[str, Any]]

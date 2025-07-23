@@ -31,7 +31,7 @@ class PromptServiceBuild:
             system_prompt = """You are an AI assistant that analyzes user requests for API generation. 
             Your job is to determine if a user's request is:
             1. BUILDABLE - Clear, specific, and technically feasible as an API
-            2. NEEDS_CLARIFICATION - Has potential but needs more details or clarification
+            2. NEEDS_CLARIFICATION - Then request is too vague or unclear
             3. NOT_BUILDABLE - Vague, nonsensical, impossible, or inappropriate
             4. MODIFY_REQUEST - The user wants to modify an existing API (contains words like "modify", "change", "update", "edit", "improve", "add to", "remove from")
             
@@ -483,4 +483,3 @@ class PromptServiceModify:
                 "potential_issues": ["Validation system error"],
                 "recommendations": ["Please try again or rephrase your request"]
             }, indent=2)
-        

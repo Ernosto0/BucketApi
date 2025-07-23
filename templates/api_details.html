@@ -337,12 +337,39 @@
                     <!-- Test API Tab -->
                     <div id="testTab" class="tab-content hidden">
                         <div class="test-interface">
-                            <h3 class="text-xl font-semibold text-white mb-6">Test Your API</h3>
+                            <h3 class="text-xl font-semibold text-white mb-6 flex items-center space-x-2">
+                                <span class="text-blue-400">🧪</span>
+                                <span>Test Your API</span>
+                            </h3>
+                            
+                            <!-- Test Status -->
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center space-x-2">
+                                    <div id="testStatus" class="w-3 h-3 bg-gray-500 rounded-full"></div>
+                                    <span id="testStatusText" class="text-sm text-gray-400">Ready to test</span>
+                                </div>
+                            </div>
+                            
+                            <!-- API Endpoint Info -->
+                            <div class="mb-6 p-4 bg-slate-800/30 rounded-lg border border-slate-600/30">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h5 class="font-medium text-white">API Endpoint</h5>
+                                    <button onclick="copyEndpoint()" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded transition-colors">
+                                        Copy URL
+                                    </button>
+                                </div>
+                                <code id="endpointDisplay" class="block text-emerald-400 font-mono text-sm bg-slate-700/50 px-3 py-2 rounded"></code>
+                            </div>
                             
                             <!-- Test Input -->
                             <div class="space-y-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-300 mb-2">Request Data (JSON)</label>
+                                    <div class="flex items-center justify-between mb-2">
+                                        <label class="block text-sm font-medium text-slate-300">Request Data (JSON)</label>
+                                        <div class="flex items-center space-x-2">
+                                            <button onclick="formatTestInput()" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">Format JSON</button>
+                                        </div>
+                                    </div>
                                     <textarea 
                                         id="testInput" 
                                         class="w-full h-40 p-4 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono text-sm" 
@@ -350,23 +377,59 @@
                                     ></textarea>
                                 </div>
                                 
-                                <div class="flex space-x-3">
-                                    <button onclick="runTest()" class="action-btn btn-primary">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
-                                        </svg>
-                                        Run Test
-                                    </button>
-                                    <button onclick="clearTest()" class="action-btn btn-secondary">Clear</button>
-                                    <button onclick="loadExample()" class="action-btn btn-secondary">Load Example</button>
+                                <!-- Test Controls -->
+                                <div class="flex items-center justify-between test-controls">
+                                    <div class="flex items-center space-x-3">
+                                        <button onclick="runAPITestDetails()" 
+                                                id="runTestBtn"
+                                                class="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2 test-button">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
+                                            </svg>
+                                            <span>Run Test</span>
+                                        </button>
+                                        <button onclick="clearTestData()" 
+                                                class="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">
+                                            Clear
+                                        </button>
+                                        <button onclick="loadExample()" 
+                                                class="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">
+                                            Load Example
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center space-x-2 text-xs text-slate-400">
+                                        <span>Method:</span>
+                                        <span class="px-2 py-1 bg-blue-600/20 text-blue-300 rounded font-mono">POST</span>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Test Results -->
                             <div id="testResults" class="hidden mt-8">
-                                <h4 class="text-lg font-medium text-white mb-4">Response</h4>
-                                <div class="code-viewer">
-                                    <pre id="testResponse" class="text-slate-300 text-sm"></pre>
+                                <h4 class="text-lg font-medium text-white mb-4 flex items-center space-x-2">
+                                    <span>Test Results</span>
+                                    <div class="flex items-center space-x-2 text-sm">
+                                        <span id="responseStatus" class="px-2 py-1 bg-gray-600/20 text-gray-300 rounded text-xs font-mono">--</span>
+                                        <span id="responseTime" class="text-gray-400">--</span>
+                                    </div>
+                                </h4>
+                                
+                                <!-- Response Body -->
+                                <div class="space-y-4">
+                                    <div>
+                                        <h5 class="text-sm font-medium text-slate-300 mb-2">Response Body</h5>
+                                        <div class="code-viewer">
+                                            <pre id="responseBody" class="text-slate-300 text-sm"></pre>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Response Headers -->
+                                    <div>
+                                        <h5 class="text-sm font-medium text-slate-300 mb-2">Response Headers</h5>
+                                        <div class="code-viewer">
+                                            <pre id="responseHeadersContent" class="text-slate-300 text-sm"></pre>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -474,6 +537,12 @@
         document.getElementById('createdAt').textContent = formatDateTime(data.created_at);
         document.getElementById('savedAt').textContent = data.saved_at ? formatDateTime(data.saved_at) : 'Not saved';
         
+        // Test tab - display endpoint URL
+        const endpointDisplayEl = document.getElementById('endpointDisplay');
+        if (endpointDisplayEl) {
+            endpointDisplayEl.textContent = data.endpoint_url || '--';
+        }
+        
         // Documentation tab
         if (data.documentation) {
             document.getElementById('documentationContent').innerHTML = formatMarkdown(data.documentation);
@@ -528,33 +597,150 @@
         switchTab('test');
     }
     
-    async function runTest() {
+    async function runAPITestDetails() {
         const testInput = document.getElementById('testInput').value;
-        const resultsDiv = document.getElementById('testResults');
-        const responseEl = document.getElementById('testResponse');
-        
+        const testStatusEl = document.getElementById('testStatus');
+        const testStatusTextEl = document.getElementById('testStatusText');
+        const runTestBtn = document.getElementById('runTestBtn');
+        const responseBodyEl = document.getElementById('responseBody');
+        const responseHeadersEl = document.getElementById('responseHeadersContent');
+        const responseStatusEl = document.getElementById('responseStatus');
+        const responseTimeEl = document.getElementById('responseTime');
+        const testResultsDiv = document.getElementById('testResults');
+
+        // Update UI to show testing in progress
+        runTestBtn.disabled = true;
+        runTestBtn.innerHTML = `
+            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>Testing...</span>
+        `;
+        testStatusEl.className = 'w-3 h-3 bg-yellow-500 rounded-full animate-pulse';
+        testStatusTextEl.textContent = 'Running test...';
+        testStatusTextEl.className = 'text-sm text-yellow-400';
+
+        const startTime = Date.now();
+
         try {
-            const formData = new FormData();
-            if (testInput.trim()) {
-                formData.append('input_data', testInput);
+            // Prepare request data for the backend test endpoint
+            const testData = {
+                user_id: userId,
+                api_slug: apiSlug,
+                test_type: 'manual'
+            };
+
+            // Add test data if provided
+            const testInputValue = testInput.trim();
+            if (testInputValue) {
+                try {
+                    // Validate JSON if provided
+                    const parsedData = JSON.parse(testInputValue);
+                    testData.test_data = parsedData;
+                } catch (jsonError) {
+                    throw new Error('Invalid JSON format in test input');
+                }
             }
-            
-            const response = await fetch(apiData.endpoint_url, {
+
+            // Call the backend test endpoint
+            const response = await fetch('/test-api', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(testData)
             });
-            
-            const result = await response.json();
-            responseEl.textContent = JSON.stringify(result, null, 2);
-            resultsDiv.classList.remove('hidden');
-            
+
+            const endTime = Date.now();
+            const requestTime = endTime - startTime;
+
+            // Get response data
+            const testResult = await response.json();
+
+            // Update UI with results
+            testResultsDiv.classList.remove('hidden');
+
+            // Response status - use the actual API status from the test result
+            const actualStatusCode = testResult.status_code || response.status;
+            const actualStatusText = testResult.success ? 'OK' : (testResult.error ? 'Error' : response.statusText);
+
+            responseStatusEl.textContent = `${actualStatusCode} ${actualStatusText}`;
+            responseStatusEl.className = testResult.success ? 
+                'px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono' :
+                'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
+
+            // Use execution time from the test result if available, otherwise use request time
+            const executionTimeMs = testResult.execution_time ? Math.round(testResult.execution_time * 1000) : requestTime;
+            responseTimeEl.textContent = `${executionTimeMs}ms`;
+
+            // Response body - show the actual API response or error
+            let displayData;
+            if (testResult.success && testResult.response_data) {
+                displayData = testResult.response_data;
+            } else if (testResult.error) {
+                displayData = { error: testResult.error };
+            } else {
+                displayData = testResult;
+            }
+
+            responseBodyEl.textContent = typeof displayData === 'object' ? 
+                JSON.stringify(displayData, null, 2) : String(displayData);
+
+            // Response headers - use headers from test result
+            const headers = testResult.response_headers || {};
+            responseHeadersEl.textContent = JSON.stringify(headers, null, 2);
+
+            // Update status based on test result
+            if (testResult.success) {
+                testStatusEl.className = 'w-3 h-3 bg-green-500 rounded-full';
+                testStatusTextEl.textContent = 'Test successful';
+                testStatusTextEl.className = 'text-sm text-green-400';
+            } else {
+                testStatusEl.className = 'w-3 h-3 bg-red-500 rounded-full';
+                testStatusTextEl.textContent = 'Test failed';
+                testStatusTextEl.className = 'text-sm text-red-400';
+            }
+
         } catch (error) {
-            responseEl.textContent = `Error: ${error.message}`;
-            resultsDiv.classList.remove('hidden');
+            // Handle errors
+            testResultsDiv.classList.remove('hidden');
+
+            responseStatusEl.textContent = 'Error';
+            responseStatusEl.className = 'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
+
+            responseTimeEl.textContent = `${Date.now() - startTime}ms`;
+            responseBodyEl.textContent = `Error: ${error.message}`;
+            responseHeadersEl.textContent = 'No headers (request failed)';
+
+            testStatusEl.className = 'w-3 h-3 bg-red-500 rounded-full';
+            testStatusTextEl.textContent = 'Test error';
+            testStatusTextEl.className = 'text-sm text-red-400';
+        } finally {
+            // Reset button
+            runTestBtn.disabled = false;
+            runTestBtn.innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
+                </svg>
+                <span>Run Test</span>
+            `;
         }
     }
+
+    async function quickTest() {
+        // Switch to test tab and run a quick test
+        switchTab('test');
+        
+        // Load example data
+        loadExample();
+        
+        // Run the test after a short delay to let the UI update
+        setTimeout(() => {
+            runAPITestDetails();
+        }, 500);
+    }
     
-    function clearTest() {
+    function clearTestData() {
         document.getElementById('testInput').value = '';
         document.getElementById('testResults').classList.add('hidden');
     }
@@ -698,6 +884,17 @@
             .replace(/\n/g, '<br>')
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/`(.*?)`/g, '<code class="bg-slate-700/50 px-1 py-0.5 rounded text-xs font-mono">$1</code>');
+    }
+
+    function formatTestInput() {
+        const input = document.getElementById('testInput').value;
+        try {
+            const formatted = JSON.stringify(JSON.parse(input), null, 2);
+            document.getElementById('testInput').value = formatted;
+            showNotification('Input data formatted!');
+        } catch (e) {
+            showNotification('Invalid JSON input. Please enter a valid JSON object.', 'error');
+        }
     }
 </script>
 {% endblock %} 

@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Request
+import requests
 import time
 import base64
 from datetime import datetime, timedelta
@@ -15,7 +16,7 @@ from .models import (
     APIGenerationRequest, APIGenerationResponse, APIModificationRequest, APIModificationResponse,
     APIExecutionRequest, APIExecutionResponse, SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
     ChatAnalysisRequest, ChatAnalysisResponse, HealthResponse, ChatMessage,
-    RegisterResponse, LoginResponse
+    RegisterResponse, LoginResponse, TestRequest, TestResponse
 )
 from .services.claude_service import claude_service
 from .services.code_debugger import code_debugger
@@ -24,6 +25,7 @@ from .services.file_service import file_service
 from .services.auth_service import auth_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database
+from .services.test_service import test_service
 from .config import settings
 
 # Configure logging
@@ -790,6 +792,170 @@ async def get_api_code(user_id: str, api_slug: str):
             status_code=500,
             detail=f"Failed to get API code: {str(e)}"
         )
+
+@app.post("/test-api", response_model=TestResponse)
+async def test_api(request: TestRequest):
+    """
+    Test a specific API with the provided test data.
+    This endpoint provides structured testing functionality with proper error handling.
+    """
+    import uuid
+    import json
+    print("=== TEST-API ENDPOINT CALLED ===")
+    print(f"Request: {request}")
+    print(f"User ID: {request.user_id}")
+    print(f"API Slug: {request.api_slug}")
+    print("testing function")
+    logger.info("=== TEST-API ENDPOINT REACHED ===")
+    logger.info(f"Testing API {request.api_slug} for user {request.user_id}")
+    start_time = time.time()
+    test_id = str(uuid.uuid4())
+    
+    
+
+
+    try:
+        # Check if API exists
+        if not file_service.api_exists(request.user_id, request.api_slug):
+            raise HTTPException(
+                status_code=404,
+                detail=f"API not found: {request.user_id}/{request.api_slug}"
+            )
+        
+        # Prepare input data
+        file_bytes = None
+        parsed_input_data = request.test_data
+        
+        # Handle file data if provided
+        if request.file_data:
+            try:
+                file_bytes = base64.b64decode(request.file_data)
+                
+                # Validate file size
+                if len(file_bytes) > settings.MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum size: {settings.MAX_FILE_SIZE} bytes"
+                    )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid file data: {str(e)}"
+                )
+        
+        # Execute the API
+        try:
+            result = file_service.load_and_execute_api(
+                user_id=request.user_id,
+                api_slug=request.api_slug,
+                file_bytes=file_bytes,
+                input_data=parsed_input_data
+            )
+            
+            execution_time = time.time() - start_time
+            
+            # Format response data
+            if isinstance(result, dict):
+                response_data = result
+                status_code = 200
+            else:
+                response_data = {"result": result}
+                status_code = 200
+                
+        except Exception as api_error:
+            execution_time = time.time() - start_time
+            print(f"API execution failed with error: {api_error}")
+            print(f"Error type: {type(api_error)}")
+            logger.error(f"API execution error: {str(api_error)}", exc_info=True)
+            
+            # Return structured error response
+            return TestResponse(
+                success=False,
+                test_id=test_id,
+                api_slug=request.api_slug,
+                user_id=request.user_id,
+                request_data=parsed_input_data,
+                response_data=None,
+                error=str(api_error),
+                execution_time=execution_time,
+                status_code=500,
+                response_headers={},
+                timestamp=datetime.now(),
+                test_type=request.test_type or "manual",
+                validation=None
+            )
+        
+        # Build response headers
+        response_headers = {
+            "content-type": "application/json",
+            "x-execution-time": f"{execution_time:.3f}s",
+            "x-test-id": test_id
+        }
+        
+        # Prepare the basic test response
+        test_response = TestResponse(
+            success=True,
+            test_id=test_id,
+            api_slug=request.api_slug,
+            user_id=request.user_id,
+            request_data=parsed_input_data,
+            response_data=response_data,
+            error=None,
+            execution_time=execution_time,
+            status_code=status_code,
+            response_headers=response_headers,
+            timestamp=datetime.now(),
+            test_type=request.test_type or "manual",
+            validation=None
+        )
+        
+        # Automatically validate successful responses (200 status code)
+        if status_code == 200:
+            try:
+                logger.info(f"Automatically validating successful test result for test {test_id}")
+                validation_result = await test_service.validate_test_result(request, test_response)
+                test_response.validation = validation_result
+                logger.info(f"Validation completed. Valid: {validation_result.get('is_valid', False)}, Confidence: {validation_result.get('confidence', 0.0)}")
+            except Exception as validation_error:
+                logger.error(f"Validation failed: {str(validation_error)}")
+                test_response.validation = {
+                    "is_valid": False,
+                    "confidence": 0.0,
+                    "validation_message": f"Validation failed: {str(validation_error)}",
+                    "issues_found": [f"Validation error: {str(validation_error)}"],
+                    "suggestions": ["Check OpenAI service and retry"],
+                    "reasoning": "Validation process encountered an error",
+                    "validated_at": datetime.now().isoformat(),
+                    "validator": "openai",
+                    "test_id": test_id,
+                    "error": str(validation_error)
+                }
+        
+        return test_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        execution_time = time.time() - start_time
+        logger.error(f"Test endpoint error: {str(e)}", exc_info=True)
+        
+        return TestResponse(
+            success=False,
+            test_id=test_id,
+            api_slug=request.api_slug,
+            user_id=request.user_id,
+            request_data=parsed_input_data,
+            response_data=None,
+            error=f"Test execution failed: {str(e)}",
+            execution_time=execution_time,
+            status_code=500,
+            response_headers={},
+            timestamp=datetime.now(),
+            test_type=request.test_type or "manual",
+            validation=None
+        )
+
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -271,11 +271,22 @@ Return the corrected code with all issues fixed. Maintain the same functionality
         
         return remaining_issues
 
+    async def isTestResultValid(self, code: str, test_result: str) -> str:
+        """Check if the test result is valid.\
+           If not valid, fix the code and return the fixed code (new code fixer function).
+           if valid, keep going.
+        """
+        system_prompt = """You are an expert Python code reviewer and debugger. Your job is to fix code issues while maintaining the original functionality.
+        """
+        user_prompt = f"""Please check if the test result is valid.
+        """
+        response = await self.claude_service._make_claude_request(system_prompt, user_prompt)
+        return response
+
 # Global instance
 code_debugger = CodeDebugger() 
 
 
-class CodeErrorSolver:
-    def __init__(self):
-        pass
-    pass
+
+
+

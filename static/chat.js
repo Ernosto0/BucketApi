@@ -581,7 +581,7 @@ function addAPIResultMessage(result) {
     const endpointUrl = window.location.origin + result.endpoint_url;
     
     // Extract or generate smart test data based on the API
-    const testData = generateSmartTestData(result);
+    const testData = {"json": "Place Holder", "description": "Place Holder", "examples": []}
     
     const content = `
         <div class="space-y-6">
@@ -635,7 +635,6 @@ function addAPIResultMessage(result) {
                             <label class="block text-sm font-medium text-slate-300">Request Data (JSON)</label>
                             <div class="flex items-center space-x-2">
                                 <button onclick="formatTestInput()" class="text-xs text-blue-400 hover:text-blue-300 transition-colors format-json-btn">Format JSON</button>
-                                <button onclick="generateExampleData()" class="text-xs text-green-400 hover:text-green-300 transition-colors">Generate Example</button>
                             </div>
                         </div>
                         <div class="test-input-container">
@@ -775,57 +774,6 @@ function addAPIResultMessage(result) {
     addMessage('assistant', content);
 }
 
-// Smart test data generation based on API functionality
-function generateSmartTestData(result) {
-    const prompt = getCurrentPrompt() || '';
-    const documentation = result.documentation || '';
-    const curlExample = result.curl_example || '';
-    
-    // Store current API result for reference
-    window.currentAPIResult = result;
-    
-    // Analyze the API type and generate appropriate test data
-    const apiType = analyzeAPIType(prompt, documentation);
-    
-    let testData = {
-        json: '',
-        description: '',
-        examples: [],
-        requiresFile: false
-    };
-    
-    // Generate test data based on API type
-    switch (apiType.type) {
-        case 'text_analysis':
-            testData = generateTextAnalysisTestData(apiType.subtype);
-            break;
-        case 'file_processing':
-            testData = generateFileProcessingTestData(apiType.subtype);
-            break;
-        case 'data_extraction':
-            testData = generateDataExtractionTestData(apiType.subtype);
-            break;
-        case 'ai_processing':
-            testData = generateAIProcessingTestData(apiType.subtype);
-            break;
-        case 'image_processing':
-            testData = generateImageProcessingTestData(apiType.subtype);
-            break;
-        case 'authentication':
-            testData = generateAuthTestData(apiType.subtype);
-            break;
-        default:
-            testData = generateGenericTestData(prompt, curlExample);
-    }
-    
-    // Try to extract data from curl example if available
-    const curlData = extractDataFromCurl(curlExample);
-    if (curlData && !testData.json) {
-        testData.json = curlData;
-    }
-    
-    return testData;
-}
 
 function analyzeAPIType(prompt, documentation) {
     const text = (prompt + ' ' + documentation).toLowerCase();
@@ -1090,51 +1038,6 @@ function generateAuthTestData(subtype) {
     return { json, description, examples, requiresFile: false };
 }
 
-function generateGenericTestData(prompt, curlExample) {
-    // Try to extract from curl first
-    const curlData = extractDataFromCurl(curlExample);
-    if (curlData) {
-        return {
-            json: curlData,
-            description: "Example data extracted from API documentation",
-            examples: [],
-            requiresFile: false
-        };
-    }
-    
-    // Generate based on common patterns in prompt
-    let json = '';
-    if (prompt.toLowerCase().includes('user') || prompt.toLowerCase().includes('account')) {
-        json = JSON.stringify({
-            name: "John Doe",
-            email: "john@example.com",
-            age: 30
-        }, null, 2);
-    } else if (prompt.toLowerCase().includes('product') || prompt.toLowerCase().includes('item')) {
-        json = JSON.stringify({
-            name: "Sample Product",
-            price: 29.99,
-            category: "electronics"
-        }, null, 2);
-    } else {
-        json = JSON.stringify({
-            message: "Hello World",
-            data: "sample data",
-            timestamp: new Date().toISOString()
-        }, null, 2);
-    }
-    
-    return {
-        json,
-        description: "Example data based on your API description",
-        examples: [
-            { label: "Basic example", data: JSON.stringify({test: "data"}) },
-            { label: "Empty request", data: JSON.stringify({}) }
-        ],
-        requiresFile: false
-    };
-}
-
 function extractDataFromCurl(curlExample) {
     if (!curlExample) return null;
     
@@ -1211,35 +1114,12 @@ function setTestData(data, label) {
     }
 }
 
-function generateExampleData() {
-    if (window.currentAPIResult) {
-        const testData = generateSmartTestData(window.currentAPIResult);
-        const testInput = document.getElementById('testInput');
-        if (testInput && testData.json) {
-            testInput.value = testData.json;
-            
-            // Show feedback
-            const notification = document.createElement('div');
-            notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-xl shadow-xl z-50 notification-slide-up';
-            notification.innerHTML = `
-                <div class="flex items-center space-x-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                    <span>Generated example data</span>
-                </div>
-            `;
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.remove();
-            }, 2000);
-        }
-    }
-}
+
 
 // Test-related functions
 async function runAPITest(endpointUrl) {
+    console.log("Running API Test");
+    console.log("Received endpointUrl:", endpointUrl);
     const testInput = document.getElementById('testInput');
     const runTestBtn = document.getElementById('runTestBtn');
     const testStatus = document.getElementById('testStatus');
@@ -1266,63 +1146,101 @@ async function runAPITest(endpointUrl) {
     const startTime = Date.now();
     
     try {
-        // Prepare request data
-        let testData = testInput.value.trim();
-        const formData = new FormData();
+        // Extract user_id and api_slug from endpointUrl
+        // Handle both full URLs (with origin) and relative URLs
+        let urlPath;
+        if (endpointUrl.startsWith('http')) {
+            // Full URL - extract the pathname
+            const url = new URL(endpointUrl);
+            urlPath = url.pathname;
+        } else {
+            // Relative URL
+            urlPath = endpointUrl;
+        }
         
-        if (testData) {
+        // Expected format: /api/{user_id}/{api_slug}
+        const urlParts = urlPath.split('/').filter(part => part); // filter removes empty strings
+        if (urlParts.length < 3 || urlParts[0] !== 'api') {
+            throw new Error(`Invalid endpoint URL format. Expected /api/{user_id}/{api_slug}, got: ${urlPath}`);
+        }
+        
+        const user_id = urlParts[1];
+        const api_slug = urlParts[2];
+        
+        console.log("Parsed URL components:", { urlPath, urlParts, user_id, api_slug });
+        
+        // Prepare request data for the backend test endpoint
+        const testData = {
+            user_id: user_id,
+            api_slug: api_slug,
+            test_type: 'manual'
+        };
+        
+        // Add test data if provided
+        const testInputValue = testInput.value.trim();
+        if (testInputValue) {
             try {
                 // Validate JSON if provided
-                JSON.parse(testData);
-                formData.append('input_data', testData);
+                const parsedData = JSON.parse(testInputValue);
+                testData.test_data = parsedData;
             } catch (jsonError) {
                 throw new Error('Invalid JSON format in test input');
             }
         }
 
-        // Make the API call
-        const response = await fetch(endpointUrl, {
+        // Call the backend test endpoint
+        const response = await fetch('/test-api', {
             method: 'POST',
-            body: formData
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(testData)
         });
         
+        console.log("Request sent to /test-api:", testData);
+        console.log("Response status:", response.status);
+        
         const endTime = Date.now();
-        const responseTimeMs = endTime - startTime;
+        const requestTime = endTime - startTime;
         
         // Get response data
-        const responseText = await response.text();
-        let responseData;
-        
-        try {
-            responseData = JSON.parse(responseText);
-        } catch {
-            responseData = responseText;
-        }
+        const testResult = await response.json();
         
         // Update UI with results
         testResults.classList.remove('hidden');
         
-        // Response status
-        responseStatus.textContent = `${response.status} ${response.statusText}`;
-        responseStatus.className = response.ok ? 
+        // Response status - use the actual API status from the test result
+        const actualStatusCode = testResult.status_code || response.status;
+        const actualStatusText = testResult.success ? 'OK' : (testResult.error ? 'Error' : response.statusText);
+        
+        responseStatus.textContent = `${actualStatusCode} ${actualStatusText}`;
+        responseStatus.className = testResult.success ? 
             'px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono' :
             'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
         
-        responseTime.textContent = `${responseTimeMs}ms`;
+        // Use execution time from the test result if available, otherwise use request time
+        const executionTimeMs = testResult.execution_time ? Math.round(testResult.execution_time * 1000) : requestTime;
+        responseTime.textContent = `${executionTimeMs}ms`;
         
-        // Response body
-        responseBody.textContent = typeof responseData === 'object' ? 
-            JSON.stringify(responseData, null, 2) : responseData;
-        
-        // Response headers
-        const headers = {};
-        for (let [key, value] of response.headers.entries()) {
-            headers[key] = value;
+        // Response body - show the actual API response or error
+        let displayData;
+        if (testResult.success && testResult.response_data) {
+            displayData = testResult.response_data;
+        } else if (testResult.error) {
+            displayData = { error: testResult.error };
+        } else {
+            displayData = testResult;
         }
+        
+        responseBody.textContent = typeof displayData === 'object' ? 
+            JSON.stringify(displayData, null, 2) : String(displayData);
+        
+        // Response headers - use headers from test result
+        const headers = testResult.response_headers || {};
         responseHeadersContent.textContent = JSON.stringify(headers, null, 2);
         
-        // Update status
-        if (response.ok) {
+        // Update status based on test result
+        if (testResult.success) {
             testStatus.className = 'w-3 h-3 bg-green-500 rounded-full';
             testStatusText.textContent = 'Test successful';
             testStatusText.className = 'text-sm text-green-400';
@@ -1462,54 +1380,6 @@ function deployCurrentAPI() {
             window.location.href = apiDetailsUrl;
         }, 1500);
     }, 2000);
-}
-
-// Update the original quickTestAPI function to use the new test interface
-async function quickTestAPI() {
-    if (!currentApiData) {
-        addMessage('system', '❌ No API available to test. Please generate an API first.');
-        return;
-    }
-    
-    // Scroll to the test section if it exists
-    const testSection = document.querySelector('[data-test-section]');
-    if (testSection) {
-        testSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // Focus on the test input
-        setTimeout(() => {
-            const testInput = document.getElementById('testInput');
-            if (testInput) {
-                testInput.focus();
-            }
-        }, 500);
-    } else {
-        // Fallback to original functionality if new test section not found
-        const endpointUrl = window.location.origin + currentApiData.endpoint_url;
-        const testData = prompt('Enter test data (JSON format, optional):');
-            
-        try {
-            const formData = new FormData();
-            if (testData && testData.trim()) {
-                formData.append('input_data', testData);
-            }
-
-            const response = await fetch(endpointUrl, {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
-            
-            if (result.success) {
-                addMessage('system', `✅ Test successful! Result: <div class="code-highlight rounded p-3 mt-2"><pre class="text-sm">${JSON.stringify(result.result, null, 2)}</pre></div>`);
-            } else {
-                addMessage('system', `❌ Test failed: ${result.error || 'Unknown error'}`);
-            }
-        } catch (error) {
-            addMessage('system', `❌ Test error: ${error.message}`);
-        }
-    }
 }
 
 function showTypingIndicator(message) {
