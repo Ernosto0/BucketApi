@@ -868,8 +868,8 @@ async def test_api(request: TestRequest):
             print(f"Error type: {type(api_error)}")
             logger.error(f"API execution error: {str(api_error)}", exc_info=True)
             
-            # Return structured error response
-            return TestResponse(
+            # Create error response
+            error_response = TestResponse(
                 success=False,
                 test_id=test_id,
                 api_slug=request.api_slug,
@@ -884,6 +884,74 @@ async def test_api(request: TestRequest):
                 test_type=request.test_type or "manual",
                 validation=None
             )
+            
+            # Automatically attempt to fix the code when there's an execution error
+            "TODO CHANGE THIS WITH SPECIFIC DEBUGER FUNCTION"
+            logger.info(f"API execution failed, attempting automatic code fix...")
+            try:
+                # Load current API code
+                current_code = file_service.load_api_code(request.user_id, request.api_slug)
+                
+                # Use comprehensive debug functionality to fix the code
+                debug_result = await code_debugger.validate_and_fix_test_result(
+                    code=current_code,
+                    test_request=request.dict(),
+                    test_response=error_response.dict()
+                )
+                
+                # If code was fixed, save it automatically with backup
+                if debug_result.get("fixed_code"):
+                    logger.info(f"Code fixes found for execution error: {debug_result.get('fixes_applied', [])}")
+                    
+                    # Create backup of current code
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    backup_slug = f"{request.api_slug}_backup_{timestamp}"
+                    
+                    # Save backup
+                    file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
+                    
+                    # Save fixed code
+                    file_service.save_api_code(f"{request.user_id}_{request.api_slug}", debug_result["fixed_code"])
+                    
+                    # Add debug information to the error response
+                    error_response.validation = {
+                        "is_valid": False,
+                        "confidence": debug_result.get("validation_confidence", 0.0),
+                        "validation_message": debug_result.get("validation_message", "Execution error automatically fixed"),
+                        "issues_found": debug_result.get("issues_found", []),
+                        "auto_fix_applied": True,
+                        "fixes_applied": debug_result.get("fixes_applied", []),
+                        "backup_slug": backup_slug,
+                        "debug_info": debug_result.get("debug_info"),
+                        "code_fixed_at": datetime.now().isoformat(),
+                        "validator": "code_debugger"
+                    }
+                    
+                    logger.info(f"Code automatically fixed for execution error. Backup: {backup_slug}")
+                    
+                else:
+                    logger.info("No code fixes were generated for execution error")
+                    error_response.validation = {
+                        "is_valid": False,
+                        "confidence": 0.0,
+                        "validation_message": "Execution error occurred but no fixes available",
+                        "auto_fix_applied": False,
+                        "auto_fix_reason": "No fixable issues detected",
+                        "validator": "code_debugger"
+                    }
+            
+            except Exception as debug_error:
+                logger.error(f"Automatic code fix failed for execution error: {str(debug_error)}")
+                error_response.validation = {
+                    "is_valid": False,
+                    "confidence": 0.0,
+                    "validation_message": "Execution error occurred and auto-fix failed",
+                    "auto_fix_applied": False,
+                    "auto_fix_error": str(debug_error),
+                    "validator": "code_debugger"
+                }
+            
+            return error_response
         
         # Build response headers
         response_headers = {
@@ -915,7 +983,65 @@ async def test_api(request: TestRequest):
                 logger.info(f"Automatically validating successful test result for test {test_id}")
                 validation_result = await test_service.validate_test_result(request, test_response)
                 test_response.validation = validation_result
+                logger.info(f"Test result: {test_response}")
                 logger.info(f"Validation completed. Valid: {validation_result.get('is_valid', False)}, Confidence: {validation_result.get('confidence', 0.0)}")
+
+                # If test result is invalid, automatically attempt to fix the code
+                if not validation_result.get('is_valid', False) and settings.ENABLE_TEST_VALIDATION_DEBUGGING:
+                    logger.info(f"Test result is invalid, attempting automatic code fix...")
+                    
+                    try:
+                        # Load current API code
+                        current_code = file_service.load_api_code(request.user_id, request.api_slug)
+                        
+                        # Use comprehensive debug functionality to fix the code
+                        debug_result = await code_debugger.validate_and_fix_test_result(
+                            code=current_code,
+                            test_request=request.dict(),
+                            test_response=test_response.dict()
+                        )
+                        
+                        # If code was fixed, save it automatically with backup
+                        if debug_result.get("fixed_code"):
+                            logger.info(f"Code fixes found: {debug_result.get('fixes_applied', [])}")
+                            
+                            # Create backup of current code
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            backup_slug = f"{request.api_slug}_backup_{timestamp}"
+                            
+                            # Save backup
+                            file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
+                            
+                            # Save fixed code
+                            file_service.save_api_code(f"{request.user_id}_{request.api_slug}", debug_result["fixed_code"])
+                            
+                            # Add debug information to the test response
+                            test_response.validation.update({
+                                "auto_fix_applied": True,
+                                "fixes_applied": debug_result.get("fixes_applied", []),
+                                "backup_slug": backup_slug,
+                                "debug_info": debug_result.get("debug_info"),
+                                "code_fixed_at": datetime.now().isoformat()
+                            })
+                            
+                            logger.info(f"Code automatically fixed and saved. Backup: {backup_slug}")
+                            
+                        else:
+                            logger.info("No code fixes were generated")
+                            test_response.validation.update({
+                                "auto_fix_applied": False,
+                                "auto_fix_reason": "No fixable issues detected"
+                            })
+                    
+                    except Exception as debug_error:
+                        logger.error(f"Automatic code fix failed: {str(debug_error)}")
+                        test_response.validation.update({
+                            "auto_fix_applied": False,
+                            "auto_fix_error": str(debug_error)
+                        })
+
+                return test_response
+
             except Exception as validation_error:
                 logger.error(f"Validation failed: {str(validation_error)}")
                 test_response.validation = {
@@ -954,6 +1080,7 @@ async def test_api(request: TestRequest):
             test_type=request.test_type or "manual",
             validation=None
         )
+
 
 
 

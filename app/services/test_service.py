@@ -416,30 +416,35 @@ class TestService:
             logger.info(f"Validating test result for API {test_request.api_slug}")
             
             # Prepare validation prompt
-            system_prompt = """You are an expert API testing specialist. Your primary job is to analyze if the API response makes logical sense given the input data.
-            
-            Focus on these key validation criteria:
-            1. LOGICAL CONSISTENCY: Does the output logically follow from the input? 
-            2. DATA COHERENCE: Are the response values reasonable and properly formatted?
-            3. COMPLETENESS: Does the response address what was requested in the input?
-            4. CORRECTNESS: Are there obvious errors, inconsistencies, or nonsensical results?
-            5. FORMAT VALIDITY: Is the response structure appropriate and well-formed?
-            
-            You should determine if the API is working correctly by checking if the input-output relationship makes sense.
-            For example:
-            - If input asks for text analysis, output should contain analysis results
-            - If input provides data to process, output should show processed results
-            - If input requests calculations, output should contain calculated values
-            - Response should not contain obvious errors, null values where data is expected, or completely unrelated information
-            
-            Return your analysis as JSON with the following structure:
+            system_prompt = """You are a strict API testing specialist. Your job is to rigorously analyze API responses for correctness, quality, and logical consistency.
+
+            CRITICAL VALIDATION CRITERIA:
+            1. LOGICAL CONSISTENCY: Does the output logically and correctly follow from the input?
+            2. DATA QUALITY: Are the response values clean, properly formatted, and free of duplicates/errors?
+            3. STRUCTURE INTEGRITY: Is the response well-structured without malformed or mixed data types?
+            4. COMPLETENESS: Does the response properly address the request without missing or extraneous data?
+            5. FORMAT VALIDITY: Are data types, arrays, and objects properly structured?
+            6. SEMANTIC CORRECTNESS: Do the extracted/processed values make semantic sense?
+
+            BE STRICT about these quality issues:
+            - Duplicate entries or redundant data
+            - Metadata mixed with actual results (e.g., confidence scores listed as names)
+            - Malformed data structures or inconsistent formatting
+            - Non-sensical values or obvious parsing errors
+            - Missing expected fields or extra inappropriate fields
+            - Poor data organization that makes the response hard to use
+
+
+            IMPORTANT: Mark responses as INVALID if they contain structural issues, data quality problems, or logical inconsistencies, even if they technically "work".
+
+            Return your analysis as JSON:
             {
                 "is_valid": true/false,
                 "confidence": 0.0-1.0,
-                "validation_message": "Clear explanation of why the result is valid/invalid",
+                "validation_message": "Clear explanation focusing on quality and correctness",
                 "issues_found": ["specific issue1", "specific issue2"],
                 "suggestions": ["improvement1", "improvement2"],
-                "reasoning": "Short reasoning focusing on input-output logical consistency"
+                "reasoning": "Detailed reasoning about data quality and logical consistency"
             }"""
             
             # Create detailed context for validation

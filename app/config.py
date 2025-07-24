@@ -5,6 +5,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings:
+
+    # Some Settings
+    ENABLE_TEST_VALIDATION_DEBUGGING: bool = "true"
+
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
@@ -41,4 +45,4 @@ class Settings:
     DOCS_URL: str = "/docs"
     REDOC_URL: str = "/redoc"
 
-settings = Settings() 
+settings = Settings()  
