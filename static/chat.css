@@ -111,13 +111,13 @@
 
 /* Chat container responsive height */
 .chat-messages-container {
-    max-height: calc(100vh - 350px);
+    max-height: calc(100vh - 280px);
     min-height: 300px;
 }
 
 @media (max-width: 640px) {
     .chat-messages-container {
-        max-height: calc(100vh - 400px);
+        max-height: calc(100vh - 320px);
         min-height: 250px;
     }
 }

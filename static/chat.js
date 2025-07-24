@@ -1556,10 +1556,10 @@ function adjustChatHeight() {
     const chatMessages = document.getElementById('chatMessages');
     const windowHeight = window.innerHeight;
     
-    // Calculate height: full viewport minus header, input area, and padding
-    const headerHeight = 120; // Approximate header height
+    // Calculate height: full viewport minus input area and padding (no header)
+    const headerHeight = 0; // No header since it's commented out
     const inputAreaHeight = 250; // Approximate input area height
-    const paddingBuffer = 40; // Buffer for spacing
+    const paddingBuffer = 20; // Reduced buffer for tighter layout
     
     const maxHeight = windowHeight - headerHeight - inputAreaHeight - paddingBuffer;
     chatMessages.style.maxHeight = `${Math.max(300, maxHeight)}px`; // Minimum 300px

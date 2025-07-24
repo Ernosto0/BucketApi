@@ -90,7 +90,7 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-800 text-slate-200">
     <!-- Header -->
-    <header class="glass-effect sticky top-0 z-50 border-b border-slate-700/50">
+    <header id="mainHeader" class="glass-effect sticky top-0 z-50 border-b border-slate-700/50 transition-transform duration-300 ease-in-out">
         <div class="container mx-auto px-4 py-4">
             <div class="flex justify-between items-center">
                 <!-- Logo and Title -->
@@ -255,6 +255,69 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', initializeAuth);
+
+        // Header scroll behavior - simplified and more stable
+        let lastScrollTop = 0;
+        let isHeaderVisible = true;
+        let scrollTimer;
+
+        function handleHeaderScroll() {
+            const header = document.getElementById('mainHeader');
+            const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Clear any existing timer
+            clearTimeout(scrollTimer);
+            
+            // Always show header when at the very top
+            if (currentScrollTop <= 50) {
+                if (!isHeaderVisible) {
+                    header.style.transform = 'translateY(0)';
+                    isHeaderVisible = true;
+                }
+                lastScrollTop = currentScrollTop;
+                return;
+            }
+            
+            // Only act if there's a significant scroll difference (reduces flickering)
+            const scrollDifference = Math.abs(currentScrollTop - lastScrollTop);
+            if (scrollDifference < 5) {
+                return; // Ignore small scroll movements
+            }
+            
+            // Scrolling down significantly - hide header
+            if (currentScrollTop > lastScrollTop + 20 && currentScrollTop > 40) {
+                if (isHeaderVisible) {
+                    header.style.transform = 'translateY(-100%)';
+                    isHeaderVisible = false;
+                }
+            }
+            // Scrolling up significantly - show header
+            else if (currentScrollTop < lastScrollTop - 20) {
+                if (!isHeaderVisible) {
+                    header.style.transform = 'translateY(0)';
+                    isHeaderVisible = true;
+                }
+            }
+            
+            // Debounce: Update lastScrollTop after a short delay
+            scrollTimer = setTimeout(() => {
+                lastScrollTop = currentScrollTop;
+            }, 100);
+        }
+
+        // Add scroll event listener with throttling
+        let ticking = false;
+        function requestTick() {
+            if (!ticking) {
+                requestAnimationFrame(() => {
+                    handleHeaderScroll();
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        }
+
+        window.addEventListener('scroll', requestTick, { passive: true });
     </script>
 
     {% block extra_scripts %}{% endblock %}
