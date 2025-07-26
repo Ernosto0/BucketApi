@@ -65,6 +65,20 @@ class SavedAPIDB(Base):
     saved_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     is_saved = Column(Boolean, default=True, nullable=False)
 
+class APIKeyDB(Base):
+    __tablename__ = "api_keys"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=False)
+    key_name = Column(String, nullable=False)
+    key_hash = Column(String, nullable=False)  # Store hashed version of the key
+    key_prefix = Column(String, nullable=False)  # Store first 8 chars for display
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_used = Column(DateTime, nullable=True)
+    usage_count = Column(Integer, default=0, nullable=False)
+    expires_at = Column(DateTime, nullable=True)  # Optional expiration
+
 # Database dependency
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get database session."""

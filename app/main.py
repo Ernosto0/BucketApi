@@ -16,13 +16,16 @@ from .models import (
     APIGenerationRequest, APIGenerationResponse, APIModificationRequest, APIModificationResponse,
     APIExecutionRequest, APIExecutionResponse, SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
     ChatAnalysisRequest, ChatAnalysisResponse, HealthResponse, ChatMessage,
-    RegisterResponse, LoginResponse, TestRequest, TestResponse
+    RegisterResponse, LoginResponse, TestRequest, TestResponse,
+    APIKey, CreateAPIKeyRequest, CreateAPIKeyResponse, ListAPIKeysResponse, 
+    UpdateAPIKeyRequest, DeleteAPIKeyResponse
 )
 from .services.claude_service import claude_service
 from .services.code_debugger import code_debugger
 from .services.security_service import security_service
 from .services.file_service import file_service
 from .services.auth_service import auth_service
+from .services.api_key_service import api_key_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database
 from .services.test_service import test_service
@@ -72,23 +75,70 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
     """Get current authenticated user from JWT token."""
+    logger.info(f"🔑 get_current_user called, credentials: {bool(credentials)}")
+    if not credentials:
+        logger.warning("❌ No credentials provided")
+        return None
+    
+    logger.info(f"🔍 Processing credentials: {credentials.credentials[:20]}...")
+    try:
+        token_data = auth_service.verify_token(credentials.credentials)
+        logger.info(f"🎫 Token verified successfully, username: {token_data.username}")
+        # The token contains email in the 'sub' field (stored as username for compatibility)
+        user = await auth_service.get_user_by_email(token_data.username)
+        logger.info(f"✅ User authenticated: {user.email if user else 'None'}")
+        return user
+    except HTTPException as e:
+        logger.error(f"❌ Authentication failed: {e.detail}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ Unexpected authentication error: {str(e)}")
+        return None
+
+async def get_current_user_or_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
+    """Get current authenticated user from JWT token or API key."""
     if not credentials:
         return None
     
+    # First try JWT token authentication
     try:
         token_data = auth_service.verify_token(credentials.credentials)
-        # The token contains email in the 'sub' field (stored as username for compatibility)
         user = await auth_service.get_user_by_email(token_data.username)
-        return user
+        if user:
+            return user
     except HTTPException:
-        return None
+        pass
+    
+    # If JWT fails, try API key authentication
+    try:
+        api_key_info = await api_key_service.validate_api_key(credentials.credentials)
+        if api_key_info:
+            # Get user by user_id from API key
+            user = await auth_service.get_user_by_id(api_key_info.user_id)
+            return user
+    except Exception:
+        pass
+    
+    return None
 
 async def require_auth(current_user: User = Depends(get_current_user)) -> User:
     """Require authentication for protected endpoints."""
+    logger.info(f"🔐 require_auth called, user: {current_user.email if current_user else 'None'}")
     if not current_user:
+        logger.warning("❌ Authentication failed - no current user")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return current_user
+
+async def require_auth_or_api_key(current_user: User = Depends(get_current_user_or_api_key)) -> User:
+    """Require authentication via JWT token or API key for API endpoints."""
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required (Bearer token or API key)",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return current_user
@@ -238,6 +288,58 @@ async def get_current_user_info(current_user: Optional[User] = Depends(get_curre
         return {"authenticated": True, "user": current_user}
     else:
         return {"authenticated": False, "user": None}
+
+# API Key Management Endpoints
+@app.post("/api-keys", response_model=CreateAPIKeyResponse)
+async def create_api_key(request: CreateAPIKeyRequest, current_user: User = Depends(require_auth)):
+    """Create a new API key for the authenticated user."""
+    logger.info(f"🎯 POST /api-keys endpoint hit! Creating API key '{request.key_name}' for user {current_user.id}")
+    result = await api_key_service.create_api_key(current_user.id, request)
+    logger.info(f"🔄 API key creation result: success={result.success}")
+    return result
+
+@app.get("/api-keys", response_model=ListAPIKeysResponse)
+async def list_api_keys(current_user: User = Depends(require_auth)):
+    logger.info(f"🔑 GET /api-keys endpoint hit! Listing API keys for user {current_user.id}")
+    """List all API keys for the authenticated user."""
+    api_keys = await api_key_service.get_user_api_keys(current_user.id)
+    return ListAPIKeysResponse(
+        success=True,
+        api_keys=api_keys,
+        count=len(api_keys)
+    )
+
+@app.put("/api-keys/{key_id}")
+async def update_api_key(
+    key_id: str, 
+    request: UpdateAPIKeyRequest, 
+    current_user: User = Depends(require_auth)
+):
+    logger.info(f"🔄 PUT /api-keys/{key_id} endpoint hit! Updating API key for user {current_user.id}")
+    """Update an API key."""
+    success = await api_key_service.update_api_key(
+        current_user.id, 
+        key_id, 
+        request.key_name, 
+        request.is_active
+    )
+    if success:
+        return {"success": True, "message": "API key updated successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="API key not found or update failed")
+
+@app.delete("/api-keys/{key_id}", response_model=DeleteAPIKeyResponse)
+async def delete_api_key(key_id: str, current_user: User = Depends(require_auth)):
+    """Delete an API key."""
+    logger.info(f"🔄 DELETE /api-keys/{key_id} endpoint hit! Deleting API key for user {current_user.id}")
+    success = await api_key_service.delete_api_key(current_user.id, key_id)
+    if success:
+        return DeleteAPIKeyResponse(
+            success=True,
+            message="API key deleted successfully"
+        )
+    else:
+        raise HTTPException(status_code=404, detail="API key not found")
 
 @app.post("/chat/analyze", response_model=ChatAnalysisResponse)
 async def analyze_chat_prompt(request: ChatAnalysisRequest):
@@ -625,7 +727,8 @@ async def execute_api(
     user_id: str, 
     api_slug: str,
     file: Optional[UploadFile] = File(None),
-    input_data: Optional[str] = Form(None)
+    input_data: Optional[str] = Form(None),
+    current_user: Optional[User] = Depends(get_current_user_or_api_key)
 ):
     """
     Execute a generated API.

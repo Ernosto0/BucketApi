@@ -179,12 +179,47 @@ class ChatAnalysisResponse(BaseModel):
     timestamp: datetime 
 
 
-# ... existing code ...
+# API Key Models
+class APIKey(BaseModel):
+    id: str
+    user_id: str
+    key_name: str
+    key_prefix: str  # First 8 chars for display (e.g., "ak_12345...")
+    is_active: bool = True
+    created_at: datetime
+    last_used: Optional[datetime] = None
+    usage_count: int = 0
+    expires_at: Optional[datetime] = None
+
+class CreateAPIKeyRequest(BaseModel):
+    key_name: str = Field(..., min_length=1, max_length=100, description="Name for the API key")
+    expires_in_days: Optional[int] = Field(None, ge=1, le=365, description="Days until expiration (optional)")
+
+class CreateAPIKeyResponse(BaseModel):
+    success: bool
+    message: str
+    api_key: Optional[str] = None  # Full key only returned once during creation
+    key_info: Optional[APIKey] = None
+
+class ListAPIKeysResponse(BaseModel):
+    success: bool
+    api_keys: List[APIKey]
+    count: int
+
 class ListAPIsResponse(BaseModel):
     success: bool
     user_id: str
     apis: List['SavedAPI']
     count: int
+
+class UpdateAPIKeyRequest(BaseModel):
+    key_name: Optional[str] = Field(None, min_length=1, max_length=100, description="New name for the API key")
+    is_active: Optional[bool] = Field(None, description="Whether the key is active")
+
+class DeleteAPIKeyResponse(BaseModel):
+    success: bool
+    message: str
+
 
 # Test Models
 class TestRequest(BaseModel):

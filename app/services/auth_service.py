@@ -3,6 +3,7 @@ from typing import Optional
 from jose import JWTError, jwt
 import hashlib
 import secrets
+import logging
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -11,6 +12,8 @@ import uuid
 from ..models import User, UserCreate, TokenData
 from ..config import settings
 from .database import UserDB, AsyncSessionLocal, SessionLocal
+
+logger = logging.getLogger(__name__)
 
 class AuthService:
     def __init__(self):
@@ -53,6 +56,7 @@ class AuthService:
 
     def verify_token(self, token: str) -> TokenData:
         """Verify and decode a JWT token."""
+        logger.info(f"🔍 Verifying JWT token: {token[:20]}...")
         credentials_exception = HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -62,10 +66,13 @@ class AuthService:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
             username: str = payload.get("sub")
+            logger.info(f"✅ JWT token valid for user: {username}")
             if username is None:
+                logger.error("❌ JWT token missing username")
                 raise credentials_exception
             token_data = TokenData(username=username)
-        except JWTError:
+        except JWTError as e:
+            logger.error(f"❌ JWT verification failed: {e}")
             raise credentials_exception
         
         return token_data
@@ -131,9 +138,31 @@ class AuthService:
 
     async def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email from database."""
+        logger.info(f"🔍 Looking up user by email: {email}")
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(UserDB).where(UserDB.email == email)
+            )
+            db_user = result.scalar_one_or_none()
+            
+            if not db_user:
+                logger.warning(f"❌ User not found: {email}")
+                return None
+            
+            logger.info(f"✅ User found: {email}")
+            return User(
+                id=db_user.id,
+                email=db_user.email,
+                is_active=db_user.is_active,
+                created_at=db_user.created_at,
+                last_login=db_user.last_login
+            )
+
+    async def get_user_by_id(self, user_id: str) -> Optional[User]:
+        """Get user by ID from database."""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(UserDB).where(UserDB.id == user_id)
             )
             db_user = result.scalar_one_or_none()
             
