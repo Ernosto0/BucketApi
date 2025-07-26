@@ -380,6 +380,13 @@ function addRejectionMessage(analysis) {
     hideTypingIndicator();
 }
 
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function addProposalMessage(analysis, originalPrompt, userId) {
     const proposal = analysis.proposal;
     
@@ -410,9 +417,22 @@ function addProposalMessage(analysis, originalPrompt, userId) {
             
             <!-- API Name and Description -->
             <div class="glass-card rounded-xl p-6 border-blue-500/30">
-                <h4 class="font-bold text-xl text-white mb-2">${proposal.api_name || 'Custom API'}</h4>
-                <p class="text-slate-300">${proposal.description || 'A custom API based on your requirements'}</p>
+                <h4 class="font-bold text-xl text-white mb-2">${escapeHtml(proposal.api_name || 'Custom API')}</h4>
+                <p class="text-slate-300 mb-3">${escapeHtml(proposal.description || 'A custom API based on your requirements')}</p>
+                ${analysis.original_prompt ? `
+                <div class="mt-4 p-3 bg-slate-800/30 border border-slate-600/30 rounded-lg">
+                    <h6 class="text-xs font-medium text-slate-400 mb-1">Based on your request:</h6>
+                    <p class="text-sm text-slate-300 italic">"${escapeHtml(analysis.original_prompt)}"</p>
+                </div>
+                ` : ''}
+                ${analysis.confirmation_needed ? `
+                <div class="mt-3 flex items-center space-x-2">
+                    <div class="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
+                    <span class="text-xs text-orange-400">Confirmation Required</span>
+                </div>
+                ` : ''}
             </div>
+            
 
             <!-- Functionality -->
             <div class="glass-card rounded-xl p-6">
@@ -432,9 +452,18 @@ function addProposalMessage(analysis, originalPrompt, userId) {
                 <div class="glass-card rounded-xl p-4">
                     <h5 class="font-semibold text-green-400 mb-2">📥 Input Format</h5>
                     <p class="text-sm text-slate-300 mb-2">${proposal.input_format.type || 'JSON'}</p>
+                    ${proposal.input_format.fields ? `
+                    <div class="mb-3">
+                        <h6 class="text-xs font-medium text-green-300 mb-1">Required Fields:</h6>
+                        <div class="flex flex-wrap gap-1">
+                            ${proposal.input_format.fields.map(field => `<span class="px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono">${field}</span>`).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
                     ${proposal.input_format.example ? `
                     <div class="code-highlight rounded p-3">
-                        <pre class="text-xs text-slate-300 font-mono">${proposal.input_format.example}</pre>
+                        <h6 class="text-xs font-medium text-green-300 mb-2">Example:</h6>
+                        <pre class="text-xs text-slate-300 font-mono">${typeof proposal.input_format.example === 'object' ? JSON.stringify(proposal.input_format.example, null, 2) : proposal.input_format.example}</pre>
                     </div>
                     ` : ''}
                 </div>
@@ -443,9 +472,18 @@ function addProposalMessage(analysis, originalPrompt, userId) {
                 <div class="glass-card rounded-xl p-4">
                     <h5 class="font-semibold text-purple-400 mb-2">📤 Output Format</h5>
                     <p class="text-sm text-slate-300 mb-2">${proposal.output_format.type || 'JSON'}</p>
+                    ${proposal.output_format.fields ? `
+                    <div class="mb-3">
+                        <h6 class="text-xs font-medium text-purple-300 mb-1">Response Fields:</h6>
+                        <div class="flex flex-wrap gap-1">
+                            ${proposal.output_format.fields.map(field => `<span class="px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs font-mono">${field}</span>`).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
                     ${proposal.output_format.example ? `
                     <div class="code-highlight rounded p-3">
-                        <pre class="text-xs text-slate-300 font-mono">${proposal.output_format.example}</pre>
+                        <h6 class="text-xs font-medium text-purple-300 mb-2">Example:</h6>
+                        <pre class="text-xs text-slate-300 font-mono">${typeof proposal.output_format.example === 'object' ? JSON.stringify(proposal.output_format.example, null, 2) : proposal.output_format.example}</pre>
                     </div>
                     ` : ''}
                 </div>
@@ -464,7 +502,20 @@ function addProposalMessage(analysis, originalPrompt, userId) {
                 </div>
             </div>
 
+            <!-- Next Steps (if available) -->
+            ${analysis.next_steps && analysis.next_steps.length > 0 ? `
+            <div class="glass-card rounded-xl p-6">
+                <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
+                    <span class="text-blue-400">📋</span>
+                    <span>Next Steps</span>
+                </h4>
+                <ul class="space-y-2">
+                    ${analysis.next_steps.map(step => `<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">${step}</span></li>`).join('')}
+                </ul>
+            </div>
+            ` : ''}
 
+            
 
             <!-- Confirmation Buttons -->
             <div class="glass-card rounded-xl p-6 border-green-500/30">
@@ -875,202 +926,6 @@ function generateTextAnalysisTestData(subtype) {
     return { json, description, examples, requiresFile: false };
 }
 
-function generateFileProcessingTestData(subtype) {
-    const examples = [];
-    let json = '';
-    let description = '';
-    
-    switch (subtype) {
-        case 'pdf':
-            json = JSON.stringify({
-                action: "extract_text",
-                options: {
-                    preserve_formatting: true
-                }
-            }, null, 2);
-            description = "Upload a PDF file and specify extraction options";
-            examples.push(
-                { label: "Extract text", data: JSON.stringify({action: "extract_text"}) },
-                { label: "Extract metadata", data: JSON.stringify({action: "extract_metadata"}) }
-            );
-            break;
-        case 'csv':
-            json = JSON.stringify({
-                operation: "analyze",
-                columns: ["name", "age", "city"]
-            }, null, 2);
-            description = "Upload a CSV file and specify analysis parameters";
-            examples.push(
-                { label: "Basic analysis", data: JSON.stringify({operation: "analyze"}) },
-                { label: "Filter data", data: JSON.stringify({operation: "filter", criteria: {age: ">18"}}) }
-            );
-            break;
-    }
-    
-    return { json, description, examples, requiresFile: true };
-}
-
-function generateDataExtractionTestData(subtype) {
-    const examples = [];
-    let json = '';
-    let description = '';
-    
-    switch (subtype) {
-        case 'contacts':
-            json = JSON.stringify({
-                text: "Contact John Doe at john.doe@email.com or call (555) 123-4567. You can also reach Mary Smith at mary.smith@company.com."
-            }, null, 2);
-            description = "Text containing contact information to extract";
-            examples.push(
-                { label: "Business card text", data: JSON.stringify({text: "Dr. Jane Wilson, MD\\nwilson@hospital.com\\n(555) 987-6543"}) },
-                { label: "Email signature", data: JSON.stringify({text: "Best regards,\\nMike Johnson\\nmjohnson@company.com"}) }
-            );
-            break;
-        case 'names':
-            json = JSON.stringify({
-                text: "The meeting was attended by John Smith, Mary Johnson, and Dr. Robert Brown from the university."
-            }, null, 2);
-            description = "Text containing person names to extract";
-            break;
-        case 'dates':
-            json = JSON.stringify({
-                text: "The project deadline is March 15, 2024. The meeting is scheduled for next Tuesday, January 10th."
-            }, null, 2);
-            description = "Text containing dates to extract and normalize";
-            break;
-    }
-    
-    return { json, description, examples, requiresFile: false };
-}
-
-function generateAIProcessingTestData(subtype) {
-    const examples = [];
-    let json = '';
-    let description = '';
-    
-    switch (subtype) {
-        case 'classification':
-            json = JSON.stringify({
-                text: "I need help with my account settings and password reset.",
-                categories: ["technical_support", "billing", "general_inquiry", "bug_report"]
-            }, null, 2);
-            description = "Text to classify with possible categories";
-            examples.push(
-                { label: "Customer service", data: JSON.stringify({text: "My order hasn't arrived yet", categories: ["shipping", "billing", "returns"]}) },
-                { label: "Product review", data: JSON.stringify({text: "Great product, works as expected", categories: ["positive", "negative", "neutral"]}) }
-            );
-            break;
-        default:
-            json = JSON.stringify({
-                input: "Sample data for AI processing",
-                parameters: {
-                    temperature: 0.7,
-                    max_tokens: 100
-                }
-            }, null, 2);
-            description = "Input data for AI model processing";
-            break;
-    }
-    
-    return { json, description, examples, requiresFile: false };
-}
-
-function generateImageProcessingTestData(subtype) {
-    const examples = [];
-    let json = '';
-    let description = '';
-    
-    switch (subtype) {
-        case 'resize':
-            json = JSON.stringify({
-                width: 800,
-                height: 600,
-                maintain_aspect_ratio: true,
-                quality: 85
-            }, null, 2);
-            description = "Upload an image and specify resize parameters";
-            examples.push(
-                { label: "Thumbnail", data: JSON.stringify({width: 150, height: 150}) },
-                { label: "High quality", data: JSON.stringify({width: 1920, height: 1080, quality: 95}) }
-            );
-            break;
-        default:
-            json = JSON.stringify({
-                operation: "analyze",
-                return_metadata: true
-            }, null, 2);
-            description = "Upload an image and specify processing options";
-            break;
-    }
-    
-    return { json, description, examples, requiresFile: true };
-}
-
-function generateAuthTestData(subtype) {
-    const examples = [];
-    let json = '';
-    let description = '';
-    
-    switch (subtype) {
-        case 'jwt':
-            json = JSON.stringify({
-                username: "testuser",
-                password: "testpassword"
-            }, null, 2);
-            description = "User credentials for authentication";
-            examples.push(
-                { label: "Login", data: JSON.stringify({username: "john_doe", password: "secure123"}) },
-                { label: "Register", data: JSON.stringify({username: "new_user", password: "newpass123", email: "user@example.com"}) }
-            );
-            break;
-        default:
-            json = JSON.stringify({
-                action: "authenticate",
-                credentials: {
-                    username: "user",
-                    password: "pass"
-                }
-            }, null, 2);
-            description = "Authentication request data";
-            break;
-    }
-    
-    return { json, description, examples, requiresFile: false };
-}
-
-function extractDataFromCurl(curlExample) {
-    if (!curlExample) return null;
-    
-    try {
-        // Look for -d or --data flag in curl command
-        const dataMatch = curlExample.match(/-d\s+'([^']+)'|--data\s+'([^']+)'|-d\s+"([^"]+)"|--data\s+"([^"]+)"/);
-        if (dataMatch) {
-            const data = dataMatch[1] || dataMatch[2] || dataMatch[3] || dataMatch[4];
-            // Try to parse and reformat JSON
-            try {
-                const parsed = JSON.parse(data);
-                return JSON.stringify(parsed, null, 2);
-            } catch {
-                return data;
-            }
-        }
-        
-        // Look for JSON-like content in the curl example
-        const jsonMatch = curlExample.match(/\{[^}]+\}/);
-        if (jsonMatch) {
-            try {
-                const parsed = JSON.parse(jsonMatch[0]);
-                return JSON.stringify(parsed, null, 2);
-            } catch {
-                return jsonMatch[0];
-            }
-        }
-    } catch (error) {
-        console.warn('Error extracting data from curl example:', error);
-    }
-    
-    return null;
-}
 
 function getCurrentPrompt() {
     // Get the last user message from the conversation

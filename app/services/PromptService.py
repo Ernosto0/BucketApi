@@ -193,11 +193,6 @@ class PromptServiceBuild:
                     "original_prompt": prompt,
                     "proposal": proposal,
                     "confirmation_needed": True,
-                    "options": {
-                        "build_it": "Yes, build this API exactly as described",
-                        "modify_proposal": "I want to modify some details first",
-                        "cancel": "No, don't build this"
-                    },
                     "next_steps": [
                         "Review the API proposal carefully",
                         "Click 'Build It' if you're satisfied",
@@ -206,6 +201,7 @@ class PromptServiceBuild:
                 }
                 
                 logger.info(f"Created detailed proposal for user {user_id}")
+                logger.info(f"Response data: {response_data}")
                 return json.dumps(response_data, indent=2)
                 
             except json.JSONDecodeError:
@@ -229,11 +225,7 @@ class PromptServiceBuild:
                 "functionality": ["Process your specified requirements"]
             },
             "confirmation_needed": True,
-            "options": {
-                "build_it": "Yes, build this API",
-                "modify_proposal": "I want to modify the requirements",
-                "cancel": "No, don't build this"
-            }
+            
         }
         
         logger.info(f"Created simple proposal fallback for user {user_id}")
