@@ -79,6 +79,41 @@ class APIKeyDB(Base):
     usage_count = Column(Integer, default=0, nullable=False)
     expires_at = Column(DateTime, nullable=True)  # Optional expiration
 
+class LLMUsageDB(Base):
+    __tablename__ = "llm_usage"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=False)
+    api_key_id = Column(String, index=True, nullable=True)  # Which API key was used
+    service_type = Column(String, nullable=False)  # 'claude', 'openai', etc.
+    operation_type = Column(String, nullable=False)  # 'code_generation', 'code_modification', 'documentation', 'analysis'
+    model_name = Column(String, nullable=False)  # e.g., 'claude-3-sonnet', 'gpt-4'
+    
+    # Token usage
+    input_tokens = Column(Integer, default=0, nullable=False)
+    output_tokens = Column(Integer, default=0, nullable=False)
+    total_tokens = Column(Integer, default=0, nullable=False)
+    
+    # Cost tracking (in USD cents to avoid float precision issues)
+    estimated_cost_cents = Column(Integer, default=0, nullable=False)
+    
+    # Request metadata
+    prompt_length = Column(Integer, default=0, nullable=False)
+    response_length = Column(Integer, default=0, nullable=False)
+    request_duration_ms = Column(Integer, default=0, nullable=False)
+    
+    # Context and debugging
+    operation_context = Column(Text, nullable=True)  # JSON string with additional context
+    api_slug = Column(String, nullable=True)  # Related API if applicable
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    
+    # Status
+    success = Column(Boolean, default=True, nullable=False)
+    error_message = Column(Text, nullable=True)
+
 # Database dependency
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get database session."""

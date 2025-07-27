@@ -3,311 +3,289 @@
 {% block title %}Profile - AI API Generator{% endblock %}
 
 {% block extra_head %}
-
-
-
-
-<style>
-    .profile-card {
-        background-color: var(--vscode-panel);
-        border: 1px solid var(--vscode-border);
-        border-radius: 0.5rem;
-        padding: 1.5rem;
-    }
-
-    .stat-card {
-        background-color: var(--vscode-sidebar);
-        border: 1px solid var(--vscode-border);
-        border-radius: 0.375rem;
-        padding: 1rem;
-        text-align: center;
-    }
-
-    .api-card {
-        background-color: var(--vscode-panel);
-        border: 1px solid var(--vscode-border);
-        border-radius: 0.5rem;
-        padding: 1rem;
-        transition: all 0.2s ease;
-    }
-
-    .api-card:hover {
-        background-color: var(--vscode-hover);
-        border-color: var(--vscode-blue);
-    }
-
-    .code-block {
-        background-color: var(--vscode-bg);
-        border: 1px solid var(--vscode-border);
-        border-radius: 0.375rem;
-        padding: 0.75rem;
-        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-        font-size: 0.875rem;
-        overflow-x: auto;
-    }
-
-    .btn-primary {
-        background-color: var(--vscode-blue);
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-
-    .btn-primary:hover {
-        background-color: #106bb3;
-    }
-
-    .btn-primary.no-underline {
-        text-decoration: none;
-    }
-
-    .btn-primary.no-underline:hover {
-        text-decoration: none;
-    }
-
-    .btn-secondary {
-        background-color: var(--vscode-sidebar);
-        color: var(--vscode-text);
-        border: 1px solid var(--vscode-border);
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-
-    .btn-secondary:hover {
-        background-color: var(--vscode-hover);
-        border-color: var(--vscode-blue);
-    }
-
-    .btn-danger {
-        background-color: var(--vscode-red);
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-
-    .btn-danger:hover {
-        background-color: #d73a49;
-    }
-
-    .btn-success {
-        background-color: var(--vscode-green);
-        color: white;
-        border: none;
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-
-    .btn-success:hover {
-        background-color: #28a745;
-    }
-
-    .loading-spinner {
-        display: inline-block;
-        width: 20px;
-        height: 20px;
-        border: 2px solid var(--vscode-border);
-        border-radius: 50%;
-        border-top-color: var(--vscode-blue);
-        animation: spin 1s ease-in-out infinite;
-    }
-
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 3rem 1rem;
-        color: var(--vscode-text-muted);
-    }
-
-    .empty-state svg {
-        width: 4rem;
-        height: 4rem;
-        margin: 0 auto 1rem;
-        opacity: 0.5;
-    }
-
-    .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-    }
-
-    .modal-content {
-        background-color: var(--vscode-panel);
-        border: 1px solid var(--vscode-border);
-        border-radius: 0.5rem;
-        padding: 1.5rem;
-        margin: 1rem;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-</style>
+<link rel="stylesheet" href="/static/profile.css">
 {% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-6">
-    <div class="max-w-6xl mx-auto">
+<div class="profile-layout">
+    <!-- Sidebar Navigation -->
+    <div class="profile-sidebar">
         <!-- Profile Header -->
-        <div class="profile-card mb-8">
-            <div class="flex items-center justify-between mb-6">
-                <div class="flex items-center space-x-4">
-                    <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-2xl font-bold">
-                        <span id="profileInitials">U</span>
-                    </div>
-                    <div>
-                        <h1 class="text-2xl font-bold text-white" id="profileEmail">Loading...</h1>
-                        <p class="text-gray-400" id="profileJoinDate">Member since...</p>
-                    </div>
+        <div class="profile-header">
+            <div class="flex items-center space-x-3">
+                <div class="profile-avatar" id="profileAvatar">
+                    <span id="profileInitials">U</span>
                 </div>
-                <a href="/" class="btn-secondary">
-                    ← Back to Generator
-                </a>
-            </div>
-
-            <!-- Stats Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="stat-card">
-                    <div class="text-2xl font-bold text-blue-400" id="totalApis">0</div>
-                    <div class="text-sm text-gray-400 mt-1">Total APIs</div>
-                </div>
-                <div class="stat-card">
-                    <div class="text-2xl font-bold text-green-400" id="savedApis">0</div>
-                    <div class="text-sm text-gray-400 mt-1">Saved APIs</div>
-                </div>
-                <div class="stat-card">
-                    <div class="text-2xl font-bold text-purple-400" id="recentApis">0</div>
-                    <div class="text-sm text-gray-400 mt-1">This Month</div>
-                </div>
-                <div class="stat-card">
-                    <div class="text-2xl font-bold text-yellow-400" id="apiCalls">0</div>
-                    <div class="text-sm text-gray-400 mt-1">API Calls</div>
+                <div>
+                    <h3 class="text-sm font-medium text-white" id="profileEmail">Loading...</h3>
+                    <p class="text-xs text-gray-400" id="profileJoinDate">Member since...</p>
                 </div>
             </div>
         </div>
 
-        <!-- API Keys Section -->
-        <div class="profile-card mb-8">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-xl font-bold text-white">🔑 API Keys</h2>
-                <button id="createAPIKeyButton" class="btn-primary">
-                    + Create API Key
+        <!-- Navigation Menu -->
+        <nav>
+            <ul class="sidebar-nav">
+                <li class="sidebar-nav-item">
+                    <button class="sidebar-nav-link active" data-tab="usage">
+                        <span class="sidebar-nav-icon">📊</span>
+                        Usage & Billing
+                    </button>
+                </li>
+                <li class="sidebar-nav-item">
+                    <button class="sidebar-nav-link" data-tab="api-keys">
+                        <span class="sidebar-nav-icon">🔑</span>
+                        API Keys
+                    </button>
+                </li>
+                <li class="sidebar-nav-item">
+                    <button class="sidebar-nav-link" data-tab="saved-apis">
+                        <span class="sidebar-nav-icon">💾</span>
+                        Saved APIs
+                    </button>
+                </li>
+                <li class="sidebar-nav-item">
+                    <a href="/" class="sidebar-nav-link">
+                        <span class="sidebar-nav-icon">🏠</span>
+                        Back to Generator
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="profile-content">
+        <!-- Usage & Billing Tab -->
+        <div id="usage-tab" class="tab-content active">
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold text-white mb-2">Usage & Billing</h1>
+                <p class="text-gray-400">Monitor your LLM usage, costs, and limits</p>
+            </div>
+
+            <!-- Usage Statistics Grid -->
+            <div class="usage-stats-grid">
+                <div class="usage-stat-card">
+                    <div class="usage-stat-value text-blue-400" id="totalRequests">0</div>
+                    <div class="usage-stat-label">Total Requests</div>
+                </div>
+                <div class="usage-stat-card">
+                    <div class="usage-stat-value text-green-400" id="totalTokens">0</div>
+                    <div class="usage-stat-label">Total Tokens</div>
+                </div>
+                <div class="usage-stat-card">
+                    <div class="usage-stat-value text-purple-400" id="totalCost">$0.00</div>
+                    <div class="usage-stat-label">Total Cost</div>
+                </div>
+                <div class="usage-stat-card">
+                    <div class="usage-stat-value text-yellow-400" id="avgCostPerRequest">$0.00</div>
+                    <div class="usage-stat-label">Avg Cost/Request</div>
+                </div>
+            </div>
+
+            <!-- Usage Limits Section -->
+            <div class="usage-limits-section mb-6">
+                <h2 class="text-lg font-semibold text-white mb-4">Usage Limits</h2>
+                
+                <div class="space-y-4">
+                    <!-- Daily Token Limit -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-white">Daily Tokens</span>
+                            <span class="text-sm text-gray-400" id="dailyTokensText">0 / 100,000</span>
+                        </div>
+                        <div class="limit-bar">
+                            <div class="limit-progress low" id="dailyTokensProgress" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Token Limit -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-white">Monthly Tokens</span>
+                            <span class="text-sm text-gray-400" id="monthlyTokensText">0 / 1,000,000</span>
+                        </div>
+                        <div class="limit-bar">
+                            <div class="limit-progress low" id="monthlyTokensProgress" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Daily Cost Limit -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-white">Daily Cost</span>
+                            <span class="text-sm text-gray-400" id="dailyCostText">$0.00 / $10.00</span>
+                        </div>
+                        <div class="limit-bar">
+                            <div class="limit-progress low" id="dailyCostProgress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage by Service -->
+            <div class="usage-chart-container">
+                <h2 class="text-lg font-semibold text-white mb-4">Usage by Service</h2>
+                <div id="serviceUsageChart" class="space-y-3">
+                    <!-- Service usage will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Recent Usage -->
+            <div class="usage-chart-container">
+                <h2 class="text-lg font-semibold text-white mb-4">Recent Usage</h2>
+                <div id="recentUsageList" class="space-y-2">
+                    <!-- Recent usage will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- API Keys Tab -->
+        <div id="api-keys-tab" class="tab-content">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-white mb-2">API Keys</h1>
+                    <p class="text-gray-400">Manage your API keys for programmatic access</p>
+                </div>
+                <button id="createAPIKeyBtn" class="btn btn-primary">
+                    <span>+</span>
+                    Create API Key
                 </button>
             </div>
 
             <!-- API Keys Loading State -->
-            <div id="apiKeysLoading" class="text-center py-4">
-                <div class="loading-spinner mx-auto mb-2"></div>
+            <div id="apiKeysLoading" class="loading-container">
+                <div class="loading-spinner"></div>
                 <p class="text-gray-400">Loading API keys...</p>
             </div>
 
             <!-- API Keys Empty State -->
-            <div id="apiKeysEmpty" class="hidden empty-state">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
-                </svg>
-                <h3 class="text-lg font-medium mb-2">No API keys yet</h3>
-                <p class="text-sm mb-4">Create an API key to access your APIs programmatically!</p>
-                <button onclick="createAPIKey()" class="btn-primary">Create Your First API Key</button>
+            <div id="apiKeysEmpty" class="empty-state hidden">
+                <div class="empty-state-icon">🔑</div>
+                <h3>No API keys yet</h3>
+                <p>Create an API key to access your APIs programmatically</p>
+                <button onclick="showCreateAPIKeyModal()" class="btn btn-primary">Create Your First API Key</button>
             </div>
 
             <!-- API Keys Grid -->
-            <div id="apiKeysGrid" class="hidden space-y-4">
+            <div id="apiKeysGrid" class="api-keys-grid hidden">
                 <!-- API keys will be loaded here -->
             </div>
         </div>
 
-        <!-- My APIs Section -->
-        <div class="profile-card">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-xl font-bold text-white">📋 My APIs</h2>
+        <!-- Saved APIs Tab -->
+        <div id="saved-apis-tab" class="tab-content">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h1 class="text-2xl font-bold text-white mb-2">Saved APIs</h1>
+                    <p class="text-gray-400">Manage and test your saved APIs</p>
+                </div>
                 <div class="flex space-x-3">
-                    <button onclick="refreshAPIs()" class="btn-secondary">
-                        <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                        </svg>
+                    <button onclick="refreshAPIs()" class="btn btn-secondary btn-sm">
+                        <span>🔄</span>
                         Refresh
                     </button>
-                    <a href="/" class="btn-primary">
-                        + Create New API
+                    <a href="/" class="btn btn-primary btn-sm">
+                        <span>+</span>
+                        Create New API
                     </a>
                 </div>
             </div>
 
-            <!-- Loading State -->
-            <div id="apisLoading" class="text-center py-8">
-                <div class="loading-spinner mx-auto mb-4"></div>
+            <!-- Saved APIs Loading State -->
+            <div id="savedAPIsLoading" class="loading-container">
+                <div class="loading-spinner"></div>
                 <p class="text-gray-400">Loading your APIs...</p>
             </div>
 
-            <!-- Empty State -->
-            <div id="apisEmpty" class="hidden empty-state">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <h3 class="text-lg font-medium mb-2">No APIs yet</h3>
-                <p class="text-sm mb-4">Start creating APIs to see them here!</p>
-                <a href="/" class="btn-primary">Create Your First API</a>
+            <!-- Saved APIs Empty State -->
+            <div id="savedAPIsEmpty" class="empty-state hidden">
+                <div class="empty-state-icon">💾</div>
+                <h3>No saved APIs yet</h3>
+                <p>Start creating APIs to see them here</p>
+                <a href="/" class="btn btn-primary">Create Your First API</a>
             </div>
 
-            <!-- APIs Grid -->
-            <div id="apisGrid" class="hidden grid gap-6">
-                <!-- APIs will be loaded here -->
+            <!-- Saved APIs Grid -->
+            <div id="savedAPIsGrid" class="saved-apis-grid hidden">
+                <!-- Saved APIs will be loaded here -->
             </div>
         </div>
     </div>
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="modal-overlay hidden">
-    <div class="modal-content max-w-md">
-        <div class="mb-6">
-            <h3 class="text-lg font-bold text-white mb-2">Delete API</h3>
-            <p class="text-gray-400">Are you sure you want to delete this API? This action cannot be undone.</p>
+<!-- Create API Key Modal -->
+<div id="createAPIKeyModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Create API Key</h3>
+            <p class="modal-description">Create a new API key for programmatic access to your APIs</p>
         </div>
-        <div class="flex justify-end space-x-3">
-            <button onclick="hideDeleteModal()" class="btn-secondary">Cancel</button>
-            <button onclick="confirmDelete()" class="btn-danger">Delete</button>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label" for="keyNameInput">Key Name</label>
+                <input type="text" id="keyNameInput" class="form-input" placeholder="e.g., Production Key" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="expiresInDaysInput">Expires In (days)</label>
+                <input type="number" id="expiresInDaysInput" class="form-input" placeholder="Optional, leave empty for no expiration" min="1" max="365">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="hideCreateAPIKeyModal()" class="btn btn-secondary">Cancel</button>
+            <button onclick="createAPIKey()" class="btn btn-primary">Create Key</button>
         </div>
     </div>
 </div>
 
+<!-- API Key Created Modal -->
+<div id="apiKeyCreatedModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">API Key Created</h3>
+            <p class="modal-description">Your API key has been created. Copy it now - you won't be able to see it again!</p>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Your New API Key</label>
+                <div class="api-key-code">
+                    <input type="text" id="newAPIKeyValue" class="form-input" readonly>
+                </div>
+                <button onclick="copyAPIKey()" class="btn btn-secondary btn-sm mt-2">
+                    <span>📋</span>
+                    Copy to Clipboard
+                </button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="hideAPIKeyCreatedModal()" class="btn btn-primary">I've Copied It</button>
+        </div>
+    </div>
+</div>
 
-
-
-
-<!-- Delete API Key Modal -->
+<!-- Delete Confirmation Modals -->
 <div id="deleteAPIKeyModal" class="modal-overlay hidden">
-    <div class="modal-content max-w-md">
-        <div class="mb-6">
-            <h3 class="text-lg font-bold text-white mb-2">Delete API Key</h3>
-            <p class="text-gray-400">Are you sure you want to delete this API key? Any applications using this key will lose access immediately.</p>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Delete API Key</h3>
+            <p class="modal-description">Are you sure you want to delete this API key? Applications using this key will lose access immediately.</p>
         </div>
-        <div class="flex justify-end space-x-3">
-            <button onclick="hideDeleteAPIKeyModal()" class="btn-secondary">Cancel</button>
-            <button onclick="confirmDeleteAPIKey()" class="btn-danger">Delete Key</button>
+        <div class="modal-footer">
+            <button onclick="hideDeleteAPIKeyModal()" class="btn btn-secondary">Cancel</button>
+            <button onclick="confirmDeleteAPIKey()" class="btn btn-danger">Delete Key</button>
+        </div>
+    </div>
+</div>
+
+<div id="deleteAPIModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Delete API</h3>
+            <p class="modal-description">Are you sure you want to delete this API? This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+            <button onclick="hideDeleteAPIModal()" class="btn btn-secondary">Cancel</button>
+            <button onclick="confirmDeleteAPI()" class="btn btn-danger">Delete API</button>
         </div>
     </div>
 </div>
@@ -315,17 +293,48 @@
 
 {% block extra_scripts %}
 <script>
-    let currentDeleteTarget = null;
+    // Global variables
     let currentDeleteAPIKeyTarget = null;
-    
+    let currentDeleteAPITarget = null;
+    let usageData = null;
+    let limitsData = null;
+
+    // Tab Management
+    function switchTab(tabName) {
+        // Remove active class from all tabs and links
+        document.querySelectorAll('.tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelectorAll('.sidebar-nav-link').forEach(link => {
+            link.classList.remove('active');
+        });
+
+        // Add active class to selected tab and link
+        document.getElementById(tabName + '-tab').classList.add('active');
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+        // Load data for the active tab
+        switch(tabName) {
+            case 'usage':
+                loadUsageData();
+                break;
+            case 'api-keys':
+                loadAPIKeys();
+                break;
+            case 'saved-apis':
+                loadSavedAPIs();
+                break;
+        }
+    }
+
     // Initialize profile data
     async function loadProfile() {
         try {
-                         const response = await fetch('/auth/profile', {
-                 headers: {
-                     'Authorization': `Bearer ${window.authToken}`
-                 }
-             });
+            const response = await fetch('/auth/profile', {
+                headers: {
+                    'Authorization': `Bearer ${window.authToken}`
+                }
+            });
             
             if (!response.ok) {
                 throw new Error('Failed to load profile');
@@ -340,230 +349,155 @@
             document.getElementById('profileJoinDate').textContent = 
                 `Member since ${new Date(profile.user.created_at).toLocaleDateString()}`;
             
-            // Update stats
-            document.getElementById('totalApis').textContent = profile.total_apis || 0;
-            document.getElementById('savedApis').textContent = profile.saved_apis?.length || 0;
-            document.getElementById('recentApis').textContent = calculateRecentApis(profile.saved_apis || []);
-            document.getElementById('apiCalls').textContent = profile.api_calls || 0;
-            
         } catch (error) {
             console.error('Failed to load profile:', error);
-            // Redirect to login if not authenticated
             window.location.href = '/';
         }
     }
-    
-    // Load user APIs
-    async function loadAPIs() {
-        const loading = document.getElementById('apisLoading');
-        const empty = document.getElementById('apisEmpty');
-        const grid = document.getElementById('apisGrid');
-        
-        loading.classList.remove('hidden');
-        empty.classList.add('hidden');
-        grid.classList.add('hidden');
-        
-        try {
-                         const response = await fetch(`/api/${window.currentUser.id}`, {
-                 headers: {
-                     'Authorization': `Bearer ${window.authToken}`
-                 }
-             });
-            
-            const result = await response.json();
-            loading.classList.add('hidden');
-            
-            if (result.success && result.apis.length > 0) {
-                displayAPIs(result.apis);
-                grid.classList.remove('hidden');
-            } else {
-                empty.classList.remove('hidden');
-            }
-            
-        } catch (error) {
-            console.error('Failed to load APIs:', error);
-            loading.classList.add('hidden');
-            empty.classList.remove('hidden');
-        }
-    }
-    
-    // Display APIs in grid
-    function displayAPIs(apis) {
-        const container = document.getElementById('apisGrid');
-        container.innerHTML = '';
-        
-        apis.forEach(api => {
-            const apiCard = createAPICard(api);
-            container.appendChild(apiCard);
-        });
-    }
-    
-    // Create API card element
-    function createAPICard(api) {
-        const card = document.createElement('div');
-        card.className = 'api-card';
-        
-        const endpointUrl = window.location.origin + api.endpoint_url;
-        
-        card.innerHTML = `
-            <div class="flex justify-between items-start mb-4">
-                <div class="flex-1">
-                    <h3 class="text-lg font-medium text-white mb-2">${api.api_name}</h3>
-                    <p class="text-sm text-gray-400 mb-3 line-clamp-2">${api.prompt}</p>
-                    <div class="flex items-center space-x-4 text-xs text-gray-500">
-                        <span>Created: ${new Date(api.created_at).toLocaleDateString()}</span>
-                        <span>•</span>
-                        <span>Saved: ${new Date(api.saved_at).toLocaleDateString()}</span>
-                    </div>
-                </div>
-                <div class="flex space-x-2 ml-4">
-                    <a href="/api/${api.user_id}/${api.api_slug}/details" 
-                       class="btn-primary text-xs px-2 py-1 no-underline inline-block">
-                        📊 Details
-                    </a>
-                    <button onclick="testAPI('${endpointUrl}')" class="btn-success text-xs px-2 py-1">
-                        🧪 Test
-                    </button>
-                    <button onclick="showDeleteModal('${api.user_id}', '${api.api_slug}', '${api.api_name}')" 
-                            class="btn-danger text-xs px-2 py-1">
-                        🗑️ Delete
-                    </button>
-                </div>
-            </div>
-            
-            <div class="mb-4">
-                <h4 class="text-sm font-medium text-white mb-2">📡 Endpoint</h4>
-                <div class="code-block">
-                    <code class="text-green-400 text-xs">${endpointUrl}</code>
-                    <button onclick="copyToClipboard('${endpointUrl}')" 
-                            class="ml-2 text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
-                        Copy
-                    </button>
-                </div>
-            </div>
-            
-            <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                    <h4 class="text-sm font-medium text-white mb-2">📚 Documentation</h4>
-                    <div class="bg-black bg-opacity-30 rounded p-2 max-h-24 overflow-y-auto">
-                        <pre class="text-xs text-gray-300 whitespace-pre-wrap">${api.documentation.substring(0, 200)}${api.documentation.length > 200 ? '...' : ''}</pre>
-                    </div>
-                </div>
-                <div>
-                    <h4 class="text-sm font-medium text-white mb-2">💻 cURL Example</h4>
-                    <div class="bg-black bg-opacity-30 rounded p-2 max-h-24 overflow-y-auto">
-                        <pre class="text-xs text-green-400">${api.curl_example.substring(0, 150)}${api.curl_example.length > 150 ? '...' : ''}</pre>
-                    </div>
-                    <button onclick="copyToClipboard(\`${api.curl_example.replace(/`/g, '\\`')}\`)" 
-                            class="mt-2 text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
-                        Copy cURL
-                    </button>
-                </div>
-            </div>
-        `;
-        
-        return card;
-    }
-    
-    // Test API functionality
-    async function testAPI(endpointUrl) {
-        const testData = prompt('Enter test data (JSON format, optional):');
-        
-        try {
-            const formData = new FormData();
-            if (testData && testData.trim()) {
-                formData.append('input_data', testData);
-            }
 
-            const response = await fetch(endpointUrl, {
-                method: 'POST',
-                body: formData
+    // Load usage data
+    async function loadUsageData() {
+        try {
+            // Load usage statistics
+            const statsResponse = await fetch('/usage/stats?days=30', {
+                headers: {
+                    'Authorization': `Bearer ${window.authToken}`
+                }
             });
+            
+            if (statsResponse.ok) {
+                usageData = await statsResponse.json();
+                displayUsageStats(usageData);
+            }
 
-            const result = await response.json();
+            // Load usage limits
+            const limitsResponse = await fetch('/usage/limits', {
+                headers: {
+                    'Authorization': `Bearer ${window.authToken}`
+                }
+            });
             
-            if (result.success) {
-                alert(`✅ Test successful!\n\nResult:\n${JSON.stringify(result.result, null, 2)}`);
-            } else {
-                alert(`❌ Test failed:\n${result.error || 'Unknown error'}`);
+            if (limitsResponse.ok) {
+                limitsData = await limitsResponse.json();
+                displayUsageLimits(limitsData);
             }
+
         } catch (error) {
-            alert(`❌ Test error:\n${error.message}`);
+            console.error('Failed to load usage data:', error);
         }
     }
-    
-    // Copy to clipboard
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => {
-            showNotification('Copied to clipboard!', 'success');
+
+    // Display usage statistics
+    function displayUsageStats(data) {
+        document.getElementById('totalRequests').textContent = data.total_requests || 0;
+        document.getElementById('totalTokens').textContent = (data.total_tokens || 0).toLocaleString();
+        document.getElementById('totalCost').textContent = '$' + ((data.total_cost_cents || 0) / 100).toFixed(2);
+        
+        const avgCost = data.total_requests > 0 ? (data.total_cost_cents / data.total_requests / 100) : 0;
+        document.getElementById('avgCostPerRequest').textContent = '$' + avgCost.toFixed(4);
+
+        // Display service usage
+        displayServiceUsage(data.by_service || {});
+        
+        // Display recent usage
+        displayRecentUsage(data.recent_usage || []);
+    }
+
+    // Display usage limits
+    function displayUsageLimits(data) {
+        // Daily tokens
+        const dailyTokenPercent = Math.min((data.daily_tokens_used / data.daily_token_limit) * 100, 100);
+        document.getElementById('dailyTokensText').textContent = 
+            `${data.daily_tokens_used.toLocaleString()} / ${data.daily_token_limit.toLocaleString()}`;
+        document.getElementById('dailyTokensProgress').style.width = dailyTokenPercent + '%';
+        updateProgressBarColor(document.getElementById('dailyTokensProgress'), dailyTokenPercent);
+
+        // Monthly tokens
+        const monthlyTokenPercent = Math.min((data.monthly_tokens_used / data.monthly_token_limit) * 100, 100);
+        document.getElementById('monthlyTokensText').textContent = 
+            `${data.monthly_tokens_used.toLocaleString()} / ${data.monthly_token_limit.toLocaleString()}`;
+        document.getElementById('monthlyTokensProgress').style.width = monthlyTokenPercent + '%';
+        updateProgressBarColor(document.getElementById('monthlyTokensProgress'), monthlyTokenPercent);
+
+        // Daily cost
+        const dailyCostPercent = Math.min((data.daily_cost_used_cents / data.daily_cost_limit_cents) * 100, 100);
+        document.getElementById('dailyCostText').textContent = 
+            `$${(data.daily_cost_used_cents / 100).toFixed(2)} / $${(data.daily_cost_limit_cents / 100).toFixed(2)}`;
+        document.getElementById('dailyCostProgress').style.width = dailyCostPercent + '%';
+        updateProgressBarColor(document.getElementById('dailyCostProgress'), dailyCostPercent);
+    }
+
+    // Update progress bar color based on percentage
+    function updateProgressBarColor(element, percent) {
+        element.className = 'limit-progress ';
+        if (percent < 50) {
+            element.className += 'low';
+        } else if (percent < 75) {
+            element.className += 'medium';
+        } else if (percent < 90) {
+            element.className += 'high';
+        } else {
+            element.className += 'critical';
+        }
+    }
+
+    // Display service usage breakdown
+    function displayServiceUsage(byService) {
+        const container = document.getElementById('serviceUsageChart');
+        container.innerHTML = '';
+
+        Object.entries(byService).forEach(([service, stats]) => {
+            const serviceDiv = document.createElement('div');
+            serviceDiv.className = 'flex justify-between items-center p-3 bg-black bg-opacity-20 rounded';
+            serviceDiv.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <span class="text-lg">${service === 'claude' ? '🤖' : '🔥'}</span>
+                    <div>
+                        <div class="font-medium text-white">${service.charAt(0).toUpperCase() + service.slice(1)}</div>
+                        <div class="text-sm text-gray-400">${stats.requests} requests</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="font-medium text-white">${stats.tokens.toLocaleString()} tokens</div>
+                    <div class="text-sm text-gray-400">$${(stats.cost_cents / 100).toFixed(2)}</div>
+                </div>
+            `;
+            container.appendChild(serviceDiv);
         });
-    }
-    
-    // Show notification
-    function showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50 ${
-            type === 'success' ? 'bg-green-600' : 
-            type === 'error' ? 'bg-red-600' : 'bg-blue-600'
-        } text-white`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            document.body.removeChild(notification);
-        }, 3000);
-    }
-    
-    // Delete API functionality
-    function showDeleteModal(userId, apiSlug, apiName) {
-        currentDeleteTarget = { userId, apiSlug, apiName };
-        document.getElementById('deleteModal').classList.remove('hidden');
-    }
-    
-    function hideDeleteModal() {
-        currentDeleteTarget = null;
-        document.getElementById('deleteModal').classList.add('hidden');
-    }
-    
-    async function confirmDelete() {
-        if (!currentDeleteTarget) return;
-        
-        try {
-                         const response = await fetch(`/api/${currentDeleteTarget.userId}/${currentDeleteTarget.apiSlug}`, {
-                 method: 'DELETE',
-                 headers: {
-                     'Authorization': `Bearer ${window.authToken}`
-                 }
-             });
-            
-            if (response.ok) {
-                showNotification('API deleted successfully!', 'success');
-                hideDeleteModal();
-                refreshAPIs();
-            } else {
-                throw new Error('Failed to delete API');
-            }
-        } catch (error) {
-            console.error('Failed to delete API:', error);
-            showNotification('Failed to delete API', 'error');
+
+        if (Object.keys(byService).length === 0) {
+            container.innerHTML = '<p class="text-gray-400 text-center py-4">No usage data available</p>';
         }
     }
-    
-    // Refresh APIs
-    function refreshAPIs() {
-        loadAPIs();
-        loadProfile(); // Refresh stats too
+
+    // Display recent usage
+    function displayRecentUsage(recentUsage) {
+        const container = document.getElementById('recentUsageList');
+        container.innerHTML = '';
+
+        recentUsage.slice(0, 5).forEach(usage => {
+            const usageDiv = document.createElement('div');
+            usageDiv.className = 'flex justify-between items-center p-2 bg-black bg-opacity-10 rounded text-sm';
+            usageDiv.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <span>${usage.service_type === 'claude' ? '🤖' : '🔥'}</span>
+                    <span class="text-white">${usage.operation_type.replace('_', ' ')}</span>
+                    <span class="text-gray-400">${usage.model_name}</span>
+                </div>
+                <div class="text-right">
+                    <div class="text-white">${usage.total_tokens} tokens</div>
+                    <div class="text-gray-400">${new Date(usage.created_at).toLocaleDateString()}</div>
+                </div>
+            `;
+            container.appendChild(usageDiv);
+        });
+
+        if (recentUsage.length === 0) {
+            container.innerHTML = '<p class="text-gray-400 text-center py-4">No recent usage</p>';
+        }
     }
-    
-    // Calculate recent APIs (this month)
-    function calculateRecentApis(apis) {
-        const now = new Date();
-        const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        
-        return apis.filter(api => new Date(api.created_at) >= thisMonth).length;
-    }
-    
-    // API Key Management Functions
+
+    // Load API Keys
     async function loadAPIKeys() {
         const loading = document.getElementById('apiKeysLoading');
         const empty = document.getElementById('apiKeysEmpty');
@@ -596,7 +530,8 @@
             empty.classList.remove('hidden');
         }
     }
-    
+
+    // Display API Keys
     function displayAPIKeys(apiKeys) {
         const container = document.getElementById('apiKeysGrid');
         container.innerHTML = '';
@@ -606,90 +541,141 @@
             container.appendChild(keyCard);
         });
     }
-    
+
+    // Create API Key Card
     function createAPIKeyCard(apiKey) {
         const card = document.createElement('div');
-        card.className = 'api-card';
+        card.className = 'api-key-card';
         
         const isExpired = apiKey.expires_at && new Date(apiKey.expires_at) < new Date();
         const expirationText = apiKey.expires_at 
             ? (isExpired ? 'Expired' : `Expires: ${new Date(apiKey.expires_at).toLocaleDateString()}`)
             : 'Never expires';
         
-        const statusBadge = isExpired 
-            ? '<span class="px-2 py-1 bg-red-600 text-white text-xs rounded">Expired</span>'
-            : apiKey.is_active 
-                ? '<span class="px-2 py-1 bg-green-600 text-white text-xs rounded">Active</span>'
-                : '<span class="px-2 py-1 bg-gray-600 text-white text-xs rounded">Inactive</span>';
+        const statusClass = isExpired ? 'expired' : (apiKey.is_active ? 'active' : 'inactive');
+        const statusText = isExpired ? 'Expired' : (apiKey.is_active ? 'Active' : 'Inactive');
         
         card.innerHTML = `
-            <div class="flex justify-between items-start mb-4">
-                <div class="flex-1">
-                    <div class="flex items-center space-x-3 mb-2">
-                        <h3 class="text-lg font-medium text-white">${apiKey.key_name}</h3>
-                        ${statusBadge}
-                    </div>
-                    <div class="mb-3">
-                        <p class="text-sm text-gray-400 mb-1">Key ID:</p>
-                        <code class="text-xs text-green-400 bg-black bg-opacity-30 px-2 py-1 rounded">${apiKey.full_key}</code>
-                    </div>
-                    <div class="flex items-center space-x-4 text-xs text-gray-500">
-                        <span>Created: ${new Date(apiKey.created_at).toLocaleDateString()}</span>
-                        <span>•</span>
-                        <span>Used: ${apiKey.usage_count} times</span>
-                        <span>•</span>
-                        <span>${expirationText}</span>
-                        ${apiKey.last_used ? `<span>•</span><span>Last used: ${new Date(apiKey.last_used).toLocaleDateString()}</span>` : ''}
-                    </div>
+            <div class="api-key-header">
+                <div class="flex items-center space-x-3">
+                    <div class="api-key-name">${apiKey.key_name}</div>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
                 </div>
-                <div class="flex space-x-2 ml-4">
+                <div class="api-key-actions">
                     ${apiKey.is_active && !isExpired ? 
-                        `<button onclick="toggleAPIKey('${apiKey.id}', false)" class="btn-secondary text-xs px-2 py-1">
-                            🚫 Disable
-                        </button>` :
-                        `<button onclick="toggleAPIKey('${apiKey.id}', true)" class="btn-success text-xs px-2 py-1">
-                            ✅ Enable
-                        </button>`
+                        `<button onclick="toggleAPIKey('${apiKey.id}', false)" class="btn btn-secondary btn-sm">Disable</button>` :
+                        `<button onclick="toggleAPIKey('${apiKey.id}', true)" class="btn btn-success btn-sm">Enable</button>`
                     }
-                    <button onclick="showDeleteAPIKeyModal('${apiKey.id}', '${apiKey.key_name}')" 
-                            class="btn-danger text-xs px-2 py-1">
-                        🗑️ Delete
-                    </button>
+                    <button onclick="showDeleteAPIKeyModal('${apiKey.id}', '${apiKey.key_name}')" class="btn btn-danger btn-sm">Delete</button>
                 </div>
+            </div>
+            <div class="api-key-code">${apiKey.full_key}</div>
+            <div class="api-key-meta">
+                <span>Created: ${new Date(apiKey.created_at).toLocaleDateString()}</span>
+                <span>Used: ${apiKey.usage_count} times</span>
+                <span>${expirationText}</span>
+                ${apiKey.last_used ? `<span>Last used: ${new Date(apiKey.last_used).toLocaleDateString()}</span>` : ''}
             </div>
         `;
         
         return card;
     }
 
-    function handleCreateKeyClick(event) {
-    console.log('✨ Modal Create Key button clicked');
-    event.preventDefault();
-    event.stopPropagation();
-    createAPIKey();
+    // Load Saved APIs
+    async function loadSavedAPIs() {
+        const loading = document.getElementById('savedAPIsLoading');
+        const empty = document.getElementById('savedAPIsEmpty');
+        const grid = document.getElementById('savedAPIsGrid');
+        
+        loading.classList.remove('hidden');
+        empty.classList.add('hidden');
+        grid.classList.add('hidden');
+        
+        try {
+            const response = await fetch(`/api/${window.currentUser.id}`, {
+                headers: {
+                    'Authorization': `Bearer ${window.authToken}`
+                }
+            });
+            
+            const result = await response.json();
+            loading.classList.add('hidden');
+            
+            if (result.success && result.apis.length > 0) {
+                displaySavedAPIs(result.apis);
+                grid.classList.remove('hidden');
+            } else {
+                empty.classList.remove('hidden');
+            }
+            
+        } catch (error) {
+            console.error('Failed to load saved APIs:', error);
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+        }
     }
-  
+
+    // Display Saved APIs
+    function displaySavedAPIs(apis) {
+        const container = document.getElementById('savedAPIsGrid');
+        container.innerHTML = '';
+        
+        apis.forEach(api => {
+            const apiCard = createSavedAPICard(api);
+            container.appendChild(apiCard);
+        });
+    }
+
+    // Create Saved API Card
+    function createSavedAPICard(api) {
+        const card = document.createElement('div');
+        card.className = 'saved-api-card';
+        
+        const endpointUrl = window.location.origin + api.endpoint_url;
+        
+        card.innerHTML = `
+            <div class="api-card-header">
+                <div>
+                    <div class="api-title">${api.api_name}</div>
+                    <div class="api-description">${api.prompt}</div>
+                    <div class="text-xs text-gray-500">
+                        Created: ${new Date(api.created_at).toLocaleDateString()} • 
+                        Saved: ${new Date(api.saved_at).toLocaleDateString()}
+                    </div>
+                </div>
+                <div class="api-actions">
+                    <a href="/api/${api.user_id}/${api.api_slug}/details" class="btn btn-primary btn-sm">Details</a>
+                    <button onclick="testAPI('${endpointUrl}')" class="btn btn-success btn-sm">Test</button>
+                    <button onclick="showDeleteAPIModal('${api.user_id}', '${api.api_slug}', '${api.api_name}')" class="btn btn-danger btn-sm">Delete</button>
+                </div>
+            </div>
+            <div class="api-endpoint">
+                <span>${endpointUrl}</span>
+                <button onclick="copyToClipboard('${endpointUrl}')" class="btn btn-secondary btn-sm">Copy</button>
+            </div>
+        `;
+        
+        return card;
+    }
+
+    // API Key Management Functions
+    function showCreateAPIKeyModal() {
+        document.getElementById('createAPIKeyModal').classList.remove('hidden');
+        document.getElementById('keyNameInput').focus();
+    }
+
+    function hideCreateAPIKeyModal() {
+        document.getElementById('createAPIKeyModal').classList.add('hidden');
+        document.getElementById('keyNameInput').value = '';
+        document.getElementById('expiresInDaysInput').value = '';
+    }
 
     async function createAPIKey() {
-        console.log('🔑 createAPIKey function called');
-        
-        const keyName = "test";
-        const expiresInDays = "30";
-        
-        console.log('Key name:', keyName);
-        console.log('Expires in days:', expiresInDays);
-        console.log('Auth token exists:', !!window.authToken);
-        console.log('Auth token value:', window.authToken ? `${window.authToken.substring(0, 20)}...` : 'null');
-        console.log('Current user:', window.currentUser);
+        const keyName = document.getElementById('keyNameInput').value.trim();
+        const expiresInDays = document.getElementById('expiresInDaysInput').value;
         
         if (!keyName) {
-            alert('Please enter a key name');
-            return;
-        }
-        
-        if (!window.authToken) {
-            alert('Authentication token not found. Please log in again.');
-            window.location.href = '/';
+            showNotification('Please enter a key name', 'error');
             return;
         }
         
@@ -698,9 +684,6 @@
             if (expiresInDays) {
                 requestBody.expires_in_days = parseInt(expiresInDays);
             }
-            
-            console.log('Request body:', requestBody);
-            console.log('Making request to /api-keys...');
             
             const response = await fetch('/api-keys', {
                 method: 'POST',
@@ -711,60 +694,33 @@
                 body: JSON.stringify(requestBody)
             });
             
-            console.log('Response status:', response.status);
-            console.log('Response ok:', response.ok);
-            console.log('Response status text:', response.statusText);
-            console.log('Response headers:', [...response.headers.entries()]);
-            
-            let result;
-            try {
-                const responseText = await response.text();
-                console.log('Raw response text:', responseText);
-                result = JSON.parse(responseText);
-            } catch (parseError) {
-                console.error('Failed to parse response as JSON:', parseError);
-                throw new Error(`Server returned invalid JSON. Status: ${response.status}`);
-            }
-            
-            console.log('Parsed response result:', result);
+            const result = await response.json();
             
             if (response.ok && result.success) {
-                
+                hideCreateAPIKeyModal();
+                showAPIKeyCreatedModal(result.api_key);
                 loadAPIKeys(); // Refresh the list
-                showNotification('API key created successfully!', 'success');
             } else {
-                console.error('API key creation failed:', result);
-                const errorMessage = result.message || result.detail || 'Unknown error';
-                
-                // If authentication failed, redirect to login
-                if (response.status === 401) {
-                    alert('Your session has expired. Please log in again.');
-                    localStorage.removeItem('authToken');
-                    localStorage.removeItem('currentUser');
-                    window.location.href = '/';
-                    return;
-                }
-                
-                alert(`Failed to create API key: ${errorMessage}`);
+                showNotification(result.message || 'Failed to create API key', 'error');
             }
         } catch (error) {
             console.error('Error creating API key:', error);
-            alert(`Failed to create API key: ${error.message}`);
+            showNotification('Failed to create API key', 'error');
         }
     }
-    
+
     function showAPIKeyCreatedModal(apiKey) {
-        document.getElementById('newAPIKey').value = apiKey;
+        document.getElementById('newAPIKeyValue').value = apiKey;
         document.getElementById('apiKeyCreatedModal').classList.remove('hidden');
     }
-    
+
     function hideAPIKeyCreatedModal() {
         document.getElementById('apiKeyCreatedModal').classList.add('hidden');
-        document.getElementById('newAPIKey').value = '';
+        document.getElementById('newAPIKeyValue').value = '';
     }
-    
+
     function copyAPIKey() {
-        const apiKeyInput = document.getElementById('newAPIKey');
+        const apiKeyInput = document.getElementById('newAPIKeyValue');
         apiKeyInput.select();
         apiKeyInput.setSelectionRange(0, 99999);
         
@@ -772,7 +728,7 @@
             showNotification('API key copied to clipboard!', 'success');
         });
     }
-    
+
     async function toggleAPIKey(keyId, isActive) {
         try {
             const response = await fetch(`/api-keys/${keyId}`, {
@@ -795,17 +751,17 @@
             showNotification('Failed to update API key', 'error');
         }
     }
-    
+
     function showDeleteAPIKeyModal(keyId, keyName) {
         currentDeleteAPIKeyTarget = { keyId, keyName };
         document.getElementById('deleteAPIKeyModal').classList.remove('hidden');
     }
-    
+
     function hideDeleteAPIKeyModal() {
         currentDeleteAPIKeyTarget = null;
         document.getElementById('deleteAPIKeyModal').classList.add('hidden');
     }
-    
+
     async function confirmDeleteAPIKey() {
         if (!currentDeleteAPIKeyTarget) return;
         
@@ -830,89 +786,135 @@
         }
     }
 
+    // Saved API Management Functions
+    async function testAPI(endpointUrl) {
+        const testData = prompt('Enter test data (JSON format, optional):');
+        
+        try {
+            const formData = new FormData();
+            if (testData && testData.trim()) {
+                formData.append('input_data', testData);
+            }
+
+            const response = await fetch(endpointUrl, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                alert(`✅ Test successful!\n\nResult:\n${JSON.stringify(result.result, null, 2)}`);
+            } else {
+                alert(`❌ Test failed:\n${result.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            alert(`❌ Test error:\n${error.message}`);
+        }
+    }
+
+    function showDeleteAPIModal(userId, apiSlug, apiName) {
+        currentDeleteAPITarget = { userId, apiSlug, apiName };
+        document.getElementById('deleteAPIModal').classList.remove('hidden');
+    }
+
+    function hideDeleteAPIModal() {
+        currentDeleteAPITarget = null;
+        document.getElementById('deleteAPIModal').classList.add('hidden');
+    }
+
+    async function confirmDeleteAPI() {
+        if (!currentDeleteAPITarget) return;
+        
+        try {
+            const response = await fetch(`/api/${currentDeleteAPITarget.userId}/${currentDeleteAPITarget.apiSlug}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${window.authToken}`
+                }
+            });
+            
+            if (response.ok) {
+                showNotification('API deleted successfully!', 'success');
+                hideDeleteAPIModal();
+                loadSavedAPIs(); // Refresh the list
+            } else {
+                throw new Error('Failed to delete API');
+            }
+        } catch (error) {
+            console.error('Failed to delete API:', error);
+            showNotification('Failed to delete API', 'error');
+        }
+    }
+
+    function refreshAPIs() {
+        loadSavedAPIs();
+    }
+
+    // Utility Functions
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('Copied to clipboard!', 'success');
+        });
+    }
+
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 4000);
+    }
+
     // Initialize page
     document.addEventListener('DOMContentLoaded', async () => {
-        console.log('=== PROFILE PAGE LOADING ===');
-        
-        // Add global error handler to catch JavaScript errors
-        window.addEventListener('error', function(event) {
-            console.error('🚨 JavaScript Error:', event.error);
-            console.error('Error message:', event.message);
-            console.error('Error filename:', event.filename);
-            console.error('Error line:', event.lineno);
-        });
+        console.log('=== NEW PROFILE PAGE LOADING ===');
         
         // Wait a bit for base.html to initialize
         await new Promise(resolve => setTimeout(resolve, 200));
         
-        // Get auth data directly from localStorage
+        // Get auth data
         const authToken = localStorage.getItem('authToken');
         const currentUserStr = localStorage.getItem('currentUser');
         
-        console.log('Auth token exists:', !!authToken);
-        console.log('Current user exists:', !!currentUserStr);
-        
         if (!authToken || !currentUserStr) {
             console.log('❌ Not authenticated, redirecting to home page');
-            console.log('Please log in first on the main page');
-            
-            // Show a message before redirecting
-            document.body.innerHTML = `
-                <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #1e1e1e; color: white; font-family: Arial, sans-serif;">
-                    <div style="text-align: center;">
-                        <h2>🔐 Authentication Required</h2>
-                        <p>Please log in first on the main page</p>
-                        <p>Redirecting in 3 seconds...</p>
-                    </div>
-                </div>
-            `;
-            
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 3000);
-            return;
-        }
-        
-        // Parse user data
-        let currentUser;
-        try {
-            currentUser = JSON.parse(currentUserStr);
-        } catch (error) {
-            console.error('Error parsing user data:', error);
             window.location.href = '/';
             return;
         }
         
-        // Set global variables
-        window.authToken = authToken;
-        window.currentUser = currentUser;
-        
-        console.log('✅ Authentication found, loading profile data');
-        
-        // Load profile, API keys, and APIs
-        (async function() {
         try {
-            await loadProfile();
-            await loadAPIKeys();
-            await loadAPIs();
-            console.log('✅ Profile, API keys, and APIs loaded');
-
-            const createAPIKeyButton = document.getElementById('createAPIKeyButton');
-            if (createAPIKeyButton) {
-                createAPIKeyButton.addEventListener('click', function() {
-                    console.log('🚀 Create API Key button clicked via addEventListener');
-                    createAPIKey();
+            const currentUser = JSON.parse(currentUserStr);
+            window.authToken = authToken;
+            window.currentUser = currentUser;
+            
+            console.log('✅ Authentication found, loading profile data');
+            
+            // Setup tab navigation
+            document.querySelectorAll('[data-tab]').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const tabName = button.getAttribute('data-tab');
+                    switchTab(tabName);
                 });
-                console.log('✅ Create API Key button event listener attached');
-            } else {
-                console.error('❌ Create API Key button not found');
-            }
+            });
 
+            // Setup create API key button
+            document.getElementById('createAPIKeyBtn').addEventListener('click', showCreateAPIKeyModal);
+            
+            // Load initial data
+            await loadProfile();
+            await loadUsageData(); // Load usage tab by default
+            
+            console.log('✅ Profile page loaded successfully');
+            
         } catch (error) {
-            console.error('Error loading profile data:', error);
-            alert('Error loading profile data. Please try logging in again.');
+            console.error('Error loading profile:', error);
             window.location.href = '/';
         }
-    })()});
+    });
 </script>
-{% endblock %} 
+{% endblock %}

@@ -1,9 +1,11 @@
 import ast
 import re
 import logging
-from typing import Tuple, List, Dict, Any
+import time
+from typing import Tuple, List, Dict, Any, Optional
 from ..config import settings
 from .claude_service import claude_service
+from .usage_service import usage_service
 from datetime import datetime
 import json
 
@@ -13,7 +15,8 @@ class CodeDebugger:
     def __init__(self):
         self.claude_service = claude_service
     
-    async def analyze_and_fix_code(self, generated_code: str, original_prompt: str) -> Tuple[str, List[str], List[str]]:
+    async def analyze_and_fix_code(self, generated_code: str, original_prompt: str, 
+                                  user_id: Optional[str] = None, api_key_id: Optional[str] = None) -> Tuple[str, List[str], List[str]]:
         """
         Analyze generated code for issues and fix them using AI.
         
@@ -31,7 +34,7 @@ class CodeDebugger:
         if issues_found:
             logger.info(f"Found {len(issues_found)} issues, applying AI fixes...")
             fixed_code, fixes_applied = await self._ai_code_review_and_fix(
-                generated_code, issues_found, original_prompt
+                generated_code, issues_found, original_prompt, user_id, api_key_id
             )
         else:
             logger.info("No obvious issues found in static analysis")
@@ -45,7 +48,7 @@ class CodeDebugger:
             logger.warning(f"Still has {len(final_issues)} issues after fixing")
             # Try one more AI fix round
             fixed_code, additional_fixes = await self._ai_code_review_and_fix(
-                fixed_code, final_issues, original_prompt
+                fixed_code, final_issues, original_prompt, user_id, api_key_id
             )
             fixes_applied.extend(additional_fixes)
         
@@ -154,7 +157,8 @@ class CodeDebugger:
         
         return issues
     
-    async def _ai_code_review_and_fix(self, code: str, issues: List[str], original_prompt: str) -> Tuple[str, List[str]]:
+    async def _ai_code_review_and_fix(self, code: str, issues: List[str], original_prompt: str,
+                                      user_id: Optional[str] = None, api_key_id: Optional[str] = None) -> Tuple[str, List[str]]:
         """Use AI to review and fix the code issues."""
         
         system_prompt = """You are an expert Python code reviewer and debugger. Your job is to fix code issues while maintaining the original functionality.
@@ -192,6 +196,12 @@ CODE TO FIX:
 
 Return the corrected code with all issues fixed. Maintain the same functionality and structure."""
 
+        # Track usage
+        start_time = time.time()
+        success = False
+        error_message = None
+        response_length = 0
+        
         try:
             response = await self.claude_service._make_claude_request(system_prompt, user_prompt)
             fixed_code = self._extract_code_from_response(response)
@@ -199,13 +209,51 @@ Return the corrected code with all issues fixed. Maintain the same functionality
             # Determine what fixes were applied
             fixes_applied = self._determine_fixes_applied(code, fixed_code, issues)
             
+            success = True
+            response_length = len(fixed_code)
+            
             return fixed_code, fixes_applied
             
         except Exception as e:
+            error_message = str(e)
             logger.error(f"Failed to fix code with AI: {str(e)}")
             return code, []
+        finally:
+            # Record usage regardless of success/failure
+            if user_id:
+                duration_ms = int((time.time() - start_time) * 1000)
+                prompt_length = len(user_prompt)
+                
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                try:
+                    await usage_service.record_usage(
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        service_type="claude",
+                        operation_type="code_debugging",
+                        model_name=settings.CLAUDE_MODEL,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        prompt_length=prompt_length,
+                        response_length=response_length,
+                        request_duration_ms=duration_ms,
+                        operation_context={
+                            "issues_count": len(issues),
+                            "original_prompt_preview": original_prompt[:100] + "..." if len(original_prompt) > 100 else original_prompt,
+                            "issues_found": issues[:3]  # First 3 issues for context
+                        },
+                        success=success,
+                        error_message=error_message
+                    )
+                except Exception as usage_error:
+                    logger.error(f"Failed to record usage: {usage_error}")
     
-    async def fix_unvalid_test_result(self, code: str, test_result: str) -> Tuple[str, List[str]]:
+    async def fix_unvalid_test_result(self, code: str, test_result: str, 
+                                      user_id: Optional[str] = None, api_key_id: Optional[str] = None,
+                                      api_slug: Optional[str] = None) -> Tuple[str, List[str]]:
         """
         Fix code based on invalid test results.
         
@@ -256,6 +304,12 @@ Return the corrected code with all issues fixed. Maintain the same functionality
 
         Based on the test result, identify and fix the specific issues causing the failure. Return the corrected code that should pass the test."""
 
+        # Track usage
+        start_time = time.time()
+        success = False
+        error_message = None
+        response_length = 0
+        
         try:
             response = await self.claude_service._make_claude_request(system_prompt, user_prompt)
             fixed_code = self._extract_code_from_response(response)
@@ -263,12 +317,48 @@ Return the corrected code with all issues fixed. Maintain the same functionality
             # Determine what fixes were applied by comparing the codes
             fixes_applied = self._determine_test_fixes_applied(code, fixed_code, test_result)
             
+            success = True
+            response_length = len(fixed_code)
+            
             logger.info(f"Test result debugging completed. Applied {len(fixes_applied)} fixes.")
             return fixed_code, fixes_applied
             
         except Exception as e:
+            error_message = str(e)
             logger.error(f"Failed to fix code based on test result: {str(e)}")
             return code, []
+        finally:
+            # Record usage regardless of success/failure
+            if user_id:
+                duration_ms = int((time.time() - start_time) * 1000)
+                prompt_length = len(user_prompt)
+                
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                try:
+                    await usage_service.record_usage(
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        service_type="claude",
+                        operation_type="test_result_debugging",
+                        model_name=settings.CLAUDE_MODEL,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        prompt_length=prompt_length,
+                        response_length=response_length,
+                        request_duration_ms=duration_ms,
+                        operation_context={
+                            "test_result_preview": test_result[:200] + "..." if len(test_result) > 200 else test_result,
+                            "code_length": len(code)
+                        },
+                        api_slug=api_slug,
+                        success=success,
+                        error_message=error_message
+                    )
+                except Exception as usage_error:
+                    logger.error(f"Failed to record usage: {usage_error}")
 
     def _determine_test_fixes_applied(self, original_code: str, fixed_code: str, test_result: str) -> List[str]:
         """Determine what fixes were applied based on test results."""
@@ -319,7 +409,9 @@ Return the corrected code with all issues fixed. Maintain the same functionality
         
         return fixes_applied
 
-    async def debug_test_failure(self, code: str, test_request: dict, test_response: dict) -> Tuple[str, List[str], Dict[str, Any]]:
+    async def debug_test_failure(self, code: str, test_request: dict, test_response: dict,
+                                 user_id: Optional[str] = None, api_key_id: Optional[str] = None,
+                                 api_slug: Optional[str] = None) -> Tuple[str, List[str], Dict[str, Any]]:
         """
         Comprehensive test failure debugging with detailed analysis.
         
@@ -386,6 +478,12 @@ CODE TO DEBUG:
 
 Please analyze all the information above and provide a fixed version of the code that addresses the identified issues."""
 
+        # Track usage
+        start_time = time.time()
+        success = False
+        error_message = None
+        response_length = 0
+        
         try:
             response = await self.claude_service._make_claude_request(system_prompt, user_prompt)
             fixed_code = self._extract_code_from_response(response)
@@ -402,12 +500,49 @@ Please analyze all the information above and provide a fixed version of the code
                 "debug_timestamp": datetime.now().isoformat()
             }
             
+            success = True
+            response_length = len(fixed_code)
+            
             logger.info(f"Comprehensive debugging completed. Applied {len(fixes_applied)} fixes.")
             return fixed_code, fixes_applied, debug_info
             
         except Exception as e:
+            error_message = str(e)
             logger.error(f"Failed comprehensive test debugging: {str(e)}")
             return code, [], {"error": str(e)}
+        finally:
+            # Record usage regardless of success/failure
+            if user_id:
+                duration_ms = int((time.time() - start_time) * 1000)
+                prompt_length = len(user_prompt)
+                
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                try:
+                    await usage_service.record_usage(
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        service_type="claude",
+                        operation_type="comprehensive_debugging",
+                        model_name=settings.CLAUDE_MODEL,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        prompt_length=prompt_length,
+                        response_length=response_length,
+                        request_duration_ms=duration_ms,
+                        operation_context={
+                            "error_type": error_info.get("error_type"),
+                            "static_issues_count": len(static_issues),
+                            "test_analysis": test_analysis
+                        },
+                        api_slug=api_slug,
+                        success=success,
+                        error_message=error_message
+                    )
+                except Exception as usage_error:
+                    logger.error(f"Failed to record usage: {usage_error}")
 
     def _extract_code_from_response(self, response: str) -> str:
         """Extract Python code from AI response."""
@@ -478,7 +613,8 @@ Please analyze all the information above and provide a fixed version of the code
         return remaining_issues
 
     async def validate_and_fix_test_result(self, code: str, test_request: dict, test_response: dict, 
-                                          original_prompt: str = "") -> Dict[str, Any]:
+                                          original_prompt: str = "", user_id: Optional[str] = None,
+                                          api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Dict[str, Any]:
         """
         Validate test results and automatically fix code if invalid.
         
@@ -494,7 +630,7 @@ Please analyze all the information above and provide a fixed version of the code
         logger.info("Starting comprehensive test result validation and fixing...")
         
         # First, determine if the test result is valid
-        validation_result = await self._validate_test_result_logic(test_request, test_response)
+        validation_result = await self._validate_test_result_logic(test_request, test_response, user_id, api_key_id, api_slug)
         
         result = {
             "is_valid": validation_result["is_valid"],
@@ -516,7 +652,7 @@ Please analyze all the information above and provide a fixed version of the code
             try:
                 # Use comprehensive debugging
                 fixed_code, fixes_applied, debug_info = await self.debug_test_failure(
-                    code, test_request, test_response
+                    code, test_request, test_response, user_id, api_key_id, api_slug
                 )
                 
                 result.update({
@@ -533,7 +669,9 @@ Please analyze all the information above and provide a fixed version of the code
         
         return result
 
-    async def _validate_test_result_logic(self, test_request: dict, test_response: dict) -> Dict[str, Any]:
+    async def _validate_test_result_logic(self, test_request: dict, test_response: dict,
+                                          user_id: Optional[str] = None, api_key_id: Optional[str] = None,
+                                          api_slug: Optional[str] = None) -> Dict[str, Any]:
         """
         Use AI to validate if a test result makes logical sense.
         
@@ -574,8 +712,17 @@ EXECUTION DETAILS:
 
 Analyze if this test result is logically valid and return your assessment as JSON."""
 
+        # Track usage
+        start_time = time.time()
+        success = False
+        error_message = None
+        response_length = 0
+        
         try:
             response = await self.claude_service._make_claude_request(system_prompt, user_prompt)
+            
+            success = True
+            response_length = len(response)
             
             # Parse AI response
             try:
@@ -612,6 +759,7 @@ Analyze if this test result is logically valid and return your assessment as JSO
                 }
                 
         except Exception as e:
+            error_message = str(e)
             logger.error(f"Error during test result validation: {str(e)}")
             return {
                 "is_valid": False,
@@ -620,6 +768,39 @@ Analyze if this test result is logically valid and return your assessment as JSO
                 "issues": [f"Validation error: {str(e)}"],
                 "reasoning": "Validation process encountered an error"
             }
+        finally:
+            # Record usage regardless of success/failure
+            if user_id:
+                duration_ms = int((time.time() - start_time) * 1000)
+                prompt_length = len(user_prompt)
+                
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                try:
+                    await usage_service.record_usage(
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        service_type="claude",
+                        operation_type="test_validation",
+                        model_name=settings.CLAUDE_MODEL,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        prompt_length=prompt_length,
+                        response_length=response_length,
+                        request_duration_ms=duration_ms,
+                        operation_context={
+                            "test_request_type": type(test_request.get('test_data', {})).__name__,
+                            "test_success": test_response.get('success', False),
+                            "has_error": bool(test_response.get('error'))
+                        },
+                        api_slug=api_slug,
+                        success=success,
+                        error_message=error_message
+                    )
+                except Exception as usage_error:
+                    logger.error(f"Failed to record usage: {usage_error}")
 
     async def auto_fix_api_code(self, api_slug: str, user_id: str, test_failure_info: Dict[str, Any]) -> Dict[str, Any]:
         """

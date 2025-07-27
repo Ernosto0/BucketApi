@@ -9,7 +9,7 @@ import requests
 import time
 import base64
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 import logging
 from .models import (
     User, UserCreate, UserLogin, UserProfile, Token, TokenData,
@@ -18,7 +18,8 @@ from .models import (
     ChatAnalysisRequest, ChatAnalysisResponse, HealthResponse, ChatMessage,
     RegisterResponse, LoginResponse, TestRequest, TestResponse,
     APIKey, CreateAPIKeyRequest, CreateAPIKeyResponse, ListAPIKeysResponse, 
-    UpdateAPIKeyRequest, DeleteAPIKeyResponse, APIInputData
+    UpdateAPIKeyRequest, DeleteAPIKeyResponse, APIInputData,
+    UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest
 )
 from .services.claude_service import claude_service
 from .services.code_debugger import code_debugger
@@ -26,6 +27,7 @@ from .services.security_service import security_service
 from .services.file_service import file_service
 from .services.auth_service import auth_service
 from .services.api_key_service import api_key_service
+from .services.usage_service import usage_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database
 from .services.test_service import test_service
@@ -95,17 +97,17 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         logger.error(f"❌ Unexpected authentication error: {str(e)}")
         return None
 
-async def get_current_user_or_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
-    """Get current authenticated user from JWT token or API key."""
+async def get_current_user_and_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Tuple[Optional[User], Optional[str]]:
+    """Get current authenticated user and API key ID if applicable."""
     if not credentials:
-        return None
+        return None, None
     
     # First try JWT token authentication
     try:
         token_data = auth_service.verify_token(credentials.credentials)
         user = await auth_service.get_user_by_email(token_data.username)
         if user:
-            return user
+            return user, None  # No API key for JWT auth
     except HTTPException:
         pass
     
@@ -115,11 +117,16 @@ async def get_current_user_or_api_key(credentials: HTTPAuthorizationCredentials 
         if api_key_info:
             # Get user by user_id from API key
             user = await auth_service.get_user_by_id(api_key_info.user_id)
-            return user
+            return user, api_key_info.id  # Return both user and API key ID
     except Exception:
         pass
     
-    return None
+    return None, None
+
+async def get_current_user_or_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
+    """Get current authenticated user from JWT token or API key."""
+    user, _ = await get_current_user_and_api_key(credentials)
+    return user
 
 async def require_auth(current_user: User = Depends(get_current_user)) -> User:
     """Require authentication for protected endpoints."""
@@ -341,6 +348,126 @@ async def delete_api_key(key_id: str, current_user: User = Depends(require_auth)
     else:
         raise HTTPException(status_code=404, detail="API key not found")
 
+# Usage Tracking Endpoints
+
+@app.get("/usage/stats", response_model=UsageStatsResponse)
+async def get_usage_stats(
+    days: int = 30,
+    api_key_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get usage statistics for the current user.
+    """
+    logger.info(f"Getting usage stats for user {current_user.id} for {days} days")
+    
+    try:
+        stats = await usage_service.get_usage_stats(
+            user_id=current_user.id,
+            api_key_id=api_key_id,
+            days=days
+        )
+        return stats
+    except Exception as e:
+        logger.error(f"Failed to get usage stats: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get usage stats: {str(e)}"
+        )
+
+@app.get("/usage/limits", response_model=UsageLimitsResponse)
+async def get_usage_limits(
+    api_key_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Check current usage limits for the user.
+    """
+    logger.info(f"Checking usage limits for user {current_user.id}")
+    
+    try:
+        limits = await usage_service.check_usage_limits(
+            user_id=current_user.id,
+            api_key_id=api_key_id
+        )
+        return limits
+    except Exception as e:
+        logger.error(f"Failed to check usage limits: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to check usage limits: {str(e)}"
+        )
+
+@app.post("/usage/record")
+async def record_manual_usage(
+    request: CreateUsageRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Manually record usage (for testing or external integrations).
+    """
+    logger.info(f"Recording manual usage for user {current_user.id}")
+    
+    try:
+        usage = await usage_service.record_usage(
+            user_id=current_user.id,
+            api_key_id=None,  # Manual entries don't have API keys
+            service_type=request.service_type,
+            operation_type=request.operation_type,
+            model_name=request.model_name,
+            input_tokens=request.input_tokens,
+            output_tokens=request.output_tokens,
+            prompt_length=request.prompt_length,
+            response_length=request.response_length,
+            request_duration_ms=request.request_duration_ms,
+            operation_context={"manual_entry": True, "context": request.operation_context},
+            api_slug=request.api_slug,
+            success=request.success,
+            error_message=request.error_message
+        )
+        
+        return {"success": True, "message": "Usage recorded successfully", "usage_id": usage.user_id}
+    except Exception as e:
+        logger.error(f"Failed to record manual usage: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to record usage: {str(e)}"
+        )
+
+@app.get("/usage/estimate-cost")
+async def estimate_usage_cost(
+    model_name: str,
+    input_tokens: int,
+    output_tokens: int = 1000,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Estimate the cost for a given token usage.
+    """
+    logger.info(f"Estimating cost for {input_tokens} input + {output_tokens} output tokens using {model_name}")
+    
+    try:
+        cost_cents = await usage_service.estimate_request_cost(
+            model_name=model_name,
+            estimated_input_tokens=input_tokens,
+            estimated_output_tokens=output_tokens
+        )
+        
+        return {
+            "model_name": model_name,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+            "estimated_cost_cents": cost_cents,
+            "estimated_cost_usd": cost_cents / 100.0
+        }
+    except Exception as e:
+        logger.error(f"Failed to estimate cost: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to estimate cost: {str(e)}"
+        )
+
 @app.post("/chat/analyze", response_model=ChatAnalysisResponse)
 async def analyze_chat_prompt(request: ChatAnalysisRequest):
     """
@@ -372,12 +499,40 @@ async def analyze_chat_prompt(request: ChatAnalysisRequest):
         }
 
 @app.post("/generate-api", response_model=APIGenerationResponse)
-async def generate_api(request: APIGenerationRequest):
+async def generate_api(
+    request: APIGenerationRequest,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
+):
     """
     Generate a new API based on user prompt.
     Optionally analyzes the prompt first, then generates if buildable.
     """
+    # Extract user and API key info
+    current_user, api_key_id = user_and_key
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     logger.info(f"Generating API for user {request.user_id} with prompt: {request.prompt[:100]}...")
+    
+    # Check usage limits before proceeding
+    try:
+        limits = await usage_service.check_usage_limits(
+            user_id=request.user_id,
+            api_key_id=api_key_id,
+            tokens_to_use=2000  # Estimated tokens for code generation
+        )
+        
+        if limits.is_over_limit:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to check usage limits: {e}")
+        # Continue without limits check if service is unavailable
+    
     try:
         # Initialize analysis_result
         analysis_result = None
@@ -451,7 +606,9 @@ async def generate_api(request: APIGenerationRequest):
         raw_code = await claude_service.generate_api_code(
             prompt=request.prompt,
             sample_input=request.sample_input,
-            expected_output=request.expected_output
+            expected_output=request.expected_output,
+            user_id=request.user_id,
+            api_key_id=api_key_id
         )
         logger.info("Code generation completed successfully")
         logger.debug(f"Generated code preview: {raw_code[:300]}...")
@@ -459,7 +616,7 @@ async def generate_api(request: APIGenerationRequest):
         # Debug and fix the generated code
         logger.info("Analyzing and fixing generated code...")
         code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
-            raw_code, request.prompt
+            raw_code, request.prompt, request.user_id, api_key_id
         )
         
         if issues_found:
@@ -495,7 +652,10 @@ async def generate_api(request: APIGenerationRequest):
         # Generate documentation
         documentation, curl_example = await claude_service.generate_documentation(
             code=code, 
-            prompt=request.prompt
+            prompt=request.prompt,
+            user_id=request.user_id,
+            api_key_id=api_key_id,
+            api_slug=clean_slug
         )
         
         # Build endpoint URL
@@ -532,11 +692,39 @@ async def generate_api(request: APIGenerationRequest):
         )
 
 @app.post("/modify-api", response_model=APIModificationResponse)
-async def modify_api(request: APIModificationRequest):
+async def modify_api(
+    request: APIModificationRequest,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
+):
     """
     Modify an existing API based on user prompt.
     """
+    # Extract user and API key info
+    current_user, api_key_id = user_and_key
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     logger.info(f"Modifying API {request.api_slug} for user {request.user_id} with prompt: {request.prompt[:100]}...")
+    
+    # Check usage limits before proceeding
+    try:
+        limits = await usage_service.check_usage_limits(
+            user_id=request.user_id,
+            api_key_id=api_key_id,
+            tokens_to_use=1500  # Estimated tokens for code modification
+        )
+        
+        if limits.is_over_limit:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to check usage limits: {e}")
+        # Continue without limits check if service is unavailable
+    
     try:
         # Check if API exists
         if not file_service.api_exists(request.user_id, request.api_slug):
@@ -610,7 +798,10 @@ async def modify_api(request: APIModificationRequest):
             prompt=request.prompt,
             sample_input=request.sample_input,
             expected_output=request.expected_output,
-            existing_code=existing_code
+            existing_code=existing_code,
+            user_id=request.user_id,
+            api_key_id=api_key_id,
+            api_slug=request.api_slug
         )
         logger.info("Code generation completed successfully")
         logger.debug(f"Generated code preview: {raw_code[:300]}...")
@@ -618,7 +809,7 @@ async def modify_api(request: APIModificationRequest):
         # Debug and fix the generated code
         logger.info("Analyzing and fixing generated code...")
         code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
-            raw_code, request.prompt
+            raw_code, request.prompt, request.user_id, api_key_id
         )
         
         if issues_found:
@@ -646,7 +837,10 @@ async def modify_api(request: APIModificationRequest):
         # Generate documentation
         documentation, curl_example = await claude_service.generate_documentation(
             code=code, 
-            prompt=request.prompt
+            prompt=request.prompt,
+            user_id=request.user_id,
+            api_key_id=api_key_id,
+            api_slug=request.api_slug
         )
         
         # Build endpoint URL
@@ -1006,7 +1200,9 @@ async def test_api(request: TestRequest):
                 debug_result = await code_debugger.validate_and_fix_test_result(
                     code=current_code,
                     test_request=request.dict(),
-                    test_response=error_response.dict()
+                    test_response=error_response.dict(),
+                    user_id=request.user_id,
+                    api_slug=request.api_slug
                 )
                 
                 # If code was fixed, save it automatically with backup
@@ -1108,7 +1304,9 @@ async def test_api(request: TestRequest):
                         debug_result = await code_debugger.validate_and_fix_test_result(
                             code=current_code,
                             test_request=request.dict(),
-                            test_response=test_response.dict()
+                            test_response=test_response.dict(),
+                            user_id=request.user_id,
+                            api_slug=request.api_slug
                         )
                         
                         # If code was fixed, save it automatically with backup

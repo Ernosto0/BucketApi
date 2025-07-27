@@ -293,3 +293,77 @@ class PerformanceTestResponse(BaseModel):
     failed_tests: int
     timestamp: datetime
     detailed_results: List[Dict[str, Any]]
+
+
+class Usage(BaseModel):
+    user_id: str
+    api_key_id: Optional[str] = None
+    service_type: str  # 'claude', 'openai', etc.
+    operation_type: str  # 'code_generation', 'code_modification', 'documentation', 'analysis'
+    model_name: str  # e.g., 'claude-3-sonnet', 'gpt-4'
+    
+    # Token usage
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    
+    # Cost tracking (in USD cents)
+    estimated_cost_cents: int
+    
+    # Request metadata
+    prompt_length: int
+    response_length: int
+    request_duration_ms: int
+    
+    # Context and debugging
+    operation_context: Optional[str] = None  # JSON string with additional context
+    api_slug: Optional[str] = None  # Related API if applicable
+    
+    # Timestamps
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    
+    # Status
+    success: bool = True
+    error_message: Optional[str] = None
+
+class UsageStatsResponse(BaseModel):
+    user_id: str
+    total_requests: int
+    total_tokens: int
+    total_cost_cents: int
+    by_service: Dict[str, Dict[str, int]]  # service_type -> stats
+    by_operation: Dict[str, Dict[str, int]]  # operation_type -> stats
+    recent_usage: List[Usage]
+    period_start: datetime
+    period_end: datetime
+
+class UsageLimitsResponse(BaseModel):
+    user_id: str
+    api_key_id: Optional[str] = None
+    daily_token_limit: int
+    daily_tokens_used: int
+    daily_tokens_remaining: int
+    monthly_token_limit: int
+    monthly_tokens_used: int
+    monthly_tokens_remaining: int
+    daily_cost_limit_cents: int
+    daily_cost_used_cents: int
+    daily_cost_remaining_cents: int
+    limit_reset_time: datetime
+    is_over_limit: bool
+
+class CreateUsageRequest(BaseModel):
+    service_type: str
+    operation_type: str
+    model_name: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    estimated_cost_cents: int = 0
+    prompt_length: int = 0
+    response_length: int = 0
+    request_duration_ms: int = 0
+    operation_context: Optional[str] = None
+    api_slug: Optional[str] = None
+    success: bool = True
+    error_message: Optional[str] = None

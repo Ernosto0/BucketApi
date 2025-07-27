@@ -1,7 +1,9 @@
 import anthropic
 from typing import Tuple, Optional
 import logging
+import time
 from ..config import settings
+from .usage_service import usage_service
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,8 @@ class ClaudeService:
         logger.info("Claude client initialized successfully")
     
     async def generate_api_code(self, prompt: str, sample_input: Optional[str] = None, 
-                               expected_output: Optional[str] = None) -> str:
+                               expected_output: Optional[str] = None, user_id: Optional[str] = None,
+                               api_key_id: Optional[str] = None) -> str:
         """Generate FastAPI-compatible code based on user prompt."""
         
         logger.info(f"Generating API code for prompt: {prompt[:100]}...")
@@ -81,19 +84,64 @@ class ClaudeService:
         
         user_prompt += "\n\nGenerate only the Python code, no explanations."
         
+        # Track usage
+        start_time = time.time()
+        success = False
+        error_message = None
+        response_length = 0
+        
         try:
             logger.info("Making Claude API request...")
             response = await self._make_claude_request(system_prompt, user_prompt)
             logger.info("Claude API request successful")
             code = self._extract_code_from_response(response)
             logger.info(f"Generated code length: {len(code)} characters")
+            
+            success = True
+            response_length = len(code)
+            
             return code
         except Exception as e:
+            error_message = str(e)
             logger.error(f"Failed to generate API code: {str(e)}")
             raise Exception(f"Failed to generate API code: {str(e)}")
+        finally:
+            # Record usage regardless of success/failure
+            if user_id:
+                duration_ms = int((time.time() - start_time) * 1000)
+                prompt_length = len(user_prompt)
+                
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                try:
+                    await usage_service.record_usage(
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        service_type="claude",
+                        operation_type="code_generation",
+                        model_name=settings.CLAUDE_MODEL,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        prompt_length=prompt_length,
+                        response_length=response_length,
+                        request_duration_ms=duration_ms,
+                        operation_context={
+                            "has_sample_input": sample_input is not None,
+                            "has_expected_output": expected_output is not None,
+                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                        },
+                        success=success,
+                        error_message=error_message
+                    )
+                except Exception as usage_error:
+                    logger.error(f"Failed to record usage: {usage_error}")
     
     async def modify_api_code(self, prompt: str, sample_input: Optional[str] = None, 
-                             expected_output: Optional[str] = None, existing_code: Optional[str] = None) -> str:
+                             expected_output: Optional[str] = None, existing_code: Optional[str] = None,
+                             user_id: Optional[str] = None, api_key_id: Optional[str] = None,
+                             api_slug: Optional[str] = None) -> str:
         """Modify existing API code based on user prompt."""
         
         logger.info(f"Modifying API code with prompt: {prompt[:100]}...")
@@ -163,18 +211,64 @@ class ClaudeService:
         
         user_prompt += "\n\nGenerate only the modified Python code, no explanations. Ensure the code maintains the same function signature and structure while implementing the requested changes."
         
+        # Track usage
+        start_time = time.time()
+        success = False
+        error_message = None
+        response_length = 0
+        
         try:
             logger.info("Making Claude API request for code modification...")
             response = await self._make_claude_request(system_prompt, user_prompt)
             logger.info("Claude API request for modification successful")
             code = self._extract_code_from_response(response)
             logger.info(f"Modified code length: {len(code)} characters")
+            
+            success = True
+            response_length = len(code)
+            
             return code
         except Exception as e:
+            error_message = str(e)
             logger.error(f"Failed to modify API code: {str(e)}")
             raise Exception(f"Failed to modify API code: {str(e)}")
+        finally:
+            # Record usage regardless of success/failure
+            if user_id:
+                duration_ms = int((time.time() - start_time) * 1000)
+                prompt_length = len(user_prompt)
+                
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                try:
+                    await usage_service.record_usage(
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        service_type="claude",
+                        operation_type="code_modification",
+                        model_name=settings.CLAUDE_MODEL,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        prompt_length=prompt_length,
+                        response_length=response_length,
+                        request_duration_ms=duration_ms,
+                        operation_context={
+                            "has_sample_input": sample_input is not None,
+                            "has_expected_output": expected_output is not None,
+                            "has_existing_code": existing_code is not None,
+                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                        },
+                        api_slug=api_slug,
+                        success=success,
+                        error_message=error_message
+                    )
+                except Exception as usage_error:
+                    logger.error(f"Failed to record usage: {usage_error}")
     
-    async def generate_documentation(self, code: str, prompt: str) -> Tuple[str, str]:
+    async def generate_documentation(self, code: str, prompt: str, user_id: Optional[str] = None,
+                                    api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Tuple[str, str]:
         """Generate documentation and curl example for the generated API."""
         
         system_prompt = """You are a technical documentation expert. 
@@ -194,11 +288,55 @@ class ClaudeService:
         
         """
         
+        # Track usage
+        start_time = time.time()
+        success = False
+        error_message = None
+        response_length = 0
+        
         try:
             response = await self._make_claude_request(system_prompt, user_prompt)
-            return self._parse_documentation_response(response)
+            doc, curl = self._parse_documentation_response(response)
+            
+            success = True
+            response_length = len(doc) + len(curl)
+            
+            return doc, curl
         except Exception as e:
+            error_message = str(e)
             raise Exception(f"Failed to generate documentation: {str(e)}")
+        finally:
+            # Record usage regardless of success/failure
+            if user_id:
+                duration_ms = int((time.time() - start_time) * 1000)
+                prompt_length = len(user_prompt)
+                
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                try:
+                    await usage_service.record_usage(
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        service_type="claude",
+                        operation_type="documentation",
+                        model_name=settings.CLAUDE_MODEL,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        prompt_length=prompt_length,
+                        response_length=response_length,
+                        request_duration_ms=duration_ms,
+                        operation_context={
+                            "code_length": len(code),
+                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                        },
+                        api_slug=api_slug,
+                        success=success,
+                        error_message=error_message
+                    )
+                except Exception as usage_error:
+                    logger.error(f"Failed to record usage: {usage_error}")
     
 
     async def _make_claude_request(self, system_prompt: str, user_prompt: str) -> str:
