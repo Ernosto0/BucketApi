@@ -63,81 +63,211 @@
                 <p class="text-gray-400">Monitor your LLM usage, costs, and limits</p>
             </div>
 
-            <!-- Usage Statistics Grid -->
-            <div class="usage-stats-grid">
-                <div class="usage-stat-card">
-                    <div class="usage-stat-value text-blue-400" id="totalRequests">0</div>
-                    <div class="usage-stat-label">Total Requests</div>
-                </div>
-                <div class="usage-stat-card">
-                    <div class="usage-stat-value text-green-400" id="totalTokens">0</div>
-                    <div class="usage-stat-label">Total Tokens</div>
-                </div>
-                <div class="usage-stat-card">
-                    <div class="usage-stat-value text-purple-400" id="totalCost">$0.00</div>
-                    <div class="usage-stat-label">Total Cost</div>
-                </div>
-                <div class="usage-stat-card">
-                    <div class="usage-stat-value text-yellow-400" id="avgCostPerRequest">$0.00</div>
-                    <div class="usage-stat-label">Avg Cost/Request</div>
-                </div>
+            <!-- Usage Type Tabs -->
+            <div class="usage-tabs mb-6">
+                <button class="usage-tab-btn active" data-usage-tab="llm">
+                    <span class="tab-icon">🤖</span>
+                    LLM Usage
+                    <span class="tab-description">API Generation</span>
+                </button>
+                <button class="usage-tab-btn" data-usage-tab="api-execution">
+                    <span class="tab-icon">⚡</span>
+                    API Execution
+                    <span class="tab-description">Generated APIs</span>
+                </button>
             </div>
 
-            <!-- Usage Limits Section -->
-            <div class="usage-limits-section mb-6">
-                <h2 class="text-lg font-semibold text-white mb-4">Usage Limits</h2>
-                
-                <div class="space-y-4">
-                    <!-- Daily Token Limit -->
-                    <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm font-medium text-white">Daily Tokens</span>
-                            <span class="text-sm text-gray-400" id="dailyTokensText">0 / 100,000</span>
-                        </div>
-                        <div class="limit-bar">
-                            <div class="limit-progress low" id="dailyTokensProgress" style="width: 0%"></div>
-                        </div>
+            <!-- LLM Usage Content -->
+            <div id="llm-usage-content" class="usage-content active">
+                <!-- Usage Statistics Grid -->
+                <div class="usage-stats-grid">
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-value text-blue-400" id="totalRequests">0</div>
+                        <div class="usage-stat-label">Total Requests</div>
                     </div>
-
-                    <!-- Monthly Token Limit -->
-                    <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm font-medium text-white">Monthly Tokens</span>
-                            <span class="text-sm text-gray-400" id="monthlyTokensText">0 / 1,000,000</span>
-                        </div>
-                        <div class="limit-bar">
-                            <div class="limit-progress low" id="monthlyTokensProgress" style="width: 0%"></div>
-                        </div>
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-value text-green-400" id="totalTokens">0</div>
+                        <div class="usage-stat-label">Total Tokens</div>
                     </div>
-
-                    <!-- Daily Cost Limit -->
-                    <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-sm font-medium text-white">Daily Cost</span>
-                            <span class="text-sm text-gray-400" id="dailyCostText">$0.00 / $10.00</span>
-                        </div>
-                        <div class="limit-bar">
-                            <div class="limit-progress low" id="dailyCostProgress" style="width: 0%"></div>
-                        </div>
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-value text-purple-400" id="totalCost">$0.00</div>
+                        <div class="usage-stat-label">Total Cost</div>
+                    </div>
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-value text-yellow-400" id="avgCostPerRequest">$0.00</div>
+                        <div class="usage-stat-label">Avg Cost/Request</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Usage by Service -->
-            <div class="usage-chart-container">
-                <h2 class="text-lg font-semibold text-white mb-4">Usage by Service</h2>
-                <div id="serviceUsageChart" class="space-y-3">
-                    <!-- Service usage will be loaded here -->
+            <!-- API Execution Usage Content -->
+            <div id="api-execution-usage-content" class="usage-content">
+                <!-- API Execution Statistics Grid -->
+                <div class="usage-stats-grid">
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-value text-blue-400" id="apiTotalExecutions">0</div>
+                        <div class="usage-stat-label">Total Executions</div>
+                    </div>
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-value text-green-400" id="apiSuccessfulExecutions">0</div>
+                        <div class="usage-stat-label">Successful</div>
+                    </div>
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-value text-red-400" id="apiFailedExecutions">0</div>
+                        <div class="usage-stat-label">Failed</div>
+                    </div>
+                    <div class="usage-stat-card">
+                        <div class="usage-stat-value text-purple-400" id="apiAvgExecutionTime">0ms</div>
+                        <div class="usage-stat-label">Avg Execution Time</div>
+                    </div>
+                </div>
+
+                <!-- Internal Token Balance Card -->
+                <div class="token-balance-card mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold text-white">Internal Token Balance</h2>
+                        <button onclick="allocateMonthlyTokens()" class="btn btn-primary btn-sm">Get Monthly Tokens</button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div class="token-stat">
+                            <div class="token-stat-value text-green-400" id="remainingTokens">0</div>
+                            <div class="token-stat-label">Remaining Tokens</div>
+                        </div>
+                        <div class="token-stat">
+                            <div class="token-stat-value text-blue-400" id="usedTokens">0</div>
+                            <div class="token-stat-label">Used This Month</div>
+                        </div>
+                        <div class="token-stat">
+                            <div class="token-stat-value text-yellow-400" id="expiringTokens">0</div>
+                            <div class="token-stat-label">Expiring Soon</div>
+                        </div>
+                    </div>
+
+                    <!-- Token Usage Progress Bar -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-white">Monthly Token Usage</span>
+                            <span class="text-sm text-gray-400" id="tokenUsageText">0 / 10,000</span>
+                        </div>
+                        <div class="limit-bar">
+                            <div class="limit-progress low" id="tokenUsageProgress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Execution Limits -->
+                <div class="usage-limits-section mb-6">
+                    <h2 class="text-lg font-semibold text-white mb-4">API Execution Limits</h2>
+                    
+                    <div class="space-y-4">
+                        <!-- Daily Execution Limit -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-white">Daily Executions</span>
+                                <span class="text-sm text-gray-400" id="dailyExecutionsText">0 / 1,000</span>
+                            </div>
+                            <div class="limit-bar">
+                                <div class="limit-progress low" id="dailyExecutionsProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Monthly Execution Limit -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-white">Monthly Executions</span>
+                                <span class="text-sm text-gray-400" id="monthlyExecutionsText">0 / 10,000</span>
+                            </div>
+                            <div class="limit-bar">
+                                <div class="limit-progress low" id="monthlyExecutionsProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Daily Data Limit -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-white">Daily Data Processed</span>
+                                <span class="text-sm text-gray-400" id="dailyDataText">0 MB / 100 MB</span>
+                            </div>
+                            <div class="limit-bar">
+                                <div class="limit-progress low" id="dailyDataProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Usage by API -->
+                <div class="usage-chart-container">
+                    <h2 class="text-lg font-semibold text-white mb-4">Usage by API</h2>
+                    <div id="apiUsageChart" class="space-y-3">
+                        <!-- API usage will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Recent API Executions -->
+                <div class="usage-chart-container">
+                    <h2 class="text-lg font-semibold text-white mb-4">Recent API Executions</h2>
+                    <div id="recentAPIExecutions" class="space-y-2">
+                        <!-- Recent executions will be loaded here -->
+                    </div>
                 </div>
             </div>
 
-            <!-- Recent Usage -->
-            <div class="usage-chart-container">
-                <h2 class="text-lg font-semibold text-white mb-4">Recent Usage</h2>
-                <div id="recentUsageList" class="space-y-2">
-                    <!-- Recent usage will be loaded here -->
+                <!-- Usage Limits Section -->
+                <div class="usage-limits-section mb-6">
+                    <h2 class="text-lg font-semibold text-white mb-4">LLM Usage Limits</h2>
+                    
+                    <div class="space-y-4">
+                        <!-- Daily Token Limit -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-white">Daily Tokens</span>
+                                <span class="text-sm text-gray-400" id="dailyTokensText">0 / 100,000</span>
+                            </div>
+                            <div class="limit-bar">
+                                <div class="limit-progress low" id="dailyTokensProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Monthly Token Limit -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-white">Monthly Tokens</span>
+                                <span class="text-sm text-gray-400" id="monthlyTokensText">0 / 1,000,000</span>
+                            </div>
+                            <div class="limit-bar">
+                                <div class="limit-progress low" id="monthlyTokensProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Daily Cost Limit -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-white">Daily Cost</span>
+                                <span class="text-sm text-gray-400" id="dailyCostText">$0.00 / $10.00</span>
+                            </div>
+                            <div class="limit-bar">
+                                <div class="limit-progress low" id="dailyCostProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
+
+                <!-- Usage by Service -->
+                <div class="usage-chart-container">
+                    <h2 class="text-lg font-semibold text-white mb-4">Usage by Service</h2>
+                    <div id="serviceUsageChart" class="space-y-3">
+                        <!-- Service usage will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Recent Usage -->
+                <div class="usage-chart-container">
+                    <h2 class="text-lg font-semibold text-white mb-4">Recent Usage</h2>
+                    <div id="recentUsageList" class="space-y-2">
+                        <!-- Recent usage will be loaded here -->
+                    </div>
+                </div>
         </div>
 
         <!-- API Keys Tab -->
@@ -298,6 +428,9 @@
     let currentDeleteAPITarget = null;
     let usageData = null;
     let limitsData = null;
+    let apiExecutionData = null;
+    let apiExecutionLimits = null;
+    let tokenBalance = null;
 
     // Tab Management
     function switchTab(tabName) {
@@ -323,6 +456,31 @@
                 break;
             case 'saved-apis':
                 loadSavedAPIs();
+                break;
+        }
+    }
+
+    // Usage Tab Management
+    function switchUsageTab(usageTabName) {
+        // Remove active class from all usage tabs and content
+        document.querySelectorAll('.usage-tab-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelectorAll('.usage-content').forEach(content => {
+            content.classList.remove('active');
+        });
+
+        // Add active class to selected usage tab and content
+        document.querySelector(`[data-usage-tab="${usageTabName}"]`).classList.add('active');
+        document.getElementById(usageTabName + '-usage-content').classList.add('active');
+
+        // Load data for the active usage tab
+        switch(usageTabName) {
+            case 'llm':
+                loadUsageData();
+                break;
+            case 'api-execution':
+                loadAPIExecutionData();
                 break;
         }
     }
@@ -494,6 +652,188 @@
 
         if (recentUsage.length === 0) {
             container.innerHTML = '<p class="text-gray-400 text-center py-4">No recent usage</p>';
+        }
+    }
+
+    // Load API execution data
+    async function loadAPIExecutionData() {
+        try {
+            // Load API execution statistics
+            const statsResponse = await fetch('/api-execution-stats?days=30', {
+                headers: {
+                    'Authorization': `Bearer ${window.authToken}`
+                }
+            });
+            
+            if (statsResponse.ok) {
+                apiExecutionData = await statsResponse.json();
+                displayAPIExecutionStats(apiExecutionData);
+            }
+
+            // Load API execution limits
+            const limitsResponse = await fetch('/api-execution-limits', {
+                headers: {
+                    'Authorization': `Bearer ${window.authToken}`
+                }
+            });
+            
+            if (limitsResponse.ok) {
+                apiExecutionLimits = await limitsResponse.json();
+                displayAPIExecutionLimits(apiExecutionLimits);
+            }
+
+            // Load internal token balance
+            const tokenResponse = await fetch('/internal-token-balance', {
+                headers: {
+                    'Authorization': `Bearer ${window.authToken}`
+                }
+            });
+            
+            if (tokenResponse.ok) {
+                tokenBalance = await tokenResponse.json();
+                displayTokenBalance(tokenBalance);
+            }
+
+        } catch (error) {
+            console.error('Failed to load API execution data:', error);
+        }
+    }
+
+    // Display API execution statistics
+    function displayAPIExecutionStats(data) {
+        document.getElementById('apiTotalExecutions').textContent = data.total_executions || 0;
+        document.getElementById('apiSuccessfulExecutions').textContent = data.successful_executions || 0;
+        document.getElementById('apiFailedExecutions').textContent = data.failed_executions || 0;
+        document.getElementById('apiAvgExecutionTime').textContent = Math.round(data.average_execution_time_ms || 0) + 'ms';
+
+        // Display usage by API
+        displayAPIUsage(data.by_api || {});
+        
+        // Display recent executions
+        displayRecentAPIExecutions(data.recent_executions || []);
+    }
+
+    // Display API execution limits
+    function displayAPIExecutionLimits(data) {
+        // Daily executions
+        const dailyExecPercent = Math.min((data.daily_executions_used / data.daily_execution_limit) * 100, 100);
+        document.getElementById('dailyExecutionsText').textContent = 
+            `${data.daily_executions_used.toLocaleString()} / ${data.daily_execution_limit.toLocaleString()}`;
+        document.getElementById('dailyExecutionsProgress').style.width = dailyExecPercent + '%';
+        updateProgressBarColor(document.getElementById('dailyExecutionsProgress'), dailyExecPercent);
+
+        // Monthly executions
+        const monthlyExecPercent = Math.min((data.monthly_executions_used / data.monthly_execution_limit) * 100, 100);
+        document.getElementById('monthlyExecutionsText').textContent = 
+            `${data.monthly_executions_used.toLocaleString()} / ${data.monthly_execution_limit.toLocaleString()}`;
+        document.getElementById('monthlyExecutionsProgress').style.width = monthlyExecPercent + '%';
+        updateProgressBarColor(document.getElementById('monthlyExecutionsProgress'), monthlyExecPercent);
+
+        // Daily data
+        const dailyDataMB = Math.round(data.daily_data_used_bytes / (1024 * 1024));
+        const dailyDataLimitMB = Math.round(data.daily_data_limit_bytes / (1024 * 1024));
+        const dailyDataPercent = Math.min((data.daily_data_used_bytes / data.daily_data_limit_bytes) * 100, 100);
+        document.getElementById('dailyDataText').textContent = `${dailyDataMB} MB / ${dailyDataLimitMB} MB`;
+        document.getElementById('dailyDataProgress').style.width = dailyDataPercent + '%';
+        updateProgressBarColor(document.getElementById('dailyDataProgress'), dailyDataPercent);
+    }
+
+    // Display token balance
+    function displayTokenBalance(data) {
+        document.getElementById('remainingTokens').textContent = data.remaining_tokens.toLocaleString();
+        document.getElementById('usedTokens').textContent = data.used_tokens.toLocaleString();
+        document.getElementById('expiringTokens').textContent = data.expires_soon_tokens.toLocaleString();
+
+        // Token usage progress
+        const tokenPercent = Math.min((data.used_tokens / data.total_tokens) * 100, 100);
+        document.getElementById('tokenUsageText').textContent = 
+            `${data.used_tokens.toLocaleString()} / ${data.total_tokens.toLocaleString()}`;
+        document.getElementById('tokenUsageProgress').style.width = tokenPercent + '%';
+        updateProgressBarColor(document.getElementById('tokenUsageProgress'), tokenPercent);
+    }
+
+    // Display API usage breakdown
+    function displayAPIUsage(byAPI) {
+        const container = document.getElementById('apiUsageChart');
+        container.innerHTML = '';
+
+        Object.entries(byAPI).forEach(([apiSlug, stats]) => {
+            const apiDiv = document.createElement('div');
+            apiDiv.className = 'flex justify-between items-center p-3 bg-black bg-opacity-20 rounded';
+            apiDiv.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <span class="text-lg">⚡</span>
+                    <div>
+                        <div class="font-medium text-white">${apiSlug.replace('api_', '').replace(/_/g, ' ')}</div>
+                        <div class="text-sm text-gray-400">${stats.executions} executions</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="font-medium text-white">${Math.round(stats.avg_time_ms)}ms avg</div>
+                    <div class="text-sm text-gray-400">${stats.success_rate}% success</div>
+                </div>
+            `;
+            container.appendChild(apiDiv);
+        });
+
+        if (Object.keys(byAPI).length === 0) {
+            container.innerHTML = '<p class="text-gray-400 text-center py-4">No API execution data available</p>';
+        }
+    }
+
+    // Display recent API executions
+    function displayRecentAPIExecutions(recentExecutions) {
+        const container = document.getElementById('recentAPIExecutions');
+        container.innerHTML = '';
+
+        recentExecutions.slice(0, 5).forEach(execution => {
+            const executionDiv = document.createElement('div');
+            executionDiv.className = 'flex justify-between items-center p-2 bg-black bg-opacity-10 rounded text-sm';
+            executionDiv.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <span>${execution.success ? '✅' : '❌'}</span>
+                    <span class="text-white">${execution.api_slug.replace('api_', '').replace(/_/g, ' ')}</span>
+                    <span class="text-gray-400">${execution.execution_time_ms}ms</span>
+                </div>
+                <div class="text-right">
+                    <div class="text-white">${Math.round(execution.input_data_size / 1024)}KB input</div>
+                    <div class="text-gray-400">${new Date(execution.created_at).toLocaleDateString()}</div>
+                </div>
+            `;
+            container.appendChild(executionDiv);
+        });
+
+        if (recentExecutions.length === 0) {
+            container.innerHTML = '<p class="text-gray-400 text-center py-4">No recent executions</p>';
+        }
+    }
+
+    // Allocate monthly tokens
+    async function allocateMonthlyTokens() {
+        try {
+            const response = await fetch('/allocate-monthly-tokens', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${window.authToken}`
+                },
+                body: JSON.stringify({
+                    amount: 10000,
+                    source: 'monthly_allocation'
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showNotification('Monthly tokens allocated successfully!', 'success');
+                loadAPIExecutionData(); // Refresh the data
+            } else {
+                showNotification(result.message || 'Failed to allocate tokens', 'error');
+            }
+        } catch (error) {
+            console.error('Error allocating tokens:', error);
+            showNotification('Failed to allocate tokens', 'error');
         }
     }
 
@@ -899,6 +1239,15 @@
                     e.preventDefault();
                     const tabName = button.getAttribute('data-tab');
                     switchTab(tabName);
+                });
+            });
+
+            // Setup usage tab navigation
+            document.querySelectorAll('[data-usage-tab]').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const usageTabName = button.getAttribute('data-usage-tab');
+                    switchUsageTab(usageTabName);
                 });
             });
 

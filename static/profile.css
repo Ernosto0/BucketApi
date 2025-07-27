@@ -167,6 +167,112 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* Usage Tab Styles */
+.usage-tabs {
+    display: flex;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
+    padding: 0.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+}
+
+.usage-tab-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--vscode-text-muted);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.usage-tab-btn:hover {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+    border-color: rgba(79, 172, 254, 0.3);
+    color: var(--vscode-text);
+    transform: translateY(-2px);
+}
+
+.usage-tab-btn.active {
+    background: linear-gradient(135deg, rgba(79, 172, 254, 0.2) 0%, rgba(79, 172, 254, 0.1) 100%);
+    border-color: var(--vscode-blue);
+    color: var(--vscode-blue);
+    box-shadow: 0 4px 16px rgba(79, 172, 254, 0.2);
+}
+
+.tab-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.5rem;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.usage-tab-btn.active .tab-icon {
+    background: rgba(79, 172, 254, 0.2);
+}
+
+.tab-description {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    margin-top: 0.25rem;
+}
+
+.usage-content {
+    display: none;
+}
+
+.usage-content.active {
+    display: block;
+    animation: fadeIn 0.4s ease-in-out;
+}
+
+/* Token Balance Card */
+.token-balance-card {
+    background: linear-gradient(135deg, rgba(52, 215, 75, 0.1) 0%, rgba(52, 215, 75, 0.05) 100%);
+    border: 1px solid rgba(52, 215, 75, 0.2);
+    border-radius: 12px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px rgba(52, 215, 75, 0.1);
+}
+
+.token-stat {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.token-stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.token-stat-label {
+    color: var(--vscode-text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
 /* Usage Statistics Styles */
 .usage-stats-grid {
     display: grid;

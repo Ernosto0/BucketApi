@@ -743,6 +743,32 @@ function addAPIResultMessage(result) {
                     </div>
                 </div>
                 
+                <!-- Pricing Estimation (Will be populated after generation) -->
+                <div id="pricingEstimation" class="mt-4 p-3 bg-slate-800/30 rounded-lg border border-slate-600/30">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="text-yellow-400">💰</span>
+                        <span class="text-sm font-medium text-slate-300">Estimated Pricing</span>
+                        <span class="text-xs text-slate-500">(Run test to see exact costs)</span>
+                    </div>
+                    <div class="text-xs text-slate-400">
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="text-center py-2 bg-slate-700/30 rounded">
+                                <div class="text-slate-500">Cost per call</div>
+                                <div class="text-green-400 font-mono">~$0.02</div>
+                            </div>
+                            <div class="text-center py-2 bg-slate-700/30 rounded">
+                                <div class="text-slate-500">Internal tokens</div>
+                                <div class="text-blue-400 font-mono">~20</div>
+                            </div>
+                            <div class="text-center py-2 bg-slate-700/30 rounded">
+                                <div class="text-slate-500">AI model</div>
+                                <div class="text-purple-400 font-mono">estimated</div>
+                            </div>
+                        </div>
+                        <p class="text-center mt-2 text-slate-500 text-xs">🔍 Test your API to see exact pricing based on actual usage</p>
+                    </div>
+                </div>
+                
                 <!-- Test Results Area -->
                 <div id="testResults" class="hidden mt-6 space-y-4 test-results-container">
                     <!-- Response Status -->
@@ -1094,6 +1120,12 @@ async function runAPITest(endpointUrl) {
         const headers = testResult.response_headers || {};
         responseHeadersContent.textContent = JSON.stringify(headers, null, 2);
         
+        // Extract pricing information from response headers
+        const responseHeaders = testResult.response_headers || {};
+        const costPerCallCents = responseHeaders['x-cost-per-call-cents'];
+        const internalTokensPerCall = responseHeaders['x-internal-tokens-per-call'];
+        const aiModelUsed = responseHeaders['x-ai-model-used'];
+
         // Update status based on test result
         if (testResult.success) {
             testStatus.className = 'w-3 h-3 bg-green-500 rounded-full';
@@ -1102,6 +1134,41 @@ async function runAPITest(endpointUrl) {
             
             // Show deploy section after successful test
             deploySection.classList.remove('hidden');
+            
+            // Add pricing information message to chat
+            if (costPerCallCents && internalTokensPerCall) {
+                const costInDollars = (parseFloat(costPerCallCents) / 100).toFixed(4);
+                                 const pricingMessage = `
+                     💰 <strong>API Pricing Information</strong>
+                    <div class="mt-3 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div class="bg-slate-700/50 rounded-lg p-3">
+                                <div class="text-slate-400 text-xs uppercase tracking-wide mb-1">Cost per Call</div>
+                                <div class="text-green-400 font-bold text-lg">$${costInDollars}</div>
+                                <div class="text-slate-500 text-xs">${costPerCallCents} cents</div>
+                            </div>
+                            <div class="bg-slate-700/50 rounded-lg p-3">
+                                <div class="text-slate-400 text-xs uppercase tracking-wide mb-1">Internal Tokens</div>
+                                <div class="text-blue-400 font-bold text-lg">${internalTokensPerCall}</div>
+                                <div class="text-slate-500 text-xs">tokens per call</div>
+                            </div>
+                            <div class="bg-slate-700/50 rounded-lg p-3">
+                                <div class="text-slate-400 text-xs uppercase tracking-wide mb-1">AI Model</div>
+                                <div class="text-purple-400 font-medium">${aiModelUsed || 'estimated'}</div>
+                                <div class="text-slate-500 text-xs">underlying model</div>
+                            </div>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-slate-600/50">
+                            <p class="text-xs text-slate-400">
+                                🔍 <strong>Estimated monthly cost for 1,000 calls:</strong> 
+                                <span class="text-green-400 font-medium">$${(parseFloat(costPerCallCents) * 1000 / 100).toFixed(2)}</span>
+                                <span class="text-slate-500 ml-2">(${(parseInt(internalTokensPerCall) * 1000).toLocaleString()} internal tokens)</span>
+                            </p>
+                        </div>
+                    </div>
+                `;
+                addMessage('system', pricingMessage);
+            }
         } else {
             testStatus.className = 'w-3 h-3 bg-red-500 rounded-full';
             testStatusText.textContent = 'Test failed';
@@ -1200,6 +1267,47 @@ function deployCurrentAPI() {
     // Create API details URL
     const apiDetailsUrl = `/api/${currentApiData.user_id}/${currentApiData.api_slug}/details`;
     
+    // Get pricing information from the last test (if available)
+    const testResults = document.getElementById('testResults');
+    const responseHeadersContent = document.getElementById('responseHeadersContent');
+    let pricingSummary = '';
+    
+    try {
+        // Try to extract pricing from headers if test was run
+        if (responseHeadersContent && responseHeadersContent.textContent) {
+            const headers = JSON.parse(responseHeadersContent.textContent);
+            const costPerCallCents = headers['x-cost-per-call-cents'];
+            const internalTokensPerCall = headers['x-internal-tokens-per-call'];
+            const aiModelUsed = headers['x-ai-model-used'];
+            
+            if (costPerCallCents && internalTokensPerCall) {
+                const costInDollars = (parseFloat(costPerCallCents) / 100).toFixed(4);
+                pricingSummary = `
+                    <div class="mt-3 pt-3 border-t border-green-500/30">
+                        <h5 class="text-sm font-medium text-green-200 mb-2">💰 Pricing Summary:</h5>
+                        <div class="grid grid-cols-3 gap-3 text-xs">
+                            <div class="text-center">
+                                <div class="text-green-300 font-bold">$${costInDollars}</div>
+                                <div class="text-green-400/70">per call</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-blue-300 font-bold">${internalTokensPerCall}</div>
+                                <div class="text-blue-400/70">tokens</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-purple-300 font-medium">${aiModelUsed || 'est.'}</div>
+                                <div class="text-purple-400/70">model</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+    } catch (e) {
+        // Ignore JSON parsing errors
+        console.log('Could not extract pricing info for deployment summary');
+    }
+    
     // Add deployment success message
     addMessage('system', `
         🚀 API deployed successfully! Redirecting to API details page...
@@ -1210,9 +1318,10 @@ function deployCurrentAPI() {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                 </div>
-                <div>
+                <div class="flex-1">
                     <h4 class="font-medium text-green-300 mb-1">Deployment Complete</h4>
                     <p class="text-sm text-green-200">Taking you to the API management page where you can test, monitor, and manage your API.</p>
+                    ${pricingSummary}
                 </div>
             </div>
         </div>

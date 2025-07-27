@@ -114,6 +114,65 @@ class LLMUsageDB(Base):
     success = Column(Boolean, default=True, nullable=False)
     error_message = Column(Text, nullable=True)
 
+class APIExecutionUsageDB(Base):
+    __tablename__ = "api_execution_usage"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=False)
+    api_key_id = Column(String, index=True, nullable=True)  # Which API key was used
+    api_slug = Column(String, index=True, nullable=False)  # Which API was executed
+    
+    # Execution metrics
+    execution_time_ms = Column(Integer, default=0, nullable=False)
+    input_data_size = Column(Integer, default=0, nullable=False)  # Size of input data in bytes
+    output_data_size = Column(Integer, default=0, nullable=False)  # Size of output data in bytes
+    
+    # Status
+    success = Column(Boolean, default=True, nullable=False)
+    error_message = Column(Text, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class APIMetadataDB(Base):
+    __tablename__ = "api_metadata"
+
+    id = Column(String, primary_key=True, index=True)
+    api_slug = Column(String, index=True, nullable=False)
+    user_id = Column(String, index=True, nullable=False)
+    ai_model_used = Column(String, nullable=False)  # e.g., 'gpt-3.5-turbo', 'claude-3-sonnet'
+    estimated_tokens_per_call = Column(Integer, default=0, nullable=False)
+    estimated_cost_per_call_cents = Column(Integer, default=0, nullable=False)
+    base_complexity = Column(String, default='medium', nullable=False)  # 'simple', 'medium', 'complex'
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_updated = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class InternalTokenDB(Base):
+    __tablename__ = "internal_tokens"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=False)
+    api_key_id = Column(String, index=True, nullable=True)
+    token_type = Column(String, default='api_execution', nullable=False)
+    amount = Column(Integer, nullable=False)
+    source = Column(String, nullable=False)  # 'purchase', 'monthly_allocation', 'bonus'
+    expires_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    is_used = Column(Boolean, default=False, nullable=False)
+
+class APIExecutionTokenUsageDB(Base):
+    __tablename__ = "api_execution_token_usage"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=False)
+    api_key_id = Column(String, index=True, nullable=True)
+    api_slug = Column(String, index=True, nullable=False)
+    internal_tokens_used = Column(Integer, nullable=False)
+    cost_cents = Column(Integer, nullable=False)
+    execution_successful = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 # Database dependency
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get database session."""

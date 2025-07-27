@@ -19,7 +19,10 @@ from .models import (
     RegisterResponse, LoginResponse, TestRequest, TestResponse,
     APIKey, CreateAPIKeyRequest, CreateAPIKeyResponse, ListAPIKeysResponse, 
     UpdateAPIKeyRequest, DeleteAPIKeyResponse, APIInputData,
-    UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest
+    UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest,
+    APIExecutionStatsResponse, APIExecutionLimitsResponse, CreateAPIExecutionUsageRequest,
+    EstimateAPIUsageCostRequest, EstimateAPIUsageCostResponse, InternalTokenBalance,
+    CreateInternalTokenRequest
 )
 from .services.claude_service import claude_service
 from .services.code_debugger import code_debugger
@@ -28,6 +31,8 @@ from .services.file_service import file_service
 from .services.auth_service import auth_service
 from .services.api_key_service import api_key_service
 from .services.usage_service import usage_service
+from .services.api_execution_usage_service import api_execution_usage_service
+from .services.api_pricing_service import api_pricing_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database
 from .services.test_service import test_service
@@ -204,9 +209,22 @@ async def register(user_data: UserCreate):
         # Save the user
         user = await auth_service.save_user(user_data, hashed_password)
         
+        # Allocate starter tokens (1000 tokens) for new users
+        try:
+            logger.info(f"Allocating starter tokens for new user: {user.id}")
+            await api_pricing_service.allocate_monthly_tokens(
+                user_id=user.id, 
+                amount=1000, 
+                source="new_user_bonus"
+            )
+            logger.info(f"✅ Successfully allocated 1000 starter tokens to user: {user.email}")
+        except Exception as token_error:
+            logger.warning(f"Failed to allocate starter tokens to user {user.email}: {token_error}")
+            # Don't fail registration if token allocation fails
+        
         return RegisterResponse(
             success=True,
-            message="User registered successfully!",
+            message="User registered successfully! You've received 1000 starter tokens to test your APIs.",
             user=user
         )
         
@@ -665,6 +683,56 @@ async def generate_api(
         if "your-endpoint-url" in curl_example:
             curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
         
+        # Save API metadata for pricing (detect AI model from generated code)
+        try:
+            # Analyze the generated code to detect which AI service it uses
+            ai_model_used = "claude-3-sonnet"  # Default to the generation service
+            estimated_tokens = 500  # Default estimate
+            
+            # Check if the generated code uses OpenAI
+            if "openai" in code.lower() or "gpt-" in code.lower():
+                if "gpt-4" in code.lower():
+                    ai_model_used = "gpt-4"
+                    estimated_tokens = 800  # GPT-4 typically uses more tokens
+                else:
+                    ai_model_used = "gpt-3.5-turbo"
+                    estimated_tokens = 400  # GPT-3.5 is more efficient
+            # Check if it uses Claude API directly
+            elif "anthropic" in code.lower() or "claude" in code.lower():
+                if "opus" in code.lower():
+                    ai_model_used = "claude-3-opus"
+                    estimated_tokens = 600
+                elif "haiku" in code.lower():
+                    ai_model_used = "claude-3-haiku"
+                    estimated_tokens = 300
+                else:
+                    ai_model_used = "claude-3-sonnet"
+                    estimated_tokens = 500
+            # If no AI service detected, it's a simple processing API
+            elif not any(keyword in code.lower() for keyword in ["openai", "anthropic", "claude", "gpt"]):
+                ai_model_used = "none"  # No AI service used
+                estimated_tokens = 0
+            
+            # Determine complexity based on code analysis
+            complexity = 'simple'
+            if len(code) > 2000 or "class" in code or "async def" in code:
+                complexity = 'complex'
+            elif len(code) > 1000 or "try:" in code or "except:" in code:
+                complexity = 'medium'
+            
+            logger.info(f"Detected AI model: {ai_model_used}, estimated tokens: {estimated_tokens}, complexity: {complexity}")
+            
+            await api_pricing_service.save_api_metadata(
+                api_slug=clean_slug,
+                user_id=request.user_id,
+                ai_model_used=ai_model_used,
+                estimated_tokens_per_call=estimated_tokens,
+                base_complexity=complexity
+            )
+        except Exception as e:
+            logger.warning(f"Failed to save API metadata: {e}")
+            # Continue without metadata if service is unavailable
+        
         return APIGenerationResponse(
             success=True,
             message="API generated successfully!",
@@ -960,18 +1028,60 @@ async def execute_api(
                 detail="Invalid API key"
             )
 
+        # Calculate input data size for limits check
+        input_data_size = api_execution_usage_service._calculate_data_size(parsed_input_data)
         
-        if not api_key_service.validate_api_key(api_key):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid API key"
+        # Get API execution cost and check token balance
+        try:
+            api_cost = await api_pricing_service.get_api_execution_cost(
+                api_slug=api_slug,
+                user_id=user_id
             )
+            
+                        # Check internal token balance
+            token_balance = await api_pricing_service.get_token_balance(
+                user_id=user_id,  # Use API owner's user ID, not the API key's user ID
+                api_key_id=None
+            )
+            
+            if token_balance.remaining_tokens < api_cost.internal_tokens_per_call:
+                raise HTTPException(
+                    status_code=402,  # Payment Required
+                    detail=f"Insufficient internal tokens. Need {api_cost.internal_tokens_per_call}, have {token_balance.remaining_tokens}"
+                )
+                
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check API pricing: {e}")
+            # Use default pricing if service is unavailable
+            api_cost = None
         
+        # Check execution limits before proceeding
+        try:
+            limits = await api_execution_usage_service.check_execution_limits(
+                user_id=validated_key.user_id,
+                api_key_id=validated_key.id,
+                data_size_to_use=input_data_size
+            )
+            
+            if limits.is_over_execution_limit:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Daily execution limit exceeded: {limits.daily_executions_used}/{limits.daily_execution_limit}"
+                )
+            
+            if limits.is_over_data_limit:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Daily data limit exceeded: {limits.daily_data_used_bytes}/{limits.daily_data_limit_bytes} bytes"
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to check execution limits: {e}")
+            # Continue without limits check if service is unavailable
 
-        api_key_service.update_api_key_usage(api_key)
-        # check if user has enough credits TODO
-       
-        
         # Execute the API
         result = file_service.load_and_execute_api(
             user_id=user_id,
@@ -981,6 +1091,33 @@ async def execute_api(
         )
         
         execution_time = time.time() - start_time
+        execution_time_ms = int(execution_time * 1000)
+        output_data_size = api_execution_usage_service._calculate_data_size(result)
+        
+        # Record successful execution usage and deduct internal tokens
+        try:
+            await api_execution_usage_service.record_execution_usage(
+                user_id=validated_key.user_id,
+                api_key_id=validated_key.id,
+                api_slug=api_slug,
+                execution_time_ms=execution_time_ms,
+                input_data_size=input_data_size,
+                output_data_size=output_data_size,
+                success=True
+            )
+            
+            # Deduct internal tokens if pricing is available
+            if api_cost:
+                await api_pricing_service.deduct_tokens_for_execution(
+                    user_id=user_id,  # Use API owner's user ID
+                    api_key_id=None,
+                    api_slug=api_slug,
+                    internal_tokens_needed=api_cost.internal_tokens_per_call,
+                    cost_cents=api_cost.cost_per_call_cents,
+                    execution_successful=True
+                )
+        except Exception as e:
+            logger.warning(f"Failed to record execution usage: {e}")
         
         return APIExecutionResponse(
             success=True,
@@ -997,7 +1134,26 @@ async def execute_api(
         )
     except Exception as e:
         execution_time = time.time() - start_time
+        execution_time_ms = int(execution_time * 1000)
         logger.error(f"API execution error: {str(e)}", exc_info=True)
+        
+        # Record failed execution usage if we have validated key
+        try:
+            if 'validated_key' in locals() and validated_key:
+                input_size = api_execution_usage_service._calculate_data_size(parsed_input_data) if 'parsed_input_data' in locals() else 0
+                await api_execution_usage_service.record_execution_usage(
+                    user_id=validated_key.user_id,
+                    api_key_id=validated_key.id,
+                    api_slug=api_slug,
+                    execution_time_ms=execution_time_ms,
+                    input_data_size=input_size,
+                    output_data_size=0,
+                    success=False,
+                    error_message=str(e)
+                )
+        except Exception as usage_error:
+            logger.warning(f"Failed to record failed execution usage: {usage_error}")
+        
         return APIExecutionResponse(
             success=False,
             error=str(e),
@@ -1266,6 +1422,31 @@ async def test_api(request: TestRequest):
             "x-test-id": test_id
         }
         
+        # Get cost estimation for this API execution
+        cost_estimation = None
+        try:
+            api_cost = await api_pricing_service.get_api_execution_cost(
+                api_slug=request.api_slug,
+                user_id=request.user_id
+            )
+            cost_estimation = {
+                "cost_per_call_cents": api_cost.cost_per_call_cents,
+                "internal_tokens_per_call": api_cost.internal_tokens_per_call,
+                "ai_model_used": api_cost.ai_model_used,
+                "complexity_multiplier": api_cost.complexity_multiplier,
+                "estimated_tokens_used": api_cost.estimated_tokens_used
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get cost estimation for test: {e}")
+            # Provide default cost estimation during testing
+            cost_estimation = {
+                "cost_per_call_cents": 2,  # Default 2 cents
+                "internal_tokens_per_call": 20,  # Default 20 internal tokens
+                "ai_model_used": "estimated",
+                "complexity_multiplier": 1.5,
+                "estimated_tokens_used": 1000
+            }
+        
         # Prepare the basic test response
         test_response = TestResponse(
             success=True,
@@ -1282,6 +1463,15 @@ async def test_api(request: TestRequest):
             test_type=request.test_type or "manual",
             validation=None
         )
+        
+        # Add cost estimation to response headers for display
+        if cost_estimation:
+            response_headers.update({
+                "x-cost-per-call-cents": str(cost_estimation["cost_per_call_cents"]),
+                "x-internal-tokens-per-call": str(cost_estimation["internal_tokens_per_call"]),
+                "x-ai-model-used": cost_estimation["ai_model_used"]
+            })
+            test_response.response_headers = response_headers
         
         # Automatically validate successful responses (200 status code)
         if status_code == 200:
@@ -1388,6 +1578,174 @@ async def test_api(request: TestRequest):
             test_type=request.test_type or "manual",
             validation=None
         )
+
+# API Execution Usage Endpoints
+
+@app.get("/api-execution-stats", response_model=APIExecutionStatsResponse)
+async def get_api_execution_stats(
+    days: int = 30,
+    api_key_id: Optional[str] = None,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Get API execution statistics for the current user."""
+    try:
+        stats = await api_execution_usage_service.get_execution_stats(
+            user_id=current_user.id,
+            api_key_id=api_key_id,
+            days=days
+        )
+        return stats
+    except Exception as e:
+        logger.error(f"Failed to get API execution stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get execution stats: {str(e)}")
+
+@app.get("/api-execution-limits", response_model=APIExecutionLimitsResponse)
+async def get_api_execution_limits(
+    api_key_id: Optional[str] = None,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Get API execution limits and current usage for the current user."""
+    try:
+        limits = await api_execution_usage_service.check_execution_limits(
+            user_id=current_user.id,
+            api_key_id=api_key_id
+        )
+        return limits
+    except Exception as e:
+        logger.error(f"Failed to get API execution limits: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get execution limits: {str(e)}")
+
+@app.get("/api-execution-stats/{api_slug}", response_model=APIExecutionStatsResponse)
+async def get_api_execution_stats_by_slug(
+    api_slug: str,
+    days: int = 30,
+    api_key_id: Optional[str] = None,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Get API execution statistics for a specific API."""
+    try:
+        # Get all stats first, then filter by API slug
+        stats = await api_execution_usage_service.get_execution_stats(
+            user_id=current_user.id,
+            api_key_id=api_key_id,
+            days=days
+        )
+        
+        # Filter stats for specific API
+        if api_slug in stats.by_api:
+            api_stats = stats.by_api[api_slug]
+            # Filter recent executions for this API
+            filtered_recent = [
+                execution for execution in stats.recent_executions 
+                if execution.api_slug == api_slug
+            ]
+            
+            return APIExecutionStatsResponse(
+                user_id=stats.user_id,
+                api_key_id=stats.api_key_id,
+                total_executions=api_stats['executions'],
+                successful_executions=api_stats['successful'],
+                failed_executions=api_stats['failed'],
+                total_execution_time_ms=api_stats['total_time_ms'],
+                average_execution_time_ms=api_stats['total_time_ms'] / api_stats['executions'] if api_stats['executions'] > 0 else 0,
+                total_data_processed_bytes=api_stats['data_bytes'],
+                by_api={api_slug: api_stats},
+                recent_executions=filtered_recent,
+                period_start=stats.period_start,
+                period_end=stats.period_end
+            )
+        else:
+            # No usage found for this API
+            return APIExecutionStatsResponse(
+                user_id=current_user.id,
+                api_key_id=api_key_id,
+                total_executions=0,
+                successful_executions=0,
+                failed_executions=0,
+                total_execution_time_ms=0,
+                average_execution_time_ms=0,
+                total_data_processed_bytes=0,
+                by_api={},
+                recent_executions=[],
+                period_start=stats.period_start,
+                period_end=stats.period_end
+            )
+    except Exception as e:
+        logger.error(f"Failed to get API execution stats for {api_slug}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get execution stats: {str(e)}")
+
+# Internal Token and Pricing Endpoints
+
+@app.get("/internal-token-balance", response_model=InternalTokenBalance)
+async def get_internal_token_balance(
+    api_key_id: Optional[str] = None,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Get current internal token balance for the user."""
+    try:
+        balance = await api_pricing_service.get_token_balance(
+            user_id=current_user.id,
+            api_key_id=api_key_id
+        )
+        return balance
+    except Exception as e:
+        logger.error(f"Failed to get token balance: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get token balance: {str(e)}")
+
+@app.post("/allocate-monthly-tokens")
+async def allocate_monthly_tokens(
+    request: CreateInternalTokenRequest,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Allocate monthly tokens to the user (admin function or monthly allocation)."""
+    try:
+        token = await api_pricing_service.allocate_monthly_tokens(
+            user_id=current_user.id,
+            api_key_id=None,
+            amount=request.amount,
+            source=request.source
+        )
+        return {"success": True, "message": f"Allocated {token.amount} tokens", "token_id": token.id}
+    except Exception as e:
+        logger.error(f"Failed to allocate tokens: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to allocate tokens: {str(e)}")
+
+@app.post("/estimate-api-cost", response_model=EstimateAPIUsageCostResponse)
+async def estimate_api_usage_cost(
+    request: EstimateAPIUsageCostRequest,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Estimate the cost and tokens needed for API usage."""
+    try:
+        estimate = await api_pricing_service.estimate_api_usage_cost(request)
+        return estimate
+    except Exception as e:
+        logger.error(f"Failed to estimate API cost: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to estimate API cost: {str(e)}")
+
+@app.get("/api-cost/{api_slug}")
+async def get_api_execution_cost(
+    api_slug: str,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Get the execution cost for a specific API."""
+    try:
+        cost = await api_pricing_service.get_api_execution_cost(
+            api_slug=api_slug,
+            user_id=current_user.id
+        )
+        return {
+            "api_slug": cost.api_slug,
+            "cost_per_call_cents": cost.cost_per_call_cents,
+            "internal_tokens_per_call": cost.internal_tokens_per_call,
+            "ai_model_used": cost.ai_model_used,
+            "complexity_multiplier": cost.complexity_multiplier,
+            "estimated_tokens_used": cost.estimated_tokens_used,
+            "last_calculated": cost.last_calculated
+        }
+    except Exception as e:
+        logger.error(f"Failed to get API cost: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get API cost: {str(e)}")
 
 
 

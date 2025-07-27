@@ -367,3 +367,151 @@ class CreateUsageRequest(BaseModel):
     api_slug: Optional[str] = None
     success: bool = True
     error_message: Optional[str] = None
+
+# API Execution Usage Models
+class APIExecutionUsage(BaseModel):
+    id: str
+    user_id: str
+    api_key_id: Optional[str] = None
+    api_slug: str
+    execution_time_ms: int
+    input_data_size: int  # Size of input data in bytes
+    output_data_size: int  # Size of output data in bytes
+    success: bool
+    error_message: Optional[str] = None
+    created_at: datetime
+    
+class APIExecutionUsageRequest(BaseModel):
+    user_id: str
+    api_key_id: Optional[str] = None
+    api_slug: str
+    execution_time_ms: int
+    input_data_size: int = 0
+    output_data_size: int = 0
+    success: bool = True
+    error_message: Optional[str] = None
+
+class APIExecutionStatsResponse(BaseModel):
+    user_id: str
+    api_key_id: Optional[str] = None
+    total_executions: int
+    successful_executions: int
+    failed_executions: int
+    total_execution_time_ms: int
+    average_execution_time_ms: float
+    total_data_processed_bytes: int
+    by_api: Dict[str, Dict[str, int]]  # api_slug -> stats
+    recent_executions: List[APIExecutionUsage]
+    period_start: datetime
+    period_end: datetime
+
+class APIExecutionLimitsResponse(BaseModel):
+    user_id: str
+    api_key_id: Optional[str] = None
+    daily_execution_limit: int
+    daily_executions_used: int
+    daily_executions_remaining: int
+    monthly_execution_limit: int
+    monthly_executions_used: int
+    monthly_executions_remaining: int
+    daily_data_limit_bytes: int
+    daily_data_used_bytes: int
+    daily_data_remaining_bytes: int
+    limit_reset_time: datetime
+    is_over_execution_limit: bool
+    is_over_data_limit: bool
+
+class CreateAPIExecutionUsageRequest(BaseModel):
+    api_slug: str
+    execution_time_ms: int
+    input_data_size: int = 0
+    output_data_size: int = 0
+    success: bool = True
+    error_message: Optional[str] = None
+
+# API Pricing and Internal Token Models
+class APIMetadata(BaseModel):
+    api_slug: str
+    user_id: str
+    ai_model_used: str  # e.g., 'gpt-3.5-turbo', 'claude-3-sonnet'
+    estimated_tokens_per_call: int  # Average tokens used per API call
+    estimated_cost_per_call_cents: int  # Cost in cents per API call
+    base_complexity: str  # 'simple', 'medium', 'complex'
+    created_at: datetime
+    last_updated: datetime
+
+class InternalToken(BaseModel):
+    """Internal tokens for API usage - different from AI model tokens"""
+    id: str
+    user_id: str
+    api_key_id: Optional[str] = None
+    token_type: str = "api_execution"  # Type of internal token
+    amount: int  # Amount of tokens
+    source: str  # 'purchase', 'monthly_allocation', 'bonus'
+    expires_at: Optional[datetime] = None
+    created_at: datetime
+    used_at: Optional[datetime] = None
+    is_used: bool = False
+
+class InternalTokenBalance(BaseModel):
+    user_id: str
+    api_key_id: Optional[str] = None
+    total_tokens: int
+    used_tokens: int
+    remaining_tokens: int
+    monthly_allocation: int
+    expires_soon_tokens: int  # Tokens expiring in next 7 days
+    last_updated: datetime
+
+class APIExecutionCost(BaseModel):
+    api_slug: str
+    user_id: str
+    cost_per_call_cents: int  # Cost in cents
+    internal_tokens_per_call: int  # Internal tokens deducted per call
+    ai_model_used: str
+    complexity_multiplier: float
+    base_cost_cents: int
+    estimated_tokens_used: int  # AI model tokens
+    last_calculated: datetime
+
+class APIExecutionTokenUsage(BaseModel):
+    id: str
+    user_id: str
+    api_key_id: Optional[str] = None
+    api_slug: str
+    internal_tokens_used: int
+    cost_cents: int
+    execution_successful: bool
+    created_at: datetime
+
+class EstimateAPIUsageCostRequest(BaseModel):
+    api_slug: str
+    sample_input: Optional[str] = None
+    expected_calls_per_month: int = 100
+
+class EstimateAPIUsageCostResponse(BaseModel):
+    api_slug: str
+    cost_per_call_cents: int
+    internal_tokens_per_call: int
+    estimated_monthly_cost_cents: int
+    estimated_monthly_tokens: int
+    ai_model_used: str
+    complexity_rating: str
+    breakdown: Dict[str, Any]
+
+class CreateInternalTokenRequest(BaseModel):
+    amount: int
+    token_type: str = "api_execution"
+    source: str = "monthly_allocation"
+    expires_in_days: Optional[int] = None
+
+class InternalTokenUsageStatsResponse(BaseModel):
+    user_id: str
+    api_key_id: Optional[str] = None
+    current_balance: InternalTokenBalance
+    usage_this_month: int
+    cost_this_month_cents: int
+    by_api: Dict[str, Dict[str, int]]  # api_slug -> stats
+    recent_usage: List[APIExecutionTokenUsage]
+    period_start: datetime
+    period_end: datetime
