@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status, Body
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -18,7 +18,7 @@ from .models import (
     ChatAnalysisRequest, ChatAnalysisResponse, HealthResponse, ChatMessage,
     RegisterResponse, LoginResponse, TestRequest, TestResponse,
     APIKey, CreateAPIKeyRequest, CreateAPIKeyResponse, ListAPIKeysResponse, 
-    UpdateAPIKeyRequest, DeleteAPIKeyResponse
+    UpdateAPIKeyRequest, DeleteAPIKeyResponse, APIInputData
 )
 from .services.claude_service import claude_service
 from .services.code_debugger import code_debugger
@@ -726,10 +726,12 @@ async def save_api(request: SaveAPIRequest):
 async def execute_api(
     user_id: str, 
     api_slug: str,
-    file: Optional[UploadFile] = File(None),
-    input_data: Optional[str] = Form(None),
-    current_user: Optional[User] = Depends(get_current_user_or_api_key)
+    input_data: Optional[APIInputData] = Body(None),
+    current_user: Optional[User] = Depends(get_current_user_or_api_key),
 ):
+    logger.info(f"Executing API {api_slug} for user {user_id}")
+    logger.info(f"Input data: {input_data}")
+    logger.info(f"Current user: {current_user}")
     """
     Execute a generated API.
     """
@@ -747,26 +749,34 @@ async def execute_api(
         file_bytes = None
         parsed_input_data = None
         
-        if file:
-            # Read uploaded file
-            file_bytes = await file.read()
-            
-            # Validate file size
-            if len(file_bytes) > settings.MAX_FILE_SIZE:
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"File too large. Maximum size: {settings.MAX_FILE_SIZE} bytes"
-                )
-        
         if input_data:
-            try:
-                import json
-                parsed_input_data = json.loads(input_data)
-            except json.JSONDecodeError:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid JSON in input_data"
-                )
+            parsed_input_data = input_data.dict()
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing input data"
+            )
+
+        api_key = input_data.apikey
+        
+        validated_key = await api_key_service.validate_api_key(api_key)
+        if not validated_key:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid API key"
+            )
+
+        
+        if not api_key_service.validate_api_key(api_key):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid API key"
+            )
+        
+
+        api_key_service.update_api_key_usage(api_key)
+        # check if user has enough credits TODO
+       
         
         # Execute the API
         result = file_service.load_and_execute_api(
@@ -914,9 +924,6 @@ async def test_api(request: TestRequest):
     start_time = time.time()
     test_id = str(uuid.uuid4())
     
-    
-
-
     try:
         # Check if API exists
         if not file_service.api_exists(request.user_id, request.api_slug):
@@ -952,7 +959,7 @@ async def test_api(request: TestRequest):
                 user_id=request.user_id,
                 api_slug=request.api_slug,
                 file_bytes=file_bytes,
-                input_data=parsed_input_data
+                input_data=parsed_input_data,
             )
             
             execution_time = time.time() - start_time

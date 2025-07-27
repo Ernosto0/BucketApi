@@ -8,7 +8,7 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import APIKey, CreateAPIKeyRequest, CreateAPIKeyResponse
 from .database import APIKeyDB, AsyncSessionLocal
-
+from fastapi import HTTPException
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +41,7 @@ class APIKeyService:
     
     def _get_key_prefix(self, api_key: str) -> str:
         """Get the display prefix of an API key."""
-        return api_key[:12] + "..." if len(api_key) > 12 else api_key
+        return api_key
     
     async def create_api_key(self, user_id: str, request: CreateAPIKeyRequest) -> CreateAPIKeyResponse:
         """Create a new API key for a user."""
@@ -80,7 +80,7 @@ class APIKeyService:
                     user_id=user_id,
                     key_name=request.key_name,
                     key_hash=key_hash,
-                    key_prefix=key_prefix,
+                    full_key=key_prefix,
                     is_active=True,
                     created_at=datetime.utcnow(),
                     last_used=None,
@@ -97,7 +97,7 @@ class APIKeyService:
                     id=db_key.id,
                     user_id=db_key.user_id,
                     key_name=db_key.key_name,
-                    key_prefix=db_key.key_prefix,
+                    full_key=db_key.full_key,
                     is_active=db_key.is_active,
                     created_at=db_key.created_at,
                     last_used=db_key.last_used,
@@ -135,7 +135,7 @@ class APIKeyService:
                     id=db_key.id,
                     user_id=db_key.user_id,
                     key_name=db_key.key_name,
-                    key_prefix=db_key.key_prefix,
+                    full_key=db_key.full_key,
                     is_active=db_key.is_active,
                     created_at=db_key.created_at,
                     last_used=db_key.last_used,
@@ -171,7 +171,7 @@ class APIKeyService:
                         id=db_key.id,
                         user_id=db_key.user_id,
                         key_name=db_key.key_name,
-                        key_prefix=db_key.key_prefix,
+                        full_key=db_key.full_key,
                         is_active=db_key.is_active,
                         created_at=db_key.created_at,
                         last_used=db_key.last_used,
@@ -179,11 +179,27 @@ class APIKeyService:
                         expires_at=db_key.expires_at
                     )
             
-            return None
-    
+            return False
+
     async def update_api_key(self, user_id: str, key_id: str, key_name: Optional[str] = None, is_active: Optional[bool] = None) -> bool:
+        logger.info(f"🔑 update_api_key called for user {user_id} with key ID {key_id}")
         """Update an API key."""
         async with AsyncSessionLocal() as session:
+
+            # check if user's api key is valid
+            api_key = await self.validate_api_key(api_key)
+            if not api_key.is_active:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid API key"
+                )
+            
+            if api_key.expires_at and api_key.expires_at < datetime.now():
+                raise HTTPException(
+                    status_code=401,
+                    detail="API key expired"
+                )
+            
             try:
                 result = await session.execute(
                     select(APIKeyDB).where(
@@ -246,6 +262,25 @@ class APIKeyService:
                 await session.commit()
                 return True
                 
+            except Exception as e:
+                await session.rollback()
+                return False
+            
+    async def update_api_key_usage(self, api_key: str) -> bool:
+        """Update the usage count for an API key."""
+        async with AsyncSessionLocal() as session:
+            try:
+                result = await session.execute(
+                    select(APIKeyDB).where(APIKeyDB.key_hash == api_key)
+                )
+                db_key = result.scalar_one_or_none()
+                
+                if not db_key:
+                    return False
+                
+                db_key.usage_count += 1
+                await session.commit()
+                return True
             except Exception as e:
                 await session.rollback()
                 return False

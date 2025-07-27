@@ -91,6 +91,11 @@ class APIModificationResponse(BaseModel):
     modification_prompt: Optional[str] = None
     debug_info: Optional[Dict[str, Any]] = None
 
+class APIInputData(BaseModel):
+    apikey: str
+    text: Optional[str] = None
+
+
 class APIExecutionRequest(BaseModel):
     file_data: Optional[str] = Field(None, description="Base64 encoded file data")
     input_data: Optional[Dict[str, Any]] = Field(None, description="JSON input data")
@@ -184,7 +189,7 @@ class APIKey(BaseModel):
     id: str
     user_id: str
     key_name: str
-    key_prefix: str  # First 8 chars for display (e.g., "ak_12345...")
+    full_key: str 
     is_active: bool = True
     created_at: datetime
     last_used: Optional[datetime] = None
