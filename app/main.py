@@ -665,7 +665,7 @@ async def generate_api(
         clean_slug = api_slug.replace(f"{request.user_id}_", "")
         
         # Save the code
-        file_service.save_api_code(api_slug, code)
+        await file_service.save_api_code(api_slug, code)
         
         # Generate documentation
         documentation, curl_example = await claude_service.generate_documentation(
@@ -900,7 +900,7 @@ async def modify_api(
         
         # Save the new code
         full_slug = f"{request.user_id}_{request.api_slug}"
-        file_service.save_api_code(full_slug, code)
+        await file_service.save_api_code(full_slug, code)
         
         # Generate documentation
         documentation, curl_example = await claude_service.generate_documentation(
@@ -1038,7 +1038,7 @@ async def execute_api(
                 user_id=user_id
             )
             
-                        # Check internal token balance
+            # Check internal token balance
             token_balance = await api_pricing_service.get_token_balance(
                 user_id=user_id,  # Use API owner's user ID, not the API key's user ID
                 api_key_id=None
@@ -1082,13 +1082,36 @@ async def execute_api(
             logger.warning(f"Failed to check execution limits: {e}")
             # Continue without limits check if service is unavailable
 
-        # Execute the API
-        result = file_service.load_and_execute_api(
-            user_id=user_id,
-            api_slug=api_slug,
-            file_bytes=file_bytes,
-            input_data=parsed_input_data
-        )
+        # Execute the API with timeout
+        try:
+            result = await file_service.load_and_execute_api(
+                user_id=user_id,
+                api_slug=api_slug,
+                file_bytes=file_bytes,
+                input_data=parsed_input_data
+            )
+        except HTTPException as e:
+            if e.status_code == 408:  # Timeout
+                execution_time = time.time() - start_time
+                execution_time_ms = int(execution_time * 1000)
+                
+                # Record timeout in usage stats
+                await api_execution_usage_service.record_execution_usage(
+                    user_id=validated_key.user_id,
+                    api_key_id=validated_key.id,
+                    api_slug=api_slug,
+                    execution_time_ms=execution_time_ms,
+                    input_data_size=input_data_size,
+                    output_data_size=0,
+                    success=False,
+                    error_message="Execution timeout"
+                )
+                
+                raise HTTPException(
+                    status_code=408,
+                    detail="API execution timed out"
+                )
+            raise
         
         execution_time = time.time() - start_time
         execution_time_ms = int(execution_time * 1000)
@@ -1305,7 +1328,7 @@ async def test_api(request: TestRequest):
         
         # Execute the API
         try:
-            result = file_service.load_and_execute_api(
+            result = await file_service.load_and_execute_api(
                 user_id=request.user_id,
                 api_slug=request.api_slug,
                 file_bytes=file_bytes,
@@ -1370,10 +1393,10 @@ async def test_api(request: TestRequest):
                     backup_slug = f"{request.api_slug}_backup_{timestamp}"
                     
                     # Save backup
-                    file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
+                    await file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
                     
                     # Save fixed code
-                    file_service.save_api_code(f"{request.user_id}_{request.api_slug}", debug_result["fixed_code"])
+                    await file_service.save_api_code(f"{request.user_id}_{request.api_slug}", debug_result["fixed_code"])
                     
                     # Add debug information to the error response
                     error_response.validation = {
@@ -1508,10 +1531,10 @@ async def test_api(request: TestRequest):
                             backup_slug = f"{request.api_slug}_backup_{timestamp}"
                             
                             # Save backup
-                            file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
+                            await file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
                             
                             # Save fixed code
-                            file_service.save_api_code(f"{request.user_id}_{request.api_slug}", debug_result["fixed_code"])
+                            await file_service.save_api_code(f"{request.user_id}_{request.api_slug}", debug_result["fixed_code"])
                             
                             # Add debug information to the test response
                             test_response.validation.update({

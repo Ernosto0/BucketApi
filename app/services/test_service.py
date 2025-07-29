@@ -9,6 +9,7 @@ from ..models import TestRequest, TestResponse, TestHistoryEntry, TestHistoryRes
 from .file_service import file_service
 from .openai_service import openai_service
 import base64
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class TestService:
         """Execute a single test against an API."""
         test_id = str(uuid.uuid4())
         start_time = time.time()
+        result = None  # Initialize result variable
         
         try:
             # Check if API exists
@@ -38,18 +40,34 @@ class TestService:
             
             # Execute the API
             try:
-                result = file_service.load_and_execute_api(
+                # Execute API and await the result
+                result = await file_service.load_and_execute_api(
                     user_id=request.user_id,
                     api_slug=request.api_slug,
                     file_bytes=file_bytes,
                     input_data=request.test_data
                 )
                 
+                # Ensure result is JSON serializable
+                if result is not None:
+                    try:
+                        # Try to serialize to detect any non-serializable objects
+                        json.dumps(result, default=str)
+                    except (TypeError, ValueError) as e:
+                        logger.error(f"API result is not JSON serializable: {str(e)}")
+                        raise ValueError(f"API returned non-serializable result: {str(e)}")
+                
                 execution_time = time.time() - start_time
                 status_code = 200
                 success = True
                 error = None
                 
+            except HTTPException as e:
+                execution_time = time.time() - start_time
+                status_code = e.status_code
+                success = False
+                error = e.detail
+                result = None
             except Exception as api_error:
                 execution_time = time.time() - start_time
                 status_code = 500
@@ -57,7 +75,7 @@ class TestService:
                 error = str(api_error)
                 result = None
             
-            # Create response headers (mock for now)
+            # Create response headers
             response_headers = {
                 "content-type": "application/json",
                 "x-execution-time": str(execution_time),
@@ -71,17 +89,32 @@ class TestService:
                 api_slug=request.api_slug,
                 user_id=request.user_id,
                 request_data=request.test_data,
-                response_data=result,
+                response_data=result,  # Use the awaited result
                 error=error,
                 execution_time=execution_time,
                 status_code=status_code,
                 response_headers=response_headers,
                 timestamp=datetime.now(),
-                test_type=request.test_type or "manual"
+                test_type=request.test_type or "manual",
+                validation=None
             )
             
-            # Save test to history
-            await self._save_test_to_history(test_response)
+            # Validate test result if successful
+            if success and result is not None:
+                try:
+                    validation = await self.validate_test_result(request, test_response)
+                    test_response.validation = validation
+                except Exception as e:
+                    logger.error(f"Test validation failed: {str(e)}")
+                    # Don't fail the test if validation fails
+                    test_response.validation = {
+                        "is_valid": False,
+                        "confidence": 0.0,
+                        "validation_message": f"Validation failed: {str(e)}",
+                        "issues_found": ["Validation error"],
+                        "suggestions": ["Check API response format"],
+                        "reasoning": str(e)
+                    }
             
             return test_response
             
@@ -213,7 +246,7 @@ class TestService:
         start_time = time.time()
         
         try:
-            result = file_service.load_and_execute_api(
+            result = await file_service.load_and_execute_api(
                 user_id=request.user_id,
                 api_slug=request.api_slug,
                 file_bytes=None,
@@ -490,7 +523,6 @@ Focus primarily on the logical relationship between input and output. Return you
 
             # Make request to OpenAI
             response = await openai_service._make_openai_request(system_prompt, user_prompt)
-            
             # Log the raw response for debugging
             logger.info(f"Raw OpenAI response for validation: {response[:500]}...")
             

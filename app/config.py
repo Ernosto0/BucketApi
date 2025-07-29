@@ -45,4 +45,8 @@ class Settings:
     DOCS_URL: str = "/docs"
     REDOC_URL: str = "/redoc"
 
+    # Add port configuration
+    PORT: int = int(os.getenv('PORT', 8001))  # Default to 8001 instead of 8000
+    HOST: str = os.getenv('HOST', '127.0.0.1')  # Use localhost instead of 0.0.0.0
+
 settings = Settings()  

@@ -2,8 +2,9 @@ import uuid
 import json
 import logging
 import sys
+import psutil
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import (
@@ -11,6 +12,7 @@ from ..models import (
     CreateAPIExecutionUsageRequest, APIExecutionUsageRequest
 )
 from .database import APIExecutionUsageDB, AsyncSessionLocal
+from .sandbox_service import sandbox_service
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,11 @@ class APIExecutionUsageService:
         self.DEFAULT_DAILY_EXECUTION_LIMIT = 1000  # 1000 API calls per day
         self.DEFAULT_MONTHLY_EXECUTION_LIMIT = 10000  # 10k API calls per month
         self.DEFAULT_DAILY_DATA_LIMIT_BYTES = 100 * 1024 * 1024  # 100MB per day
+        
+        # Resource limits
+        self.DEFAULT_TIMEOUT_SECONDS = 30
+        self.DEFAULT_MEMORY_LIMIT_MB = 512
+        self.DEFAULT_CPU_LIMIT_SECONDS = 30
         
         logger.info("APIExecutionUsageService initialized")
     
@@ -270,6 +277,44 @@ class APIExecutionUsageService:
             logger.error(f"Failed to get execution stats: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to get execution stats: {str(e)}")
     
+    async def execute_api_with_limits(
+        self,
+        code: str,
+        input_data: Dict[str, Any],
+        file_bytes: Optional[bytes] = None,
+        timeout_seconds: Optional[int] = None,
+        memory_limit_mb: Optional[int] = None,
+        cpu_limit: Optional[int] = None
+    ) -> Tuple[Any, float, bool, Optional[str]]:
+        """
+        Execute an API with resource limits and tracking.
+        Returns: (result, execution_time, success, error_message)
+        """
+        start_time = datetime.now()
+        success = False
+        error_message = None
+        result = None
+        
+        try:
+            # Execute in sandbox with limits
+            result = await sandbox_service.execute_api_sandboxed(
+                code=code,
+                input_data=input_data,
+                file_bytes=file_bytes,
+                timeout_seconds=timeout_seconds or self.DEFAULT_TIMEOUT_SECONDS,
+                memory_limit_mb=memory_limit_mb or self.DEFAULT_MEMORY_LIMIT_MB,
+                cpu_limit=cpu_limit or self.DEFAULT_CPU_LIMIT_SECONDS
+            )
+            success = True
+            
+        except Exception as e:
+            error_message = str(e)
+            logger.error(f"API execution failed: {error_message}")
+        
+        execution_time = (datetime.now() - start_time).total_seconds() * 1000  # Convert to milliseconds
+        
+        return result, execution_time, success, error_message
+
     def _calculate_data_size(self, data: Any) -> int:
         """Calculate the size of data in bytes."""
         if data is None:

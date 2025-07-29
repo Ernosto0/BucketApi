@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Text, Integer
+from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Text, Integer, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -172,6 +172,20 @@ class APIExecutionTokenUsageDB(Base):
     cost_cents = Column(Integer, nullable=False)
     execution_successful = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class APIProcessDB(Base):
+    __tablename__ = "api_processes"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=False)
+    api_slug = Column(String, index=True, nullable=False)
+    port = Column(Integer, unique=True, nullable=False)
+    process_id = Column(Integer, nullable=True)  # OS process ID
+    is_running = Column(Boolean, default=True)
+    last_accessed = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    memory_usage = Column(Integer, nullable=True)  # in MB
+    cpu_usage = Column(Float, nullable=True)  # percentage
 
 # Database dependency
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
