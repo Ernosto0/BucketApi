@@ -37,6 +37,8 @@ from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database
 from .services.test_service import test_service
 from .config import settings
+from .services.api_process_service import api_process_service
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -61,6 +63,10 @@ async def startup_event():
     cleaned_count = file_service.cleanup_orphaned_json_files()
     if cleaned_count > 0:
         logger.info(f"Cleaned up {cleaned_count} orphaned JSON metadata files")
+    
+    # Start API process cleanup task
+    asyncio.create_task(api_process_service.start_cleanup_task())
+    logger.info("API process cleanup task started")
 
 
 
@@ -665,7 +671,7 @@ async def generate_api(
         clean_slug = api_slug.replace(f"{request.user_id}_", "")
         
         # Save the code
-        file_service.save_api_code(api_slug, code)
+        await file_service.save_api_code(api_slug, code)
         
         # Generate documentation
         documentation, curl_example = await claude_service.generate_documentation(
@@ -708,12 +714,13 @@ async def generate_api(
                 else:
                     ai_model_used = "claude-3-sonnet"
                     estimated_tokens = 500
+
             # If no AI service detected, it's a simple processing API
             elif not any(keyword in code.lower() for keyword in ["openai", "anthropic", "claude", "gpt"]):
                 ai_model_used = "none"  # No AI service used
                 estimated_tokens = 0
             
-            # Determine complexity based on code analysis
+            # Determine complexity based on code analysis TODO CHANGE THIS
             complexity = 'simple'
             if len(code) > 2000 or "class" in code or "async def" in code:
                 complexity = 'complex'
@@ -1038,7 +1045,7 @@ async def execute_api(
                 user_id=user_id
             )
             
-                        # Check internal token balance
+            # Check internal token balance
             token_balance = await api_pricing_service.get_token_balance(
                 user_id=user_id,  # Use API owner's user ID, not the API key's user ID
                 api_key_id=None
@@ -1082,13 +1089,30 @@ async def execute_api(
             logger.warning(f"Failed to check execution limits: {e}")
             # Continue without limits check if service is unavailable
 
-        # Execute the API
-        result = file_service.load_and_execute_api(
-            user_id=user_id,
-            api_slug=api_slug,
-            file_bytes=file_bytes,
-            input_data=parsed_input_data
-        )
+        # Get or start API process
+        process_id, port = await api_process_service.get_api_process(user_id, api_slug)
+        
+        # Forward request to API process
+        try:
+            response = requests.post(
+                f"http://localhost:{port}/execute",
+                json=parsed_input_data,
+                timeout=30  # 30 second timeout
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            # Update process metrics
+            await api_process_service.update_process_metrics(process_id)
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error forwarding request to API process: {e}")
+            # Stop the failed process
+            await api_process_service.stop_api_process(process_id)
+            raise HTTPException(
+                status_code=500,
+                detail=f"API execution failed: {str(e)}"
+            )
         
         execution_time = time.time() - start_time
         execution_time_ms = int(execution_time * 1000)
@@ -1127,11 +1151,6 @@ async def execute_api(
         
     except HTTPException:
         raise
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail=f"API not found: {user_id}/{api_slug}"
-        )
     except Exception as e:
         execution_time = time.time() - start_time
         execution_time_ms = int(execution_time * 1000)
@@ -1303,14 +1322,25 @@ async def test_api(request: TestRequest):
                     detail=f"Invalid file data: {str(e)}"
                 )
         
-        # Execute the API
+        # Execute the API using process management
         try:
-            result = file_service.load_and_execute_api(
-                user_id=request.user_id,
-                api_slug=request.api_slug,
-                file_bytes=file_bytes,
-                input_data=parsed_input_data,
+            # Get or start API process
+            process_id, port = await api_process_service.get_api_process(request.user_id, request.api_slug)
+            
+            # Forward request to API process
+            response = requests.post(
+                f"http://localhost:{port}/execute",
+                json={
+                    "test_data": parsed_input_data,
+                    "file_data": request.file_data if request.file_data else None
+                },
+                timeout=30  # 30 second timeout
             )
+            response.raise_for_status()
+            result = response.json()
+            
+            # Update process metrics
+            await api_process_service.update_process_metrics(process_id)
             
             execution_time = time.time() - start_time
             
@@ -1322,11 +1352,15 @@ async def test_api(request: TestRequest):
                 response_data = {"result": result}
                 status_code = 200
                 
-        except Exception as api_error:
+        except requests.exceptions.RequestException as api_error:
             execution_time = time.time() - start_time
             print(f"API execution failed with error: {api_error}")
             print(f"Error type: {type(api_error)}")
             logger.error(f"API execution error: {str(api_error)}", exc_info=True)
+            
+            # Stop the failed process
+            if 'process_id' in locals():
+                await api_process_service.stop_api_process(process_id)
             
             # Create error response
             error_response = TestResponse(
@@ -1346,7 +1380,6 @@ async def test_api(request: TestRequest):
             )
             
             # Automatically attempt to fix the code when there's an execution error
-            "TODO CHANGE THIS WITH SPECIFIC DEBUGER FUNCTION"
             logger.info(f"API execution failed, attempting automatic code fix...")
             try:
                 # Load current API code
