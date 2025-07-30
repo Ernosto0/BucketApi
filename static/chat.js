@@ -1266,7 +1266,10 @@ function toggleResponseHeaders() {
 function deployCurrentAPI() {
     // Create API details URL
     const apiDetailsUrl = `/api/${currentApiData.user_id}/${currentApiData.api_slug}/details`;
-    
+
+    // Save the deployed API
+    saveCurrentAPI();
+
     // Get pricing information from the last test (if available)
     const testResults = document.getElementById('testResults');
     const responseHeadersContent = document.getElementById('responseHeadersContent');
