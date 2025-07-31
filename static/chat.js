@@ -1103,12 +1103,14 @@ async function runAPITest(endpointUrl) {
         const executionTimeMs = testResult.execution_time ? Math.round(testResult.execution_time * 1000) : requestTime;
         responseTime.textContent = `${executionTimeMs}ms`;
         
-        // Response body - show the actual API response or error
+        // Response body - show the actual API response or a user-friendly message
         let displayData;
-        if (testResult.success && testResult.response_data) {
+        if (testResult.debugged) {
+            displayData = { message: "The code had an issue but it has been fixed automatically. Please run the test again to verify the fix." };
+        } else if (testResult.success && testResult.response_data) {
             displayData = testResult.response_data;
         } else if (testResult.error) {
-            displayData = { error: testResult.error };
+            displayData = { error: "The test failed. Please check your input data and try again." };
         } else {
             displayData = testResult;
         }
@@ -1127,7 +1129,7 @@ async function runAPITest(endpointUrl) {
         const aiModelUsed = responseHeaders['x-ai-model-used'];
 
         // Update status based on test result
-        if (testResult.success) {
+        if (testResult.success && !testResult.debugged) {
             testStatus.className = 'w-3 h-3 bg-green-500 rounded-full';
             testStatusText.textContent = 'Test successful';
             testStatusText.className = 'text-sm text-green-400';
@@ -1169,6 +1171,10 @@ async function runAPITest(endpointUrl) {
                 `;
                 addMessage('system', pricingMessage);
             }
+        } else if (testResult.debugged) {
+            testStatus.className = 'w-3 h-3 bg-yellow-500 rounded-full';
+            testStatusText.textContent = 'Code was fixed automatically. Please test again.';
+            testStatusText.className = 'text-sm text-yellow-400';
         } else {
             testStatus.className = 'w-3 h-3 bg-red-500 rounded-full';
             testStatusText.textContent = 'Test failed';

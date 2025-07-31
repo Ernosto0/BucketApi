@@ -24,6 +24,7 @@ from .models import (
     EstimateAPIUsageCostRequest, EstimateAPIUsageCostResponse, InternalTokenBalance,
     CreateInternalTokenRequest
 )
+from .services.openai_service import openai_service
 from .services.claude_service import claude_service
 from .services.code_debugger import code_debugger
 from .services.security_service import security_service
@@ -903,14 +904,20 @@ async def modify_api(
         await file_service.save_api_code(full_slug, code)
         
         # Generate documentation
-        documentation, curl_example = await claude_service.generate_documentation(
+
+        if settings.GENERATE_DOCS_SERVICE == "OPENAI_SERVICE":
+            doc_service = openai_service
+        else:
+            doc_service = claude_service
+
+        documentation, curl_example = await doc_service.generate_documentation(
             code=code, 
             prompt=request.prompt,
             user_id=request.user_id,
             api_key_id=api_key_id,
             api_slug=request.api_slug
         )
-        
+        logger.info(f"Documentation generated with {doc_service}")
         # Build endpoint URL
         endpoint_url = f"{settings.API_PREFIX}/{request.user_id}/{request.api_slug}"
         
@@ -1296,7 +1303,7 @@ async def test_api(request: TestRequest):
     logger.info(f"Testing API {request.api_slug} for user {request.user_id}")
     start_time = time.time()
     test_id = str(uuid.uuid4())
-    
+    debugged = False
     try:
         # Check if API exists
         if not file_service.api_exists(request.user_id, request.api_slug):
@@ -1365,7 +1372,8 @@ async def test_api(request: TestRequest):
                 response_headers={},
                 timestamp=datetime.now(),
                 test_type=request.test_type or "manual",
-                validation=None
+                validation=None,
+                debugged=debugged
             )
             
             # Automatically attempt to fix the code when there's an execution error
@@ -1387,7 +1395,7 @@ async def test_api(request: TestRequest):
                 # If code was fixed, save it automatically with backup
                 if debug_result.get("fixed_code"):
                     logger.info(f"Code fixes found for execution error: {debug_result.get('fixes_applied', [])}")
-                    
+                    debugged = True
                     # Create backup of current code
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     backup_slug = f"{request.api_slug}_backup_{timestamp}"
@@ -1484,7 +1492,8 @@ async def test_api(request: TestRequest):
             response_headers=response_headers,
             timestamp=datetime.now(),
             test_type=request.test_type or "manual",
-            validation=None
+            validation=None,
+            debugged=debugged
         )
         
         # Add cost estimation to response headers for display

@@ -12,12 +12,14 @@ class Settings:
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-    print(OPENAI_API_KEY)
+    
     
     # Claude Configuration
     CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
     CLAUDE_MODEL: str = "claude-3-5-haiku-20241022"
     
+    GENERATE_DOCS_SERVICE: str = "OPENAI_SERVICE"
+
     # Application Configuration
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB

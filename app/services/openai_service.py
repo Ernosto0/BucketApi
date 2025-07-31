@@ -42,13 +42,16 @@ class OpenAIService:
         - model="gpt-3.5-turbo" or "gpt-4"
         
         IMPORTANT RULES:
-        1. Always wrap your code in a function called `run(file_bytes=None, input_data=None)`
+        1. Always wrap your code in an ASYNC function called `run(file_bytes=None, input_data=None)`
         2. The function should accept either file_bytes (bytes) or input_data (dict)
         3. Always return a JSON-serializable result
-        4. You CAN use HTTP libraries: requests, urllib, httpx, openai
+        4. CRITICAL: All external API calls MUST be async:
+           - Use asyncio.to_thread() for synchronous operations
+           - Use aiohttp or httpx for HTTP requests
+           - Wrap OpenAI calls in asyncio.to_thread()
         5. You CAN make API calls to external AI services
         6. Never use dangerous modules like os, subprocess, eval, exec for system operations
-        7. Use safe libraries: json, re, datetime, math, base64, hashlib, requests, openai
+        7. Use safe libraries: json, re, datetime, math, base64, hashlib, aiohttp/httpx, openai
         8. Include proper error handling with try-catch blocks
         9. Add docstrings and comments for clarity
         10. If working with files, assume file_bytes contains the file content
@@ -59,6 +62,19 @@ class OpenAIService:
         15. Always include confidence scores and detailed AI analysis in results
         16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
         17. For file processing, always handle bytes properly - use io.BytesIO for binary data
+        
+        EXAMPLE OF PROPER ASYNC OPENAI CALL:
+        ```python
+        # Make AI API call
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Your system message"},
+                {"role": "user", "content": "Your user message"}
+            ]
+        )
+        ```
         
         
         # Use MODERN OpenAI client (v1.0+)
@@ -171,24 +187,51 @@ class OpenAIService:
                     logger.error(f"Failed to record usage: {usage_error}")
     
     async def generate_documentation(self, code: str, prompt: str, user_id: Optional[str] = None,
-                                    api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Tuple[str, str]:
-        """Generate documentation and curl example for the generated API."""
+                                    api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Tuple[str, dict, str]:
+        """Generate comprehensive API documentation including OpenAPI spec.
         
-        system_prompt = """You are a technical documentation expert. 
-        Generate clear, concise documentation for API endpoints and provide practical curl examples.
+        Returns:
+            Tuple containing:
+            - Markdown documentation (str)
+            - OpenAPI specification (dict)
+            - Curl example (str)
+        """
+        
+        system_prompt = """You are an expert API documentation generator specializing in OpenAPI/Swagger specifications.
+        Generate comprehensive, precise, and developer-friendly API documentation that follows OpenAPI 3.0 standards.
+        Include all necessary details for proper API integration and usage.
         """
         
         user_prompt = f"""
-        Based on this API code and original request, generate:
-        1. Clear documentation (markdown format)
-        2. A practical curl example
+        Based on this API code and original request, generate comprehensive API documentation including:
+
+        1. OpenAPI 3.0 Specification (in YAML format) with:
+           - Complete endpoint details (path, method, operationId)
+           - Request/response schemas
+           - All parameters (query, path, body)
+           - Authentication requirements
+           - Examples for requests/responses
+           - Error responses
+           - Tags and grouping
+           - Rate limiting info
+        
+        2. Markdown Documentation:
+           - Overview and purpose
+           - Authentication guide
+           - Detailed endpoint documentation
+           - Request/response examples
+           - Error handling guide
+           - Rate limiting details
+        
+        3. Practical Examples:
+           - Curl example
+           - Python client example
+           - Request/response examples in JSON
         
         Original Request: {prompt}
         
         Generated Code:
         {code}
-        
-     
         """
         
         # Track usage
@@ -290,16 +333,48 @@ class OpenAIService:
         
         return response.strip()
     
-    def _parse_documentation_response(self, response: str) -> Tuple[str, str]:
-        """Parse documentation and curl example from OpenAI response."""
-        parts = response.split("## Curl Example")
-        if len(parts) == 2:
-            documentation = parts[0].replace("## Documentation", "").strip()
-            curl_example = parts[1].strip()
-            return documentation, curl_example
-        else:
-            # Fallback if parsing fails
-            return response, "curl -X POST 'your-endpoint-url' -H 'Content-Type: application/json' -d '{}'"
-
+    def _parse_documentation_response(self, response: str) -> Tuple[str, dict, str]:
+        """Parse documentation, OpenAPI spec, and examples from OpenAI response.
+        
+        Returns:
+            Tuple containing:
+            - Markdown documentation (str)
+            - OpenAPI specification (dict)
+            - Curl example (str)
+        """
+        import yaml
+        
+        # Split response into sections using markdown headers
+        sections = {}
+        current_section = []
+        current_header = None
+        
+        for line in response.split('\n'):
+            if line.startswith('## '):
+                if current_header:
+                    sections[current_header] = '\n'.join(current_section).strip()
+                current_header = line[3:].strip()
+                current_section = []
+            else:
+                current_section.append(line)
+                
+        if current_header:
+            sections[current_header] = '\n'.join(current_section).strip()
+            
+        # Extract OpenAPI spec
+        openapi_spec = {}
+        if 'OpenAPI Specification' in sections:
+            try:
+                openapi_yaml = sections['OpenAPI Specification']
+                openapi_spec = yaml.safe_load(openapi_yaml)
+            except Exception as e:
+                logger.error(f"Failed to parse OpenAPI spec: {e}")
+                openapi_spec = {"error": "Failed to parse OpenAPI specification"}
+        
+        # Extract documentation and examples
+        documentation = sections.get('Documentation', '').strip()
+        curl_example = sections.get('Curl Example', '').strip()
+        
+        return documentation, openapi_spec, curl_example
 # Global instance
 openai_service = OpenAIService() 
