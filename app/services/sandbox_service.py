@@ -252,8 +252,8 @@ class SandboxService:
                     if code_end != -1:
                         code = code[code_start:code_end].strip()
 
-        # Create a run() function wrapper
-        wrapper = '''def run(file_bytes=None, input_data=None):
+        # Create an async run() function wrapper
+        wrapper = '''async def run(file_bytes=None, input_data=None):
     """Execute the API logic."""
     try:
         # Execute the API code

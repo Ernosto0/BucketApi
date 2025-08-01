@@ -75,13 +75,28 @@ class FileService:
             # Ensure directory exists
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             
+            # Validate code syntax before saving
+            try:
+                import ast
+                ast.parse(code)
+            except SyntaxError as e:
+                logger.error(f"Syntax error in generated code: {e}")
+                raise Exception(f"Generated code has syntax errors: {str(e)}")
+            
             # Save the code directly (FastAPI wrapper is now handled by sandbox)
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(code)
             
-            # Verify the file was created
+            # Verify the file was created and content is complete
             if not os.path.exists(file_path):
                 raise Exception(f"Failed to create API file at {file_path}")
+            
+            # Verify saved content
+            with open(file_path, 'r', encoding='utf-8') as f:
+                saved_content = f.read()
+                if len(saved_content) != len(code):
+                    raise Exception(f"File content length mismatch: expected {len(code)}, got {len(saved_content)}")
+            
             logger.info(f"API code saved to {file_path}")
             return file_path
         except Exception as e:

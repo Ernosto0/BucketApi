@@ -545,19 +545,43 @@ Please analyze all the information above and provide a fixed version of the code
                     logger.error(f"Failed to record usage: {usage_error}")
 
     def _extract_code_from_response(self, response: str) -> str:
-        """Extract Python code from AI response."""
+        """Extract Python code from AI response and validate it."""
+        code = ""
+        
+        # Extract code from markdown blocks
         if "```python" in response:
             start = response.find("```python") + 9
             end = response.find("```", start)
             if end != -1:
-                return response[start:end].strip()
+                code = response[start:end].strip()
         elif "```" in response:
             start = response.find("```") + 3
             end = response.find("```", start)
             if end != -1:
-                return response[start:end].strip()
+                code = response[start:end].strip()
+        else:
+            code = response.strip()
         
-        return response.strip()
+        # Validate code syntax
+        try:
+            import ast
+            ast.parse(code)
+        except SyntaxError as e:
+            logger.error(f"Syntax error in extracted code: {e}")
+            # Try to fix common issues
+            if code.endswith('```'):
+                code = code[:-3].strip()
+            try:
+                ast.parse(code)
+            except SyntaxError as e2:
+                logger.error(f"Failed to fix syntax error: {e2}")
+                raise Exception(f"Generated code has syntax errors: {str(e2)}")
+        
+        # Ensure code is not empty and has proper structure
+        if not code or 'def run(' not in code:
+            raise Exception("Invalid code: missing run() function")
+        
+        return code
     
     def _determine_fixes_applied(self, original_code: str, fixed_code: str, issues: List[str]) -> List[str]:
         """Determine what fixes were actually applied."""

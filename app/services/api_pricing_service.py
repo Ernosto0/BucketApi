@@ -38,6 +38,7 @@ class APIPricingService:
             'claude-3-haiku': 0.25,     # $0.0025 per 1k tokens
             'claude-3-sonnet': 3.0,     # $0.03 per 1k tokens (fixed from 30.0)
             'claude-3-opus': 15.0,      # $0.15 per 1k tokens (fixed from 150.0)
+            'claude-4': 30.0,           # $0.30 per 1k tokens
             'none': 0.0,                # No AI service used - free processing
         }
         

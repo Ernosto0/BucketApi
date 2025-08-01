@@ -42,9 +42,10 @@ class ClaudeService:
         - model="gpt-3.5-turbo" or "gpt-4"
         
         MANDATORY REQUIREMENTS:
-        1. ALWAYS wrap your code in a function called `run(file_bytes=None, input_data=None)`
+        1. ALWAYS wrap your code in an async function called `async def run(file_bytes=None, input_data=None)`
         2. The function MUST accept either file_bytes (bytes) or input_data (dict)
         3. ALWAYS return a JSON-serializable result
+        4. The run function MUST be async (use async/await)
         4. You CAN use HTTP libraries: requests, urllib, httpx, openai
         5. You CAN make API calls to external AI services
         6. Never use dangerous modules like os, subprocess, eval, exec for system operations
