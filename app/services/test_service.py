@@ -3,6 +3,7 @@ import uuid
 import json
 import asyncio
 import logging
+import os
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from ..models import TestRequest, TestResponse, TestHistoryEntry, TestHistoryResponse, PerformanceTestRequest, PerformanceTestResponse
@@ -12,6 +13,19 @@ import base64
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
+
+def load_test_validator_prompt() -> Dict[str, str]:
+    """Load the test validator prompts from JSON file."""
+    try:
+        prompt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
+                                 'prompts', 'openai', 'test_validator.json')
+        with open(prompt_path, 'r') as f:
+            prompts = json.load(f)
+        return prompts
+    except Exception as e:
+        logger.error(f"Failed to load test validator prompts: {str(e)}")
+        raise HTTPException(status_code=500, 
+                          detail="Failed to load validation prompts")
 
 class TestService:
     """Service for handling API testing functionality."""
@@ -448,78 +462,20 @@ class TestService:
         try:
             logger.info(f"Validating test result for API {test_request.api_slug}")
             
-            # Prepare validation prompt
-            system_prompt = """You are a strict API testing specialist. Your job is to rigorously analyze API responses for correctness, quality, and logical consistency.
-
-            CRITICAL VALIDATION CRITERIA:
-            1. LOGICAL CONSISTENCY: Does the output logically and correctly follow from the input?
-            2. DATA QUALITY: Are the response values clean, properly formatted, and free of duplicates/errors?
-            3. STRUCTURE INTEGRITY: Is the response well-structured without malformed or mixed data types?
-            4. COMPLETENESS: Does the response properly address the request without missing or extraneous data?
-            5. FORMAT VALIDITY: Are data types, arrays, and objects properly structured?
-            6. SEMANTIC CORRECTNESS: Do the extracted/processed values make semantic sense?
-
-            BE STRICT about these quality issues:
-            - Duplicate entries or redundant data
-            - Metadata mixed with actual results (e.g., confidence scores listed as names)
-            - Malformed data structures or inconsistent formatting
-            - Non-sensical values or obvious parsing errors
-            - Missing expected fields or extra inappropriate fields
-            - Poor data organization that makes the response hard to use
-
-
-            IMPORTANT: Mark responses as INVALID if they contain structural issues, data quality problems, or logical inconsistencies, even if they technically "work".
-
-            Return your analysis as JSON:
-            {
-                "is_valid": true/false,
-                "confidence": 0.0-1.0,
-                "validation_message": "Clear explanation focusing on quality and correctness",
-                "issues_found": ["specific issue1", "specific issue2"],
-                "suggestions": ["improvement1", "improvement2"],
-                "reasoning": "Detailed reasoning about data quality and logical consistency"
-            }"""
+            # Load validation prompts
+            prompts = load_test_validator_prompt()
+            system_prompt = prompts["system_prompt"]
             
-            # Create detailed context for validation
-            validation_context = {
-                "test_request": {
-                    "api_slug": test_request.api_slug,
-                    "test_data": test_request.test_data,
-                    "test_type": test_request.test_type,
-                    "has_file_data": bool(test_request.file_data)
-                },
-                "test_response": {
-                    "success": test_response.success,
-                    "status_code": test_response.status_code,
-                    "execution_time": test_response.execution_time,
-                    "response_data": test_response.response_data,
-                    "error": test_response.error,
-                    "response_headers": test_response.response_headers
-                }
-            }
-            
-            user_prompt = f"""Please validate if this API test result makes logical sense:
-
-INPUT DATA: {json.dumps(test_request.test_data, indent=2, default=str) if test_request.test_data else "No input data"}
-
-OUTPUT RESULT: {json.dumps(test_response.response_data, indent=2, default=str) if test_response.response_data else "No output data"}
-
-API CONTEXT:
-- API Slug: {test_request.api_slug}
-- Test Type: {test_request.test_type}
-- Has File Input: {bool(test_request.file_data)}
-- Execution Time: {test_response.execution_time}s
-- Status Code: {test_response.status_code}
-
-VALIDATION TASK:
-Analyze if the OUTPUT logically corresponds to the INPUT. Check if:
-1. The response addresses what was requested in the input
-2. The output data makes sense given the input data
-3. There are no obvious errors, inconsistencies, or missing expected data
-4. The response format is appropriate and complete
-5. The API appears to be functioning correctly based on this input-output pair
-
-Focus primarily on the logical relationship between input and output. Return your analysis as JSON."""
+            # Format the user prompt template with actual values
+            user_prompt = prompts["user_prompt_template"].format(
+                input_data=json.dumps(test_request.test_data, indent=2, default=str) if test_request.test_data else "No input data",
+                output_data=json.dumps(test_response.response_data, indent=2, default=str) if test_response.response_data else "No output data",
+                api_slug=test_request.api_slug,
+                test_type=test_request.test_type,
+                has_file_input=bool(test_request.file_data),
+                execution_time=test_response.execution_time,
+                status_code=test_response.status_code
+            )
 
             # Make request to OpenAI
             response = await openai_service._make_openai_request(system_prompt, user_prompt)
