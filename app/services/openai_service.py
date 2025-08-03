@@ -1,7 +1,10 @@
 from openai import OpenAI
-from typing import Tuple, Optional
+from typing import Dict, Tuple, Optional
 import logging
 import time
+import os
+import json
+from fastapi import HTTPException
 from ..config import settings
 from .usage_service import usage_service
 
@@ -11,6 +14,19 @@ class OpenAIService:
     def __init__(self):
         if not settings.OPENAI_API_KEY:
             raise ValueError("OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.")
+            
+    def _load_documentation_prompt(self) -> Dict[str, str]:
+        """Load the documentation generator prompts from JSON file."""
+        try:
+            prompt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
+                                    'prompts', 'openai', 'documentation_generator.json')
+            with open(prompt_path, 'r') as f:
+                prompts = json.load(f)
+            return prompts
+        except Exception as e:
+            logger.error(f"Failed to load documentation prompts: {str(e)}")
+            raise HTTPException(status_code=500, 
+                            detail="Failed to load documentation prompts")
         
         logger.info("Initializing OpenAI client...")
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -197,42 +213,15 @@ class OpenAIService:
             - Curl example (str)
         """
         
-        system_prompt = """You are an expert API documentation generator specializing in OpenAPI/Swagger specifications.
-        Generate comprehensive, precise, and developer-friendly API documentation that follows OpenAPI 3.0 standards.
-        Include all necessary details for proper API integration and usage.
-        """
+        # Load prompts from file
+        prompts = self._load_documentation_prompt()
+        system_prompt = prompts["system_prompt"]
         
-        user_prompt = f"""
-        Based on this API code and original request, generate comprehensive API documentation including:
-
-        1. OpenAPI 3.0 Specification (in YAML format) with:
-           - Complete endpoint details (path, method, operationId)
-           - Request/response schemas
-           - All parameters (query, path, body)
-           - Authentication requirements
-           - Examples for requests/responses
-           - Error responses
-           - Tags and grouping
-           - Rate limiting info
-        
-        2. Markdown Documentation:
-           - Overview and purpose
-           - Authentication guide
-           - Detailed endpoint documentation
-           - Request/response examples
-           - Error handling guide
-           - Rate limiting details
-        
-        3. Practical Examples:
-           - Curl example
-           - Python client example
-           - Request/response examples in JSON
-        
-        Original Request: {prompt}
-        
-        Generated Code:
-        {code}
-        """
+        # Format the user prompt template with actual values
+        user_prompt = prompts["user_prompt_template"].format(
+            prompt=prompt,
+            code=code
+        )
         
         # Track usage
         start_time = time.time()
