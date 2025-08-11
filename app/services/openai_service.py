@@ -1,5 +1,5 @@
 from openai import OpenAI
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Any
 import logging
 import time
 import os
@@ -14,6 +14,10 @@ class OpenAIService:
     def __init__(self):
         if not settings.OPENAI_API_KEY:
             raise ValueError("OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.")
+        
+        logger.info("Initializing OpenAI client...")
+        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        logger.info("OpenAI client initialized successfully")
             
     def _load_documentation_prompt(self) -> Dict[str, str]:
         """Load the documentation generator prompts from JSON file."""
@@ -27,10 +31,6 @@ class OpenAIService:
             logger.error(f"Failed to load documentation prompts: {str(e)}")
             raise HTTPException(status_code=500, 
                             detail="Failed to load documentation prompts")
-        
-        logger.info("Initializing OpenAI client...")
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        logger.info("OpenAI client initialized successfully")
     
     async def generate_api_code(self, prompt: str, sample_input: Optional[str] = None, 
                                expected_output: Optional[str] = None, user_id: Optional[str] = None,
@@ -231,12 +231,12 @@ class OpenAIService:
         
         try:
             response = await self._make_openai_request(system_prompt, user_prompt)
-            doc, curl = self._parse_documentation_response(response)
+            doc, openapi_spec, curl = self._parse_documentation_response(response)
             
             success = True
-            response_length = len(doc) + len(curl)
+            response_length = len(doc) + len(str(openapi_spec)) + len(curl)
             
-            return doc, curl
+            return doc, openapi_spec, curl
         except Exception as e:
             error_message = str(e)
             raise Exception(f"Failed to generate documentation: {str(e)}")
@@ -273,22 +273,27 @@ class OpenAIService:
                 except Exception as usage_error:
                     logger.error(f"Failed to record usage: {usage_error}")
     
-    async def _make_openai_request(self, system_prompt: str, user_prompt: str) -> str:
-        """Make a request to OpenAI API."""
+    async def make_openai_request(self, system_prompt: str, user_prompt: str, prompt_config: Dict[str, Any] = None) -> str:
+        """Make a request to OpenAI API with configurable parameters."""
         import asyncio
+        
+        # Use provided config or load documentation config as fallback
+        if prompt_config is None:
+            prompt_config = self._load_documentation_prompt()
         
         # Run the synchronous OpenAI call in a thread pool
         def make_request():
             try:
-                logger.info(f"Making OpenAI request with model: {settings.OPENAI_MODEL}")
+                model = prompt_config.get("model", settings.OPENAI_MODEL)
+                logger.info(f"Making OpenAI request with model: {model}")
                 response = self.client.chat.completions.create(
-                    model=settings.OPENAI_MODEL,
+                    model=model,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    temperature=0.3,
-                    max_tokens=2000
+                    temperature=prompt_config.get("temperature", 0.3),
+                    max_tokens=prompt_config.get("max_tokens", 2000)
                 )
                 
                 content = response.choices[0].message.content
@@ -303,8 +308,13 @@ class OpenAIService:
                 logger.error(f"Error in OpenAI request: {str(e)}")
                 raise e
         
+        # Execute the request in thread pool
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, make_request)
+
+    async def _make_openai_request(self, system_prompt: str, user_prompt: str) -> str:
+        """Make a request to OpenAI API for documentation generation (legacy method)."""
+        return await self.make_openai_request(system_prompt, user_prompt, self._load_documentation_prompt())
     
     def _extract_code_from_response(self, response: str) -> str:
         """Extract Python code from OpenAI response."""

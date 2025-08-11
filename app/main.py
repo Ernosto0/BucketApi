@@ -910,7 +910,7 @@ async def modify_api(
         else:
             doc_service = claude_service
 
-        documentation, curl_example = await doc_service.generate_documentation(
+        documentation, openapi_spec, curl_example = await doc_service.generate_documentation(
             code=code, 
             prompt=request.prompt,
             user_id=request.user_id,

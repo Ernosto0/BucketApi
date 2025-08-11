@@ -477,8 +477,8 @@ class TestService:
                 status_code=test_response.status_code
             )
 
-            # Make request to OpenAI
-            response = await openai_service._make_openai_request(system_prompt, user_prompt)
+            # Make request to OpenAI with test validator configuration
+            response = await openai_service.make_openai_request(system_prompt, user_prompt, prompts)
             # Log the raw response for debugging
             logger.info(f"Raw OpenAI response for validation: {response[:500]}...")
             

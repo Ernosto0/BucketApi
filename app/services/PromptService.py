@@ -2,10 +2,25 @@ from openai import OpenAI
 from typing import List, Dict, Any
 import logging
 import json
+import os
 from ..config import settings
 from ..models import ChatMessage
 
 logger = logging.getLogger(__name__)
+
+def load_prompt(prompt_name: str) -> Dict[str, Any]:
+    """Load a prompt configuration from JSON file"""
+    try:
+        # Get the directory of this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # Go up one level to app directory, then into prompts/openai
+        prompt_path = os.path.join(current_dir, "..", "prompts", "openai", f"{prompt_name}.json")
+        
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading prompt {prompt_name}: {str(e)}")
+        raise
 
 class PromptServiceBuild:
     def __init__(self):
@@ -28,55 +43,20 @@ class PromptServiceBuild:
         try:
             logger.info(f"Analyzing prompt for user {user_id}: {prompt[:100]}...")
             
-            system_prompt = """You are an AI assistant that analyzes user requests for API generation. 
-            Your job is to determine if a user's request is:
-            1. BUILDABLE - Clear, specific, and technically feasible as an API
-            2. NEEDS_CLARIFICATION - Then request is too vague or unclear
-            3. NOT_BUILDABLE - Vague, nonsensical, impossible, or inappropriate
-            4. MODIFY_REQUEST - The user wants to modify an existing API (contains words like "modify", "change", "update", "edit", "improve", "add to", "remove from")
-            
-            Respond with ONLY a JSON object in this exact format:
-            {
-                "decision": "BUILDABLE" | "NEEDS_CLARIFICATION" | "NOT_BUILDABLE" | "MODIFY_REQUEST",
-                "confidence": 0.0-1.0,
-                "reasoning": "Brief explanation of your decision",
-                "questions": ["list of questions if clarification needed"] or null
-            }
-            
-            Examples of BUILDABLE requests:
-            - "Create an API that analyzes text sentiment"
-            - "Build an API that converts images to text using OCR"
-            - "Make an API that summarizes long documents"
-            
-            Examples of NEEDS_CLARIFICATION:
-            - "Create an API for my business" (too vague)
-            - "Build something with AI" (no specific functionality)
-            - "Make an API that processes data" (what kind of data?)
-            
-            Examples of MODIFY_REQUEST:
-            - "Modify my last API to also return confidence scores"
-            - "Change the API to handle PDF files"
-            - "Update the sentiment API to support multiple languages"
-            - "Add error handling to my API"
-            - "Improve the response format"
-            
-            Examples of NOT_BUILDABLE:
-            - "Create an API that hacks systems"
-            - "Build an API that predicts lottery numbers"
-            - "Make an API that violates privacy laws"
-            - Complete nonsense or gibberish
-            """
+            # Load prompt configuration from JSON file
+            prompt_config = load_prompt("analyze_user_prompt")
+            system_prompt = prompt_config["system_prompt"]
             
             user_prompt = f"Analyze this API request: {prompt}"
             
             response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=prompt_config.get("model", settings.OPENAI_MODEL),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.1,
-                max_tokens=500
+                temperature=prompt_config.get("temperature", 0.1),
+                max_tokens=prompt_config.get("max_tokens", 500)
             )
             
             analysis_result = response.choices[0].message.content.strip()
@@ -137,46 +117,20 @@ class PromptServiceBuild:
         try:
             logger.info(f"Creating detailed API proposal for user {user_id}: {prompt[:100]}...")
             
-            system_prompt = """You are an AI assistant that creates detailed API proposals. 
-            When given a user's API request, create a comprehensive explanation of what the API will do.
-            
-            Respond with ONLY a JSON object in this exact format:
-            {
-                "api_name": "suggested name for the API",
-                "description": "clear description of what the API does",
-                "functionality": ["list of main features the API will provide"],
-                "input_format": {
-                    "type": "description of input type (JSON, form data, etc.)",
-                    "fields": ["list of expected input fields"],
-                    "example": "example input data"
-                },
-                "output_format": {
-                    "type": "description of output type",
-                    "fields": ["list of output fields"],
-                    "example": "example response data"
-                },
-                                 "endpoints": [
-                     {
-                         "method": "GET/POST/PUT/DELETE",
-                         "path": "/api/endpoint-path",
-                         "description": "what this endpoint does"
-                     }
-                 ]
-            }
-            
-            Be specific and technical but also user-friendly. Make sure the proposal is comprehensive enough for the user to understand exactly what they'll get.
-            """
+            # Load prompt configuration from JSON file
+            prompt_config = load_prompt("api_proposal")
+            system_prompt = prompt_config["system_prompt"]
             
             user_prompt = f"Create a detailed API proposal for this request: {prompt}"
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",  # Using GPT-3.5 as requested
+                model=prompt_config.get("model", "gpt-3.5-turbo"),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.3,
-                max_tokens=1000
+                temperature=prompt_config.get("temperature", 0.3),
+                max_tokens=prompt_config.get("max_tokens", 1000)
             )
             
             proposal_result = response.choices[0].message.content.strip()
@@ -302,50 +256,22 @@ class PromptServiceModify:
         try:
             logger.info(f"Analyzing modify prompt for user {user_id}: {prompt[:100]}...")
             
-            system_prompt = """You are an AI assistant that analyzes user requests for API modifications. 
-            Your job is to determine what type of modification the user wants:
-            
-            1. ADD_FEATURE - Adding new functionality to existing API
-            2. MODIFY_RESPONSE - Changing response format or structure
-            3. ADD_VALIDATION - Adding input validation or error handling
-            4. CHANGE_LOGIC - Modifying core business logic
-            5. ADD_ENDPOINT - Adding new endpoints to the API
-            6. OPTIMIZE_CODE - Performance improvements or code optimization
-            7. FIX_ISSUE - Bug fixes or error corrections
-            8. UNCLEAR_REQUEST - Modification request is too vague
-            
-            Respond with ONLY a JSON object in this exact format:
-            {
-                "modification_type": "ADD_FEATURE" | "MODIFY_RESPONSE" | "ADD_VALIDATION" | "CHANGE_LOGIC" | "ADD_ENDPOINT" | "OPTIMIZE_CODE" | "FIX_ISSUE" | "UNCLEAR_REQUEST",
-                "confidence": 0.0-1.0,
-                "reasoning": "Brief explanation of what needs to be modified",
-                "specific_changes": ["list of specific changes to make"],
-                "questions": ["list of clarification questions if needed"] or null,
-                "complexity": "LOW" | "MEDIUM" | "HIGH"
-            }
-            
-            Examples:
-            - "Add error handling" -> ADD_VALIDATION
-            - "Change response to include timestamps" -> MODIFY_RESPONSE  
-            - "Add a new endpoint for user profiles" -> ADD_ENDPOINT
-            - "Make the API faster" -> OPTIMIZE_CODE
-            - "Fix the bug where it crashes on empty input" -> FIX_ISSUE
-            - "Add sentiment analysis feature" -> ADD_FEATURE
-            - "Change the sorting algorithm" -> CHANGE_LOGIC
-            """
+            # Load prompt configuration from JSON file
+            prompt_config = load_prompt("analyze_modify_prompt")
+            system_prompt = prompt_config["system_prompt"]
             
             user_prompt = f"Analyze this API modification request: {prompt}"
             if existing_api_code:
                 user_prompt += f"\n\nExisting API code:\n{existing_api_code[:1000]}..."
             
             response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=prompt_config.get("model", settings.OPENAI_MODEL),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.1,
-                max_tokens=500
+                temperature=prompt_config.get("temperature", 0.1),
+                max_tokens=prompt_config.get("max_tokens", 500)
             )
             
             analysis_result = response.choices[0].message.content.strip()
@@ -437,16 +363,9 @@ class PromptServiceModify:
     async def ValidateModificationRequest(self, user_id: str, prompt: str, api_context: Dict[str, Any]) -> str:
         """Validate if the modification request is feasible with the given API"""
         try:
-            system_prompt = """You are validating if a modification request is feasible for a given API.
-            
-            Respond with ONLY a JSON object:
-            {
-                "feasible": true | false,
-                "reasoning": "explanation of feasibility",
-                "potential_issues": ["list of potential problems"] or null,
-                "recommendations": ["list of recommendations"] or null
-            }
-            """
+            # Load prompt configuration from JSON file
+            prompt_config = load_prompt("validate_modification")
+            system_prompt = prompt_config["system_prompt"]
             
             user_prompt = f"""
             Modification request: {prompt}
@@ -456,13 +375,13 @@ class PromptServiceModify:
             """
             
             response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model=prompt_config.get("model", settings.OPENAI_MODEL),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.1,
-                max_tokens=300
+                temperature=prompt_config.get("temperature", 0.1),
+                max_tokens=prompt_config.get("max_tokens", 300)
             )
             
             return response.choices[0].message.content.strip()

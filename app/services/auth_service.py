@@ -20,7 +20,7 @@ class AuthService:
         # JWT settings
         self.secret_key = settings.SECRET_KEY if hasattr(settings, 'SECRET_KEY') else "your-secret-key-change-this"
         self.algorithm = "HS256"
-        self.access_token_expire_minutes = 30
+        self.access_token_expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a plaintext password against its hash."""

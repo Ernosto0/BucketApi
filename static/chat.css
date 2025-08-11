@@ -392,4 +392,11 @@
         flex-direction: column;
         gap: 0.5rem;
     }
+}
+
+/* Chat area expansion when input is hidden */
+.chat-input-hidden .chat-messages-container {
+    height: calc(100vh - 2rem) !important;
+    max-height: calc(100vh - 2rem) !important;
+    padding-bottom: 3rem;
 } 

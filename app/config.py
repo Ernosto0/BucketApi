@@ -16,7 +16,7 @@ class Settings:
     
     # Claude Configuration
     CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
-    CLAUDE_MODEL: str = "claude-opus-4-20250514"
+    CLAUDE_MODEL: str = "claude-3-5-sonnet-20240620"
     
     GENERATE_DOCS_SERVICE: str = "OPENAI_SERVICE"
 
@@ -26,7 +26,7 @@ class Settings:
     
     # Authentication Configuration
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production-please-make-it-very-long-and-random")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 4320  # 3 days
     
     # Security Configuration
     SECURITY_SERVICE_ENABLED: bool = os.getenv("SECURITY_SERVICE_ENABLED", "true").lower() == "true"

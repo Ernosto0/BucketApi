@@ -1,6 +1,7 @@
 let currentConversation = [];
 let isGenerating = false;
 let currentApiData = null;
+let isModificationMode = false;
 
 // Chat functionality
 function handleKeyDown(event) {
@@ -40,6 +41,37 @@ function showActionButtons() {
 function hideActionButtons() {
     const actionArea = document.getElementById('actionButtonsArea');
     actionArea.classList.add('hidden');
+}
+
+function hideChatInput() {
+    const chatInputContainer = document.getElementById('chatInputContainer');
+    const chatContainer = document.getElementById('chatContainer');
+    
+    if (chatInputContainer) {
+        chatInputContainer.style.display = 'none';
+        
+        // Add CSS class to expand chat area
+        if (chatContainer) {
+            chatContainer.classList.add('chat-input-hidden');
+        }
+        
+        // Add a message to indicate why chat input is hidden
+        addMessage('system', '💡 Chat input hidden - Your API is being generated! You can test and deploy it once it\'s ready.');
+    }
+}
+
+function showChatInput() {
+    const chatInputContainer = document.getElementById('chatInputContainer');
+    const chatContainer = document.getElementById('chatContainer');
+    
+    if (chatInputContainer) {
+        chatInputContainer.style.display = 'block';
+        
+        // Remove CSS class to restore normal chat area
+        if (chatContainer) {
+            chatContainer.classList.remove('chat-input-hidden');
+        }
+    }
 }
 
 function handleChatScroll() {
@@ -90,7 +122,8 @@ function clearChat() {
     `;
     currentConversation = [];
     currentApiData = null;
-    hideActionButtons();
+    isModificationMode = false; // Reset modification mode
+    showChatInput(); // Show chat input when clearing chat for new conversation
 }
 
 async function sendMessage() {
@@ -105,6 +138,22 @@ async function sendMessage() {
     // Clear input
     input.value = '';
     handleInputChange();
+
+    // Check if we're in modification mode
+    if (isModificationMode) {
+        // Reset modification mode flag
+        isModificationMode = false;
+        
+        // Reset placeholder
+        input.placeholder = "Describe your API requirements... (e.g., 'Create an API that extracts text from PDF files')";
+        
+        // Get user ID (from auth or generate temp one)
+        const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
+        
+        // Process the modification request directly
+        await processModificationRequest(message, userId);
+        return;
+    }
 
     // Show typing indicator
     showTypingIndicator("Analyzing your request...");
@@ -189,8 +238,7 @@ async function generateAPI(message, userId, skipAnalysis = true) {
         if (result.success) {
             currentApiData = result;
             addAPIResultMessage(result);
-            showActionButtons();
-            addMessage('system', '🎉 API generated successfully! Use the action buttons below to save, test, or modify your API.');
+            addMessage('system', '🎉 API generated successfully! You can now test and deploy your API using the interface above.');
         } else {
             // Handle different types of unsuccessful responses
             if (result.status === 'needs_clarification') {
@@ -561,12 +609,12 @@ async function confirmBuildAPI(originalPrompt, userId) {
         // Add user confirmation message
         addMessage('user', '🚀 Yes, build this API!');
         
+        // Hide the chat input container since user won't need to send more messages
+        hideChatInput();
+        
         // Show building message
-        
-        
         showTypingIndicator("Building your API...");
         
-
         hideProposalMessage();
         // Generate the API with skip_analysis = true since we already analyzed
         await generateAPI(originalPrompt, userId, true);
@@ -579,6 +627,9 @@ async function confirmBuildAPI(originalPrompt, userId) {
 
 function requestModifications(originalPrompt, userId) {
     addMessage('user', '✏️ I want to modify the proposal');
+    
+    // Show chat input back since user needs to type their modifications
+    showChatInput();
     
     const content = `
         <div class="space-y-4">
@@ -608,6 +659,9 @@ function requestModifications(originalPrompt, userId) {
 
 function cancelAPIBuild() {
     addMessage('user', '❌ Cancel - Don\'t build this API');
+    
+    // Show chat input back since user cancelled and might want to start over
+    showChatInput();
     
     const content = `
         <div class="space-y-4">
@@ -804,22 +858,30 @@ function addAPIResultMessage(result) {
                     <div class="flex items-center justify-between">
                         <div>
                             <h5 class="font-medium text-white mb-1">Ready to Deploy?</h5>
-                            <p class="text-sm text-slate-400">Your API is working! Deploy it to make it publicly available.</p>
+                            <p class="text-sm text-slate-400">Your API is working! Deploy it to make it publicly available or modify it further.</p>
                         </div>
-                        <button onclick="deployCurrentAPI()" 
-                                class="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
-                            </svg>
-                            <span>Deploy API</span>
-                            
-                        </button>
+                        <div class="flex items-center space-x-3">
+                            <button onclick="modifyCurrentAPI()" 
+                                    class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                                <span>Modify API</span>
+                            </button>
+                            <button onclick="deployCurrentAPI()" 
+                                    class="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                                </svg>
+                                <span>Deploy API</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Documentation Card (Initially Hidden) -->
-            <div id="documentationSection" class="hidden glass-card rounded-xl p-6">
+            <!-- Documentation Card -->
+            <div id="documentationSection" class="glass-card rounded-xl p-6">
                 <h4 class="font-semibold text-white mb-4 flex items-center space-x-2">
                     <span class="text-blue-400">📚</span>
                     <span>Documentation</span>
@@ -1460,19 +1522,51 @@ async function modifyCurrentAPI() {
         return;
     }
 
-    // Ask user for modification prompt
-    const modificationPrompt = prompt('What would you like to modify in this API?');
-    if (!modificationPrompt) {
-        return;
+    // Set modification mode flag
+    isModificationMode = true;
+    
+    // Show chat input for modification request
+    showChatInput();
+    
+    // Add a message explaining how to modify
+    const content = `
+        <div class="space-y-4">
+            <div class="flex items-center space-x-2">
+                <span class="status-badge bg-blue-900/50 text-blue-400 border-blue-500/30">Modification Mode</span>
+                <h3 class="font-semibold text-white">How would you like to modify your API?</h3>
+            </div>
+            <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+                <p class="text-blue-300 text-sm mb-3">
+                    Describe the changes you'd like to make to your current API:
+                </p>
+                <ul class="text-sm text-blue-200 space-y-2">
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Add new features or endpoints</span></li>
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Change input/output formats</span></li>
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Modify existing functionality</span></li>
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Update error handling or validation</span></li>
+                    <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Change technologies or approach</span></li>
+                </ul>
+            </div>
+            <div class="text-center text-sm text-slate-400">
+                Type your modification request in the chat input below and press Enter
+            </div>
+        </div>
+    `;
+    
+    addMessage('assistant', content);
+    
+    // Focus on the chat input
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.focus();
+        chatInput.placeholder = "Describe how you'd like to modify your API... (e.g., 'Add email validation to the input')";
     }
+}
 
+async function processModificationRequest(modificationPrompt, userId) {
     try {
-        // Get user ID (from auth or generate temp one)
-        const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
-        
         // Show modification in progress
-        addMessage('user', `Modify API: ${modificationPrompt}`);
-        showTypingIndicator('Modifying API...');
+        showTypingIndicator('Modifying your API...');
         
         const response = await fetch('/modify-api', {
             method: 'POST',
@@ -1496,6 +1590,15 @@ async function modifyCurrentAPI() {
             currentApiData = result;
             addAPIResultMessage(result);
             addMessage('system', '✅ API modified successfully! The updated version is now available above.');
+            
+            // Reset placeholder
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput) {
+                chatInput.placeholder = "Describe your API requirements... (e.g., 'Create an API that extracts text from PDF files')";
+            }
+            
+            // Hide chat input again since modification is complete
+            hideChatInput();
         } else {
             // Handle different types of unsuccessful responses
             if (result.status === 'needs_clarification') {
@@ -1527,12 +1630,16 @@ function logout() {
 // Adjust chat height dynamically
 function adjustChatHeight() {
     const chatMessages = document.getElementById('chatMessages');
+    const chatInputContainer = document.getElementById('chatInputContainer');
     const windowHeight = window.innerHeight;
     
     // Calculate height: full viewport minus input area and padding (no header)
     const headerHeight = 0; // No header since it's commented out
-    const inputAreaHeight = 250; // Approximate input area height
     const paddingBuffer = 20; // Reduced buffer for tighter layout
+    
+    // Check if chat input is hidden
+    const isInputHidden = chatInputContainer && (chatInputContainer.style.display === 'none' || chatInputContainer.classList.contains('hidden'));
+    const inputAreaHeight = isInputHidden ? 0 : 250; // No input area height if hidden
     
     const maxHeight = windowHeight - headerHeight - inputAreaHeight - paddingBuffer;
     chatMessages.style.maxHeight = `${Math.max(300, maxHeight)}px`; // Minimum 300px
