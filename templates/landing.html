@@ -6,70 +6,192 @@
 <div class="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-800">
     <!-- Hero Section -->
     <section class="relative overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-pink-900/20"></div>
-        <div class="relative container mx-auto px-4 py-20 lg:py-32">
-            <div class="text-center max-w-5xl mx-auto">
-                <!-- Hero Badge -->
-                <div class="inline-flex items-center px-4 py-2 mb-8 bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded-full">
-                    <span class="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-                    <span class="text-sm text-blue-300 font-medium">✨ Powered by GPT-4o Advanced AI</span>
-                </div>
-
+        <!-- Animated Background -->
+        <div class="absolute inset-0">
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-900/20 via-purple-900/20 to-pink-900/20"></div>
+            <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.1),transparent_50%)]"></div>
+            <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(147,51,234,0.1),transparent_50%)]"></div>
+        </div>
+        
+        <!-- Floating Elements -->
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+            <div class="absolute top-1/4 left-1/4 w-2 h-2 bg-blue-400 rounded-full animate-pulse opacity-60"></div>
+            <div class="absolute top-1/3 right-1/3 w-1 h-1 bg-purple-400 rounded-full animate-ping opacity-40"></div>
+            <div class="absolute bottom-1/4 left-1/3 w-3 h-3 bg-cyan-400 rounded-full animate-bounce opacity-30"></div>
+        </div>
+        
+        <div class="relative container mx-auto px-4 py-24 lg:py-40">
+            <div class="text-center max-w-6xl mx-auto">
+               
                 <!-- Hero Title -->
-                <h1 class="text-5xl md:text-7xl lg:text-8xl font-bold mb-8 bg-gradient-to-r from-white via-blue-200 to-purple-300 bg-clip-text text-transparent leading-tight">
-                    Transform Ideas into 
-                    <span class="block bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+                <h1 class="text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-bold mb-8 leading-tight">
+                    <span class="block bg-gradient-to-r from-white via-blue-100 to-purple-200 bg-clip-text text-transparent">
+                        Transform Ideas into
+                    </span>
+                    <span class="block bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent animate-gradient-x">
                         APIs Instantly
                     </span>
                 </h1>
 
                 <!-- Hero Subtitle -->
-                <p class="text-xl md:text-2xl text-slate-300 mb-12 max-w-4xl mx-auto leading-relaxed">
-                    Describe your API in plain English and watch as our AI generates, validates, and deploys 
-                    <span class="text-blue-400 font-semibold">production-ready code</span> in seconds.
+                <p class="text-xl md:text-2xl lg:text-3xl text-slate-300 mb-6 max-w-5xl mx-auto leading-relaxed">
+                    The fastest way from idea to working API. Describe what you need in 
+                    <span class="text-blue-400 font-semibold">plain English</span>, 
+                    get a <span class="text-purple-400 font-semibold">production-ready API</span> 
+                    in under 30 seconds.
                 </p>
+                
+                <!-- Concrete Example -->
+                <div class="bg-slate-900/50 rounded-xl p-6 mb-8 max-w-4xl mx-auto border border-slate-700/50">
+                    <div class="text-sm text-slate-400 mb-3">Example:</div>
+                    <div class="text-slate-200 mb-3 italic">
+                        "Create an API that converts CSV files to JSON and validates email addresses"
+                    </div>
+                    <div class="flex items-center space-x-2 text-green-400 text-sm">
+                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <span>→ Live API in 15 seconds: POST /api/your-username/csv-validator</span>
+                    </div>
+                </div>
+                
+                <!-- Value Proposition Points -->
+                <div class="flex flex-wrap justify-center gap-6 mb-12 text-sm text-slate-400">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>No coding required</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Instant deployment</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Enterprise-grade security</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Use your APIs with credits</span>
+                    </div>
+                </div>
 
                 <!-- CTA Buttons -->
-                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-                    <a href="/" class="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                        <span class="relative z-10 flex items-center space-x-2">
-                            <span>Start Building APIs</span>
-                            <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
+                    <a href="/register" class="group relative px-10 py-5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-lg rounded-2xl shadow-2xl hover:shadow-blue-500/25 transition-all duration-300 transform hover:scale-105 hover:-translate-y-1">
+                        <span class="relative z-10 flex items-center space-x-3">
+                            <span>Build Your First API</span>
+                            <svg class="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
                             </svg>
                         </span>
-                        <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl blur opacity-30 group-hover:opacity-50 transition-opacity"></div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl blur opacity-40 group-hover:opacity-60 transition-opacity"></div>
+                        <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl opacity-20 group-hover:opacity-30 blur-sm transition-opacity"></div>
                     </a>
-                    <a href="#demo" class="px-8 py-4 border border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white font-semibold rounded-xl transition-all duration-300 hover:bg-blue-500/10">
-                        Watch Demo
+                    <a href="#interactive-demo" class="group px-10 py-5 border-2 border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white font-bold text-lg rounded-2xl transition-all duration-300 hover:bg-blue-500/10 backdrop-blur-sm">
+                        <span class="flex items-center space-x-3">
+                            <svg class="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            <span>Watch Demo</span>
+                        </span>
                     </a>
                 </div>
+                
+                <!-- Trust Indicators -->
+                <div class="text-center text-sm text-slate-500 mb-8">
+                    <span class="bg-green-900/20 text-green-400 px-3 py-1 rounded-full">✓ Free to start</span>
+                    <span class="mx-3">•</span>
+                    <span class="bg-blue-900/20 text-blue-400 px-3 py-1 rounded-full">✓ No credit card required</span>
+                    <span class="mx-3">•</span>
+                    <span class="bg-purple-900/20 text-purple-400 px-3 py-1 rounded-full">✓ Deploy in 15 seconds</span>
+                </div>
 
-                <!-- Stats -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-                    <div class="glass-effect rounded-xl p-6">
-                        <div class="text-3xl font-bold text-blue-400 mb-2">5-15s</div>
-                        <div class="text-sm text-slate-400">Generation Time</div>
+                <!-- Key Stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center mb-8">
+                    <div class="glass-effect rounded-xl p-4">
+                        <div class="text-2xl font-bold text-blue-400 mb-1">&lt;30s</div>
+                        <div class="text-xs text-slate-400">Build Time</div>
                     </div>
-                    <div class="glass-effect rounded-xl p-6">
-                        <div class="text-3xl font-bold text-purple-400 mb-2">100%</div>
-                        <div class="text-sm text-slate-400">AI-Generated</div>
+                    <div class="glass-effect rounded-xl p-4">
+                        <div class="text-2xl font-bold text-purple-400 mb-1">GPT-4</div>
+                        <div class="text-xs text-slate-400">AI Powered</div>
                     </div>
-                    <div class="glass-effect rounded-xl p-6">
-                        <div class="text-3xl font-bold text-green-400 mb-2">10MB</div>
-                        <div class="text-sm text-slate-400">File Support</div>
+                    <div class="glass-effect rounded-xl p-4">
+                        <div class="text-2xl font-bold text-green-400 mb-1">50+</div>
+                        <div class="text-xs text-slate-400">File Formats</div>
                     </div>
-                    <div class="glass-effect rounded-xl p-6">
-                        <div class="text-3xl font-bold text-yellow-400 mb-2">24/7</div>
-                        <div class="text-sm text-slate-400">Available</div>
+                    <div class="glass-effect rounded-xl p-4">
+                        <div class="text-2xl font-bold text-yellow-400 mb-1">99.9%</div>
+                        <div class="text-xs text-slate-400">Uptime</div>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
+    <!-- Social Proof Section -->
+    <section class="py-16 bg-gradient-to-r from-slate-900/30 to-slate-800/30">
+        <div class="container mx-auto px-4">
+            <!-- Testimonials -->
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    Trusted by Developers
+                </h2>
+                <p class="text-lg text-slate-400 max-w-2xl mx-auto">
+                    Join the growing community building APIs faster with AI
+                </p>
+            </div>
+            
+            <!-- Early User Feedback -->
+            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <!-- User Feedback 1 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                            👨‍💻
+                        </div>
+                        <div>
+                            <div class="font-semibold text-white">Beta User</div>
+                            <div class="text-sm text-slate-400">Full Stack Developer</div>
+                        </div>
+                        <div class="ml-auto text-yellow-400">★★★★★</div>
+                    </div>
+                    <p class="text-slate-300 leading-relaxed">
+                        "Finally, a tool that actually understands what I'm trying to build. The generated APIs work exactly as described - no debugging needed."
+                    </p>
+                </div>
+                
+                <!-- User Feedback 2 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-green-500/50 transition-all duration-300">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
+                            🚀
+                        </div>
+                        <div>
+                            <div class="font-semibold text-white">Early Adopter</div>
+                            <div class="text-sm text-slate-400">Startup Founder</div>
+                        </div>
+                        <div class="ml-auto text-yellow-400">★★★★★</div>
+                    </div>
+                    <p class="text-slate-300 leading-relaxed">
+                        "Perfect for rapid prototyping. I can test business ideas with real APIs in minutes instead of weeks. This is the future of development."
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Features Section -->
-    <section class="py-20 lg:py-32 relative">
+    <section class="py-20 lg:py-24 relative">
         <div class="container mx-auto px-4">
             <div class="text-center mb-16">
                 <h2 class="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
@@ -80,83 +202,235 @@
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <!-- Feature 1 -->
-                <div class="group glass-effect rounded-2xl p-8 hover:border-blue-500/50 transition-all duration-300 hover:transform hover:scale-105">
-                    <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
+                <!-- Feature 1: Natural Language -->
+                <div class="floating-card group glass-effect rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300 hover:transform hover:scale-105 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform">
                         <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold text-white mb-4">Natural Language Processing</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Simply describe what you want your API to do in plain English. Our AI understands context, requirements, and generates the perfect solution.
+                    <h3 class="text-lg font-bold text-white mb-3">Plain English Input</h3>
+                    <p class="text-slate-400 text-sm mb-4">
+                        Describe what you need in natural language. No coding required.
                     </p>
+                    <div class="text-xs text-blue-400 bg-blue-900/20 px-3 py-2 rounded-lg">
+                        GPT-4 Powered
+                    </div>
                 </div>
 
-                <!-- Feature 2 -->
-                <div class="group glass-effect rounded-2xl p-8 hover:border-green-500/50 transition-all duration-300 hover:transform hover:scale-105">
-                    <div class="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <!-- Feature 2: Fast Deployment -->
+                <div class="floating-card group glass-effect rounded-2xl p-6 hover:border-green-500/50 transition-all duration-300 hover:transform hover:scale-105 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform">
                         <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold text-white mb-4">Instant Deployment</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Generated APIs are immediately available via REST endpoints. No manual deployment, no configuration - just instant, working APIs.
+                    <h3 class="text-lg font-bold text-white mb-3">Instant Deployment</h3>
+                    <p class="text-slate-400 text-sm mb-4">
+                        APIs go live in under 30 seconds with production-grade infrastructure.
                     </p>
+                    <div class="text-xs text-green-400 bg-green-900/20 px-3 py-2 rounded-lg">
+                        &lt;30s Deploy Time
+                    </div>
                 </div>
 
-                <!-- Feature 3 -->
-                <div class="group glass-effect rounded-2xl p-8 hover:border-purple-500/50 transition-all duration-300 hover:transform hover:scale-105">
-                    <div class="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <!-- Feature 3: Security -->
+                <div class="floating-card group glass-effect rounded-2xl p-6 hover:border-purple-500/50 transition-all duration-300 hover:transform hover:scale-105 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform">
                         <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold text-white mb-4">Security First</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Multi-layer code validation, sandboxing, and security checks ensure your APIs are safe and production-ready from day one.
+                    <h3 class="text-lg font-bold text-white mb-3">Enterprise Security</h3>
+                    <p class="text-slate-400 text-sm mb-4">
+                        Bank-grade security with HTTPS, validation, and GDPR compliance.
                     </p>
-                </div>
-
-                <!-- Feature 4 -->
-                <div class="group glass-effect rounded-2xl p-8 hover:border-yellow-500/50 transition-all duration-300 hover:transform hover:scale-105">
-                    <div class="w-16 h-16 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                        </svg>
+                    <div class="text-xs text-purple-400 bg-purple-900/20 px-3 py-2 rounded-lg">
+                        SOC2 & GDPR Ready
                     </div>
-                    <h3 class="text-xl font-bold text-white mb-4">Built-in Testing</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Test your APIs instantly with our integrated testing interface. Send requests, view responses, and debug in real-time.
-                    </p>
                 </div>
 
-                <!-- Feature 5 -->
-                <div class="group glass-effect rounded-2xl p-8 hover:border-cyan-500/50 transition-all duration-300 hover:transform hover:scale-105">
-                    <div class="w-16 h-16 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold text-white mb-4">File Processing</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Handle file uploads, process documents, images, and data files with AI-generated parsing and processing logic.
-                    </p>
-                </div>
-
-                <!-- Feature 6 -->
-                <div class="group glass-effect rounded-2xl p-8 hover:border-red-500/50 transition-all duration-300 hover:transform hover:scale-105">
-                    <div class="w-16 h-16 bg-gradient-to-r from-red-500 to-pink-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <!-- Feature 4: Smart Documentation -->
+                <div class="floating-card group glass-effect rounded-2xl p-6 hover:border-yellow-500/50 transition-all duration-300 hover:transform hover:scale-105 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-xl flex items-center justify-center mb-4 mx-auto group-hover:scale-110 transition-transform">
                         <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                         </svg>
                     </div>
-                    <h3 class="text-xl font-bold text-white mb-4">Auto Documentation</h3>
-                    <p class="text-slate-400 leading-relaxed">
-                        Every API comes with comprehensive documentation, curl examples, and usage guides generated automatically by AI.
+                    <h3 class="text-lg font-bold text-white mb-3">Auto Documentation</h3>
+                    <p class="text-slate-400 text-sm mb-4">
+                        Interactive docs with live examples and SDK generation included.
                     </p>
+                    <div class="text-xs text-yellow-400 bg-yellow-900/20 px-3 py-2 rounded-lg">
+                        Always Up-to-Date
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section class="py-20 lg:py-24 bg-gradient-to-r from-slate-900/30 to-slate-800/30">
+        <div class="container mx-auto px-4">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                    Simple, Transparent Pricing
+                </h2>
+                <p class="text-xl text-slate-400 max-w-3xl mx-auto">
+                    Start free and scale as you grow. No hidden fees, no surprises.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                <!-- Free Plan -->
+                <div class="pricing-card rounded-2xl p-6">
+                    <div class="text-center">
+                        <h3 class="text-xl font-bold text-white mb-3">Free</h3>
+                        <div class="text-3xl font-bold text-blue-400 mb-2">$0</div>
+                        <div class="text-slate-400 mb-6">Perfect to get started</div>
+                        
+                        <ul class="space-y-3 text-left mb-6 text-sm">
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">5 APIs per month</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">1,000 API calls/month</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">Auto documentation</span>
+                            </li>
+                        </ul>
+                        
+                        <a href="/register" class="block w-full px-4 py-3 border-2 border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white font-semibold rounded-xl transition-all duration-300 hover:bg-blue-500/10 text-center text-sm">
+                            Get Started Free
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Pro Plan -->
+                <div class="pricing-card rounded-2xl p-6 relative">
+                    <!-- Popular Badge -->
+                    <div class="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                        <div class="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                            Most Popular
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <h3 class="text-xl font-bold text-white mb-3">Pro</h3>
+                        <div class="text-3xl font-bold text-purple-400 mb-2">$29</div>
+                        <div class="text-slate-400 mb-6">per month</div>
+                        
+                        <ul class="space-y-3 text-left mb-6 text-sm">
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">100 APIs per month</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">100,000 API calls/month</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">Priority support</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">Custom domains</span>
+                            </li>
+                        </ul>
+                        
+                        <a href="/register" class="block w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 text-center text-sm">
+                            Start Pro Trial
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Enterprise Plan -->
+                <div class="pricing-card rounded-2xl p-6">
+                    <div class="text-center">
+                        <h3 class="text-xl font-bold text-white mb-3">Enterprise</h3>
+                        <div class="text-3xl font-bold text-yellow-400 mb-2">Custom</div>
+                        <div class="text-slate-400 mb-6">Tailored for your needs</div>
+                        
+                        <ul class="space-y-3 text-left mb-6 text-sm">
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">Unlimited APIs</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">Unlimited API calls</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">Dedicated support</span>
+                            </li>
+                            <li class="flex items-center space-x-2">
+                                <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                </svg>
+                                <span class="text-slate-300">SLA guarantees</span>
+                            </li>
+                        </ul>
+                        
+                        <a href="#contact" class="block w-full px-4 py-3 border-2 border-yellow-600 hover:border-yellow-500 text-yellow-300 hover:text-white font-semibold rounded-xl transition-all duration-300 hover:bg-yellow-500/10 text-center text-sm">
+                            Contact Sales
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing Footer & CTA -->
+            <div class="text-center mt-12">
+                <p class="text-slate-400 text-sm mb-6">
+                    All plans include: AI generation, security validation, auto-documentation, instant deployment
+                </p>
+                <div class="flex flex-wrap justify-center gap-6 text-sm text-slate-500 mb-8">
+                    <span class="bg-green-900/20 text-green-400 px-3 py-1 rounded-full">✓ 14-day free trial</span>
+                    <span class="bg-blue-900/20 text-blue-400 px-3 py-1 rounded-full">✓ No setup fees</span>
+                    <span class="bg-purple-900/20 text-purple-400 px-3 py-1 rounded-full">✓ Cancel anytime</span>
+                </div>
+                
+                <!-- Strong CTA after pricing -->
+                <div class="glass-effect rounded-xl p-8 max-w-2xl mx-auto">
+                    <h3 class="text-2xl font-bold text-white mb-4">Ready to Build Your First API?</h3>
+                    <p class="text-slate-400 mb-6">
+                        Join our beta program and start creating production-ready APIs in seconds, not hours.
+                    </p>
+                    <a href="/register" class="cta-button inline-flex items-center px-10 py-4 text-white font-bold text-lg rounded-xl shadow-2xl">
+                        <span>Start Building Now</span>
+                        <svg class="w-5 h-5 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                        </svg>
+                    </a>
+                    <div class="text-xs text-slate-500 mt-3">
+                        🚀 No credit card required • 🔒 Secure by default • ⚡ Deploy in 15 seconds
+                    </div>
                 </div>
             </div>
         </div>
@@ -247,159 +521,202 @@
         </div>
     </section>
 
-    <!-- Use Cases Section -->
+
+
+
+
+    <!-- FAQ Section -->
     <section class="py-20 lg:py-32">
         <div class="container mx-auto px-4">
             <div class="text-center mb-16">
                 <h2 class="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-                    Popular Use Cases
+                    Frequently Asked Questions
                 </h2>
                 <p class="text-xl text-slate-400 max-w-3xl mx-auto">
-                    From data processing to AI integration, build APIs for any use case
+                    Everything you need to know about AI-powered API generation
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <!-- Use Case 1 -->
-                <div class="glass-effect rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
-                    <div class="text-4xl mb-4">📊</div>
-                    <h3 class="text-lg font-bold text-white mb-3">Data Processing</h3>
-                    <p class="text-slate-400 text-sm mb-4">CSV to JSON conversion, data validation, format transformation</p>
-                    <div class="text-xs text-blue-400 bg-blue-900/20 px-3 py-2 rounded-lg">
-                        "Convert CSV files to structured JSON with data validation"
+            <div class="max-w-4xl mx-auto space-y-6">
+                <!-- FAQ Item 1 -->
+                <div class="glass-effect rounded-xl p-6 hover:border-blue-500/50 transition-all duration-300">
+                    <div class="flex items-start space-x-4">
+                        <div class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center mt-1 flex-shrink-0">
+                            <span class="text-white text-sm font-bold">?</span>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-white mb-3">How does the AI understand my requirements?</h3>
+                            <p class="text-slate-400 leading-relaxed">
+                                Our GPT-4 powered system analyzes your natural language description and converts it into structured API specifications. 
+                                It understands context, data relationships, and common API patterns to generate production-ready code.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Use Case 2 -->
-                <div class="glass-effect rounded-2xl p-6 hover:border-green-500/50 transition-all duration-300">
-                    <div class="text-4xl mb-4">🔐</div>
-                    <h3 class="text-lg font-bold text-white mb-3">Authentication</h3>
-                    <p class="text-slate-400 text-sm mb-4">JWT tokens, user validation, session management</p>
-                    <div class="text-xs text-green-400 bg-green-900/20 px-3 py-2 rounded-lg">
-                        "Build a secure user authentication system with JWT"
+                <!-- FAQ Item 2 -->
+                <div class="glass-effect rounded-xl p-6 hover:border-green-500/50 transition-all duration-300">
+                    <div class="flex items-start space-x-4">
+                        <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-1 flex-shrink-0">
+                            <span class="text-white text-sm font-bold">?</span>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-white mb-3">Is my data secure?</h3>
+                            <p class="text-slate-400 leading-relaxed">
+                                Yes. All APIs are generated with security best practices including input validation, authentication, and HTTPS encryption. 
+                                We follow GDPR compliance standards and don't store your business data.
+                            </p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Use Case 3 -->
-                <div class="glass-effect rounded-2xl p-6 hover:border-purple-500/50 transition-all duration-300">
-                    <div class="text-4xl mb-4">🖼️</div>
-                    <h3 class="text-lg font-bold text-white mb-3">Image Processing</h3>
-                    <p class="text-slate-400 text-sm mb-4">Resize, optimize, format conversion, metadata extraction</p>
-                    <div class="text-xs text-purple-400 bg-purple-900/20 px-3 py-2 rounded-lg">
-                        "Create an API for image resizing and optimization"
+                <!-- FAQ Item 3 -->
+                <div class="glass-effect rounded-xl p-6 hover:border-purple-500/50 transition-all duration-300">
+                    <div class="flex items-start space-x-4">
+                        <div class="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center mt-1 flex-shrink-0">
+                            <span class="text-white text-sm font-bold">?</span>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-white mb-3">How does pricing work for API usage?</h3>
+                            <p class="text-slate-400 leading-relaxed">
+                                API generation is included in your plan. Using your generated APIs consumes credits based on complexity and processing time. 
+                                You can monitor usage in real-time through your dashboard.
+                            </p>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Use Case 4 -->
-                <div class="glass-effect rounded-2xl p-6 hover:border-yellow-500/50 transition-all duration-300">
-                    <div class="text-4xl mb-4">📝</div>
-                    <h3 class="text-lg font-bold text-white mb-3">Text Analysis</h3>
-                    <p class="text-slate-400 text-sm mb-4">Sentiment analysis, keyword extraction, summarization</p>
-                    <div class="text-xs text-yellow-400 bg-yellow-900/20 px-3 py-2 rounded-lg">
-                        "Analyze text sentiment and extract key insights"
-                    </div>
-                </div>
-
-                <!-- Use Case 5 -->
-                <div class="glass-effect rounded-2xl p-6 hover:border-cyan-500/50 transition-all duration-300">
-                    <div class="text-4xl mb-4">📧</div>
-                    <h3 class="text-lg font-bold text-white mb-3">Email Processing</h3>
-                    <p class="text-slate-400 text-sm mb-4">Validation, extraction, formatting, template generation</p>
-                    <div class="text-xs text-cyan-400 bg-cyan-900/20 px-3 py-2 rounded-lg">
-                        "Extract and validate email addresses from documents"
-                    </div>
-                </div>
-
-                <!-- Use Case 6 -->
-                <div class="glass-effect rounded-2xl p-6 hover:border-red-500/50 transition-all duration-300">
-                    <div class="text-4xl mb-4">🔍</div>
-                    <h3 class="text-lg font-bold text-white mb-3">Web Scraping</h3>
-                    <p class="text-slate-400 text-sm mb-4">Data extraction, content parsing, structured output</p>
-                    <div class="text-xs text-red-400 bg-red-900/20 px-3 py-2 rounded-lg">
-                        "Scrape product information and return as JSON"
-                    </div>
-                </div>
+            <!-- Contact Support -->
+            <div class="text-center mt-12">
+                <p class="text-slate-400 mb-6">Still have questions?</p>
+                <a href="mailto:support@ai-api-generator.com" class="inline-flex items-center px-8 py-3 bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-600 hover:to-slate-500 text-white font-semibold rounded-xl transition-all duration-300">
+                    <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    Contact Support
+                </a>
             </div>
         </div>
     </section>
 
-    <!-- CTA Section -->
-    <section class="py-20 lg:py-32 bg-gradient-to-r from-blue-900/30 via-purple-900/30 to-pink-900/30">
+    <!-- Final CTA Section -->
+    <section class="py-20 lg:py-24 bg-gradient-to-r from-blue-900/30 via-purple-900/30 to-pink-900/30">
         <div class="container mx-auto px-4 text-center">
-            <div class="max-w-4xl mx-auto">
+            <div class="max-w-3xl mx-auto">
                 <h2 class="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-                    Ready to Build Your First API?
+                    Transform Your Ideas Into APIs Today
                 </h2>
-                <p class="text-xl text-slate-300 mb-12 max-w-2xl mx-auto">
-                    Join thousands of developers who are already using AI to accelerate their API development
+                <p class="text-xl text-slate-300 mb-8">
+                    Join thousands of developers building faster with AI-powered API generation
                 </p>
                 
-                <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mb-12">
-                    <a href="/register" class="group relative px-12 py-5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-lg rounded-xl shadow-2xl hover:shadow-blue-500/25 transition-all duration-300 transform hover:scale-105">
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+                    <a href="/register" class="cta-button group relative px-10 py-4 text-white font-bold text-lg rounded-xl shadow-2xl">
                         <span class="relative z-10 flex items-center space-x-3">
-                            <span>Get Started Free</span>
-                            <svg class="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span>Start Building Free</span>
+                            <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
                             </svg>
                         </span>
                         <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl blur opacity-40 group-hover:opacity-60 transition-opacity"></div>
                     </a>
-                    <a href="/" class="px-12 py-5 border-2 border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white font-bold text-lg rounded-xl transition-all duration-300 hover:bg-blue-500/10">
-                        Try Demo
-                    </a>
                 </div>
 
-                <!-- Trust Indicators -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-                    <div>
-                        <div class="text-3xl font-bold text-blue-400 mb-2">GPT-4o</div>
-                        <div class="text-sm text-slate-400">Powered by OpenAI</div>
+                <!-- Final Trust Indicators -->
+                <div class="flex flex-wrap justify-center gap-8 text-sm text-slate-400 mb-6">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>No credit card required</span>
                     </div>
-                    <div>
-                        <div class="text-3xl font-bold text-green-400 mb-2">100%</div>
-                        <div class="text-sm text-slate-400">Secure</div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Deploy in 15 seconds</span>
                     </div>
-                    <div>
-                        <div class="text-3xl font-bold text-purple-400 mb-2">24/7</div>
-                        <div class="text-sm text-slate-400">Available</div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>Cancel anytime</span>
                     </div>
-                    <div>
-                        <div class="text-3xl font-bold text-yellow-400 mb-2">Free</div>
-                        <div class="text-sm text-slate-400">To Start</div>
-                    </div>
+                </div>
+                
+                <div class="text-slate-500 text-sm">
+                    🚀 Beta Access • 🔒 Enterprise Security • ⚡ GPT-4 Powered
                 </div>
             </div>
         </div>
     </section>
 </div>
 
-<!-- Floating Action Button -->F
+<!-- Floating Action Button -->
 <div class="fixed bottom-8 right-8 z-50">
-    <a href="/" class="group flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 transform hover:scale-110">
+    <a href="/register" class="group flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 transform hover:scale-110">
         <svg class="w-8 h-8 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
         </svg>
-        <div class="absolute -left-24 top-1/2 transform -translate-y-1/2 bg-slate-800 text-white px-3 py-2 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-            Start Building
+        <div class="absolute -left-20 top-1/2 transform -translate-y-1/2 bg-slate-800 text-white px-3 py-2 rounded-lg text-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+            Join Beta
         </div>
     </a>
 </div>
 
 <style>
+/* Enhanced animations */
 @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    33% { transform: translateY(-8px) rotate(1deg); }
+    66% { transform: translateY(-4px) rotate(-1deg); }
+}
+
+@keyframes gradientX {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+@keyframes glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+    50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.6); }
 }
 
 .glass-effect {
     background: rgba(15, 23, 42, 0.4);
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(16px);
     border: 1px solid rgba(100, 116, 139, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
 }
 
 .glass-effect:hover {
     background: rgba(15, 23, 42, 0.6);
-    border: 1px solid rgba(100, 116, 139, 0.3);
+    border: 1px solid rgba(100, 116, 139, 0.4);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    transform: translateY(-2px);
+}
+
+.glass-effect::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s;
+}
+
+.glass-effect:hover::before {
+    left: 100%;
 }
 
 /* Smooth scrolling */
@@ -410,6 +727,208 @@ html {
 /* Custom animations */
 .animate-float {
     animation: float 6s ease-in-out infinite;
+}
+
+.animate-gradient-x {
+    background-size: 200% 200%;
+    animation: gradientX 3s ease infinite;
+}
+
+/* Enhanced hover effects */
+.group:hover .group-hover\:scale-110 {
+    transform: scale(1.1);
+}
+
+.group:hover .group-hover\:translate-x-1 {
+    transform: translateX(0.25rem);
+}
+
+/* Enhanced button effects */
+.btn-primary {
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.btn-primary:hover::after {
+    width: 300px;
+    height: 300px;
+}
+
+/* Improved gradient text */
+.gradient-text {
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899);
+    background-size: 200% 200%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: gradientX 3s ease infinite;
+}
+
+/* Code block styling */
+pre code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .animate-gradient-x {
+        animation-duration: 4s;
+    }
+    
+    /* Mobile-specific optimizations */
+    .glass-effect {
+        backdrop-filter: blur(12px);
+        padding: 1.5rem;
+    }
+    
+    /* Reduce motion for mobile performance */
+    .group:hover .group-hover\:scale-110 {
+        transform: scale(1.05);
+    }
+    
+    .hover\:scale-105:hover {
+        transform: scale(1.02);
+    }
+    
+    /* Improve touch targets */
+    .group {
+        min-height: 48px;
+    }
+    
+    /* Optimize text sizes for mobile */
+    h1 {
+        font-size: 2.5rem !important;
+        line-height: 1.1;
+    }
+    
+    .text-xl {
+        font-size: 1.125rem;
+    }
+    
+    /* Better spacing on mobile */
+    .py-20 {
+        padding-top: 3rem;
+        padding-bottom: 3rem;
+    }
+    
+    .py-24 {
+        padding-top: 4rem;
+        padding-bottom: 4rem;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Extra small screens */
+    .glass-effect {
+        padding: 1rem;
+        margin: 0.5rem;
+    }
+    
+    .grid {
+        gap: 1rem;
+    }
+    
+    .px-10 {
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+    
+    .py-5 {
+        padding-top: 0.75rem;
+        padding-bottom: 0.75rem;
+    }
+}
+
+/* Enhanced visual effects */
+.section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(100, 116, 139, 0.3), transparent);
+    margin: 4rem 0;
+}
+
+.floating-card {
+    animation: float 6s ease-in-out infinite;
+    transition: all 0.3s ease;
+}
+
+.floating-card:hover {
+    animation-play-state: paused;
+}
+
+/* Improved pricing cards */
+.pricing-card {
+    position: relative;
+    background: linear-gradient(145deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.6));
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(100, 116, 139, 0.2);
+    transition: all 0.4s ease;
+}
+
+.pricing-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #3b82f6, #8b5cf6, transparent);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.pricing-card:hover::before {
+    opacity: 1;
+}
+
+.pricing-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 40px rgba(59, 130, 246, 0.1);
+}
+
+/* Enhanced CTA buttons */
+.cta-button {
+    position: relative;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    background-size: 200% 200%;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.cta-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.cta-button:hover::before {
+    left: 100%;
+}
+
+.cta-button:hover {
+    background-position: 100% 100%;
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
 }
 </style>
 
