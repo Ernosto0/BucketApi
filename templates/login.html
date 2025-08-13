@@ -204,7 +204,7 @@
                 localStorage.setItem('currentUser', JSON.stringify(result.token.user));
                 
                 // Show success message
-                successMessage.textContent = 'Login successful! Redirecting...';
+                successMessage.textContent = '✅ Login successful! Redirecting to your dashboard...';
                 successMessage.style.display = 'block';
                 
                 // Update global auth state
@@ -216,11 +216,18 @@
                     window.location.href = '/';
                 }, 1500);
             } else {
-                errorMessage.textContent = result.message || 'Login failed';
+                // Handle different error types
+                let errorText = result.message || result.detail || 'Login failed';
+                if (errorText.includes('Invalid email or password')) {
+                    errorText = '❌ Invalid email or password. Please check your credentials and try again.';
+                } else if (errorText.includes('email')) {
+                    errorText = '❌ Please enter a valid email address.';
+                }
+                errorMessage.textContent = errorText;
                 errorMessage.style.display = 'block';
             }
         } catch (error) {
-            errorMessage.textContent = 'Network error: ' + error.message;
+            errorMessage.textContent = '🌐 Connection error: Unable to connect to server. Please check your internet connection and try again.';
             errorMessage.style.display = 'block';
         } finally {
             // Re-enable button

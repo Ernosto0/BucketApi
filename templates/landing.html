@@ -933,3 +933,31 @@ pre code {
 </style>
 
 {% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Check if user is already authenticated and redirect to main app
+    document.addEventListener('DOMContentLoaded', function() {
+        const authToken = localStorage.getItem('authToken');
+        const currentUser = localStorage.getItem('currentUser');
+        
+        if (authToken && currentUser) {
+            try {
+                // Validate stored user data
+                const userData = JSON.parse(currentUser);
+                if (userData && userData.email) {
+                    // User is authenticated, redirect to main app
+                    console.log('User already authenticated, redirecting to main app');
+                    window.location.href = '/';
+                    return;
+                }
+            } catch (error) {
+                // Invalid data, clear and continue showing landing page
+                console.log('Invalid auth data found, clearing');
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('currentUser');
+            }
+        }
+    });
+</script>
+{% endblock %}

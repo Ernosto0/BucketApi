@@ -227,23 +227,70 @@
         }
 
         function updateAuthUI() {
+            const authButtons = document.getElementById('authButtons');
+            const userMenu = document.getElementById('userMenu');
+            const welcomeText = document.getElementById('welcomeText');
+            const userInitials = document.getElementById('userInitials');
+
             if (authToken && currentUser) {
-                document.getElementById('authButtons').classList.add('hidden');
-                document.getElementById('userMenu').classList.remove('hidden');
-                document.getElementById('welcomeText').textContent = currentUser.email;
+                // User is authenticated
+                authButtons.classList.add('hidden');
+                userMenu.classList.remove('hidden');
+                welcomeText.textContent = currentUser.email;
                 
                 // Set user initials
                 const initials = currentUser.email.substring(0, 2).toUpperCase();
-                document.getElementById('userInitials').textContent = initials;
+                userInitials.textContent = initials;
             } else {
-                document.getElementById('authButtons').classList.remove('hidden');
-                document.getElementById('userMenu').classList.add('hidden');
+                // User is not authenticated
+                authButtons.classList.remove('hidden');
+                userMenu.classList.add('hidden');
             }
         }
 
         function toggleUserDropdown() {
             const dropdown = document.getElementById('userDropdown');
             dropdown.classList.toggle('hidden');
+        }
+
+        // Logout function
+        function logout() {
+            clearAuthState();
+            
+            // Show logout message briefly
+            const logoutMessage = document.createElement('div');
+            logoutMessage.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #10b981;
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                z-index: 1000;
+                font-size: 14px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            logoutMessage.textContent = 'Logged out successfully!';
+            document.body.appendChild(logoutMessage);
+            
+            setTimeout(() => {
+                document.body.removeChild(logoutMessage);
+            }, 2000);
+            
+            // Redirect to landing page
+            setTimeout(() => {
+                window.location.href = '/landing';
+            }, 1000);
+        }
+
+        // Clear authentication state
+        function clearAuthState() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            authToken = null;
+            currentUser = null;
+            updateAuthUI();
         }
 
         // Close dropdown when clicking outside

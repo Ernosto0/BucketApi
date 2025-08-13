@@ -209,5 +209,37 @@
 {% endblock %}
 
 {% block extra_scripts %}
+    <script>
+        // Check authentication before loading the app
+        document.addEventListener('DOMContentLoaded', function() {
+            const authToken = localStorage.getItem('authToken');
+            const currentUser = localStorage.getItem('currentUser');
+            
+            if (!authToken || !currentUser) {
+                // User is not authenticated, redirect to landing page
+                console.log('User not authenticated, redirecting to landing page');
+                window.location.href = '/landing';
+                return;
+            }
+            
+            try {
+                // Validate stored user data
+                const userData = JSON.parse(currentUser);
+                if (!userData || !userData.email) {
+                    throw new Error('Invalid user data');
+                }
+                
+                // User is authenticated, continue loading the app
+                console.log('User authenticated:', userData.email);
+                
+            } catch (error) {
+                console.log('Error validating user data, redirecting to landing page');
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('currentUser');
+                window.location.href = '/landing';
+                return;
+            }
+        });
+    </script>
     <script src="/static/chat.js"></script>
 {% endblock %} 

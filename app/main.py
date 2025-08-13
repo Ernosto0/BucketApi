@@ -156,15 +156,15 @@ async def require_auth_or_api_key(current_user: User = Depends(get_current_user_
         )
     return current_user
 
-@app.get("/landing", response_class=HTMLResponse)
-async def landing_page(request: Request):
-    """Serve the landing page."""
-    return templates.TemplateResponse("landing.html", {"request": request})
-
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    """Serve the main frontend page."""
+    """Serve the main frontend page for authenticated users, redirect to landing for non-authenticated."""
     return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/landing", response_class=HTMLResponse)
+async def landing_page(request: Request):
+    """Serve the landing page for non-authenticated users."""
+    return templates.TemplateResponse("landing.html", {"request": request})
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):

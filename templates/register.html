@@ -325,19 +325,28 @@
 
             if (response.ok && result.success) {
                 // Show success message
-                successMessage.textContent = 'Account created successfully! Redirecting to login...';
+                successMessage.textContent = '🎉 Account created successfully! You\'ve received 1000 free starter tokens. Redirecting to login...';
                 successMessage.style.display = 'block';
                 
                 // Redirect to login page after short delay
                 setTimeout(() => {
                     window.location.href = '/login';
-                }, 2000);
+                }, 2500);
             } else {
-                errorMessage.textContent = result.detail || result.message || 'Registration failed';
+                // Handle different error types
+                let errorText = result.detail || result.message || 'Registration failed';
+                if (errorText.includes('Email already exists')) {
+                    errorText = '❌ An account with this email already exists. Please use a different email or try logging in.';
+                } else if (errorText.includes('Password must be at least')) {
+                    errorText = '❌ Password must be at least 6 characters long.';
+                } else if (errorText.includes('email')) {
+                    errorText = '❌ Please enter a valid email address.';
+                }
+                errorMessage.textContent = errorText;
                 errorMessage.style.display = 'block';
             }
         } catch (error) {
-            errorMessage.textContent = 'Network error: ' + error.message;
+            errorMessage.textContent = '🌐 Connection error: Unable to connect to server. Please check your internet connection and try again.';
             errorMessage.style.display = 'block';
         } finally {
             // Re-enable button
