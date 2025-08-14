@@ -3,218 +3,93 @@
 {% block title %}Register - AI API Generator{% endblock %}
 
 {% block extra_head %}
-    <style>
-        .auth-container {
-            min-height: calc(100vh - 200px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .auth-card {
-            background-color: var(--vscode-panel);
-            border: 1px solid var(--vscode-border);
-            border-radius: 0.5rem;
-            padding: 2rem;
-            max-width: 400px;
-            width: 100%;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-        }
-
-        .auth-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .auth-header h1 {
-            color: var(--vscode-text);
-            font-size: 2rem;
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-        }
-
-        .auth-header p {
-            color: var(--vscode-text-muted);
-            font-size: 0.875rem;
-        }
-
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-
-        .form-label {
-            display: block;
-            color: var(--vscode-text);
-            font-size: 0.875rem;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 0.75rem;
-            background-color: var(--vscode-input-bg);
-            border: 1px solid var(--vscode-border);
-            border-radius: 0.375rem;
-            color: var(--vscode-text);
-            font-size: 0.875rem;
-            transition: border-color 0.2s ease;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: var(--vscode-blue);
-            box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2);
-        }
-
-        .form-input::placeholder {
-            color: var(--vscode-text-muted);
-        }
-
-        .form-input.error {
-            border-color: var(--vscode-red);
-        }
-
-        .auth-button {
-            width: 100%;
-            padding: 0.75rem;
-            background-color: var(--vscode-green);
-            color: white;
-            border: none;
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-
-        .auth-button:hover {
-            background-color: var(--vscode-green-hover);
-        }
-
-        .auth-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .auth-link {
-            text-align: center;
-            margin-top: 1.5rem;
-        }
-
-        .auth-link a {
-            color: var(--vscode-blue);
-            text-decoration: none;
-            font-size: 0.875rem;
-        }
-
-        .auth-link a:hover {
-            text-decoration: underline;
-        }
-
-        .error-message {
-            color: var(--vscode-red);
-            font-size: 0.875rem;
-            margin-top: 0.5rem;
-            display: none;
-        }
-
-        .success-message {
-            color: var(--vscode-green);
-            font-size: 0.875rem;
-            margin-top: 0.5rem;
-            display: none;
-        }
-
-        .password-requirements {
-            background-color: var(--vscode-bg);
-            border: 1px solid var(--vscode-border);
-            border-radius: 0.375rem;
-            padding: 0.75rem;
-            margin-top: 0.5rem;
-            font-size: 0.75rem;
-        }
-
-        .password-requirements ul {
-            margin: 0;
-            padding-left: 1rem;
-            color: var(--vscode-text-muted);
-        }
-
-        .password-requirements li {
-            margin-bottom: 0.25rem;
-        }
-
-        .password-requirements li.valid {
-            color: var(--vscode-green);
-        }
-
-        .password-requirements li.invalid {
-            color: var(--vscode-red);
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', path='auth.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="auth-container">
-    <div class="auth-card">
-        <div class="auth-header">
-            <h1>📝 Register</h1>
-            <p>Create your AI API Generator account</p>
-        </div>
-
-        <form id="registerForm">
-            <div class="form-group">
-                <label for="email" class="form-label">Email Address</label>
-                <input 
-                    type="email" 
-                    id="email" 
-                    class="form-input" 
-                    placeholder="Enter your email"
-                    required
-                >
-            </div>
-
-            <div class="form-group">
-                <label for="password" class="form-label">Password</label>
-                <input 
-                    type="password" 
-                    id="password" 
-                    class="form-input" 
-                    placeholder="Create a password"
-                    required
-                    minlength="6"
-                >
-                <div class="password-requirements">
-                    <ul>
-                        <li id="length-req">At least 6 characters</li>
-                        <li id="letter-req">Contains letters</li>
-                        <li id="number-req">Contains numbers (recommended)</li>
-                    </ul>
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">
+                    🚀
                 </div>
+                <h1 class="auth-title">Join Our Platform</h1>
+                <p class="auth-subtitle">Create your AI API Generator account and start building powerful APIs with artificial intelligence</p>
             </div>
 
-            <div class="form-group">
-                <label for="passwordConfirm" class="form-label">Confirm Password</label>
-                <input 
-                    type="password" 
-                    id="passwordConfirm" 
-                    class="form-input" 
-                    placeholder="Confirm your password"
-                    required
-                >
+            <form id="registerForm" class="auth-form">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email Address</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="email" 
+                            id="email" 
+                            class="form-input form-input-with-icon" 
+                            placeholder="Enter your email address"
+                            required
+                            autocomplete="email"
+                        >
+                        <svg class="input-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input form-input-with-icon" 
+                            placeholder="Create a strong password"
+                            required
+                            minlength="6"
+                            autocomplete="new-password"
+                        >
+                        <svg class="input-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                    </div>
+                    <div class="password-requirements">
+                        <h4>Password Requirements</h4>
+                        <ul>
+                            <li id="length-req">At least 6 characters</li>
+                            <li id="letter-req">Contains letters</li>
+                            <li id="number-req">Contains numbers (recommended)</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="passwordConfirm" class="form-label">Confirm Password</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="password" 
+                            id="passwordConfirm" 
+                            class="form-input form-input-with-icon" 
+                            placeholder="Confirm your password"
+                            required
+                            autocomplete="new-password"
+                        >
+                        <svg class="input-icon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <button type="submit" class="auth-button" id="registerButton">
+                    <span class="button-text">Create Your Account</span>
+                </button>
+
+                <div id="errorMessage" class="message error-message"></div>
+                <div id="successMessage" class="message success-message"></div>
+            </form>
+
+            <div class="auth-link">
+                <p>Already have an account? <a href="/login">Sign in here</a></p>
             </div>
-
-            <button type="submit" class="auth-button" id="registerButton">
-                Create Account
-            </button>
-
-            <div id="errorMessage" class="error-message"></div>
-            <div id="successMessage" class="success-message"></div>
-        </form>
-
-        <div class="auth-link">
-            <p>Already have an account? <a href="/login">Sign in here</a></p>
         </div>
     </div>
 </div>
@@ -222,93 +97,178 @@
 
 {% block extra_scripts %}
 <script>
-    // Password validation
+    // Enhanced form validation functions
+    function validateEmail(email) {
+        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return re.test(email);
+    }
+
+    function setInputState(input, state) {
+        input.classList.remove('error', 'success');
+        if (state === 'error') {
+            input.classList.add('error');
+        } else if (state === 'success') {
+            input.classList.add('success');
+        }
+    }
+
+    function showMessage(elementId, message, isError = true) {
+        const messageEl = document.getElementById(elementId);
+        messageEl.textContent = message;
+        messageEl.style.display = 'block';
+        
+        // Add entrance animation
+        messageEl.style.animation = 'none';
+        messageEl.offsetHeight; // Trigger reflow
+        messageEl.style.animation = 'messageSlide 0.3s ease-out';
+    }
+
+    function hideMessage(elementId) {
+        const messageEl = document.getElementById(elementId);
+        messageEl.style.display = 'none';
+    }
+
+    // Get form elements
+    const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
+    const passwordConfirmInput = document.getElementById('passwordConfirm');
     const lengthReq = document.getElementById('length-req');
     const letterReq = document.getElementById('letter-req');
     const numberReq = document.getElementById('number-req');
 
-    passwordInput.addEventListener('input', () => {
-        const password = passwordInput.value;
-        
-        // Length requirement
-        if (password.length >= 6) {
-            lengthReq.classList.add('valid');
-            lengthReq.classList.remove('invalid');
-        } else {
-            lengthReq.classList.add('invalid');
-            lengthReq.classList.remove('valid');
-        }
-        
-        // Letter requirement
-        if (/[a-zA-Z]/.test(password)) {
-            letterReq.classList.add('valid');
-            letterReq.classList.remove('invalid');
-        } else {
-            letterReq.classList.add('invalid');
-            letterReq.classList.remove('valid');
-        }
-        
-        // Number requirement (optional)
-        if (/[0-9]/.test(password)) {
-            numberReq.classList.add('valid');
-            numberReq.classList.remove('invalid');
-        } else {
-            numberReq.classList.remove('valid');
-            numberReq.classList.remove('invalid');
+    // Enhanced password validation with visual feedback
+    function validatePassword(password) {
+        const requirements = {
+            length: password.length >= 6,
+            letter: /[a-zA-Z]/.test(password),
+            number: /[0-9]/.test(password)
+        };
+
+        // Update requirement indicators
+        lengthReq.className = requirements.length ? 'valid' : (password.length > 0 ? 'invalid' : '');
+        letterReq.className = requirements.letter ? 'valid' : (password.length > 0 ? 'invalid' : '');
+        numberReq.className = requirements.number ? 'valid' : '';
+
+        return requirements.length && requirements.letter;
+    }
+
+    // Real-time validation
+    emailInput.addEventListener('blur', () => {
+        const email = emailInput.value.trim();
+        if (email && !validateEmail(email)) {
+            setInputState(emailInput, 'error');
+        } else if (email) {
+            setInputState(emailInput, 'success');
         }
     });
 
-    // Password confirmation validation
-    const passwordConfirmInput = document.getElementById('passwordConfirm');
-    passwordConfirmInput.addEventListener('input', () => {
+    emailInput.addEventListener('input', () => {
+        if (emailInput.classList.contains('error')) {
+            setInputState(emailInput, '');
+        }
+    });
+
+    passwordInput.addEventListener('input', () => {
+        const password = passwordInput.value;
+        const isValid = validatePassword(password);
+        
+        if (password.length > 0) {
+            setInputState(passwordInput, isValid ? 'success' : 'error');
+        } else {
+            setInputState(passwordInput, '');
+        }
+
+        // Also validate confirm password if it has a value
+        if (passwordConfirmInput.value) {
+            validatePasswordConfirm();
+        }
+    });
+
+    function validatePasswordConfirm() {
         const password = passwordInput.value;
         const passwordConfirm = passwordConfirmInput.value;
         
-        if (passwordConfirm && password !== passwordConfirm) {
-            passwordConfirmInput.classList.add('error');
-        } else {
-            passwordConfirmInput.classList.remove('error');
+        if (passwordConfirm.length > 0) {
+            if (password === passwordConfirm) {
+                setInputState(passwordConfirmInput, 'success');
+                return true;
+            } else {
+                setInputState(passwordConfirmInput, 'error');
+                return false;
+            }
         }
-    });
+        return true;
+    }
 
+    passwordConfirmInput.addEventListener('input', validatePasswordConfirm);
+
+    // Enhanced form submission
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const passwordConfirm = document.getElementById('passwordConfirm').value;
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        const passwordConfirm = passwordConfirmInput.value;
         const registerButton = document.getElementById('registerButton');
-        const errorMessage = document.getElementById('errorMessage');
-        const successMessage = document.getElementById('successMessage');
+        const buttonText = registerButton.querySelector('.button-text');
 
-        // Reset messages
-        errorMessage.style.display = 'none';
-        successMessage.style.display = 'none';
+        // Reset messages and states
+        hideMessage('errorMessage');
+        hideMessage('successMessage');
 
-        // Validate passwords match
-        if (password !== passwordConfirm) {
-            errorMessage.textContent = 'Passwords do not match';
-            errorMessage.style.display = 'block';
+        // Validate all inputs
+        let hasErrors = false;
+        
+        if (!email) {
+            setInputState(emailInput, 'error');
+            showMessage('errorMessage', '❌ Please enter your email address');
+            hasErrors = true;
+        } else if (!validateEmail(email)) {
+            setInputState(emailInput, 'error');
+            showMessage('errorMessage', '❌ Please enter a valid email address');
+            hasErrors = true;
+        }
+
+        if (!password) {
+            setInputState(passwordInput, 'error');
+            if (!hasErrors) {
+                showMessage('errorMessage', '❌ Please create a password');
+            }
+            hasErrors = true;
+        } else if (!validatePassword(password)) {
+            setInputState(passwordInput, 'error');
+            if (!hasErrors) {
+                if (password.length < 6) {
+                    showMessage('errorMessage', '❌ Password must be at least 6 characters long');
+                } else if (!/[a-zA-Z]/.test(password)) {
+                    showMessage('errorMessage', '❌ Password must contain at least one letter');
+                }
+            }
+            hasErrors = true;
+        }
+
+        if (!passwordConfirm) {
+            setInputState(passwordConfirmInput, 'error');
+            if (!hasErrors) {
+                showMessage('errorMessage', '❌ Please confirm your password');
+            }
+            hasErrors = true;
+        } else if (password !== passwordConfirm) {
+            setInputState(passwordConfirmInput, 'error');
+            if (!hasErrors) {
+                showMessage('errorMessage', '❌ Passwords do not match');
+            }
+            hasErrors = true;
+        }
+
+        if (hasErrors) {
             return;
         }
 
-        // Validate password requirements
-        if (password.length < 6) {
-            errorMessage.textContent = 'Password must be at least 6 characters long';
-            errorMessage.style.display = 'block';
-            return;
-        }
-
-        if (!/[a-zA-Z]/.test(password)) {
-            errorMessage.textContent = 'Password must contain at least one letter';
-            errorMessage.style.display = 'block';
-            return;
-        }
-
-        // Disable button during request
+        // Set loading state
         registerButton.disabled = true;
-        registerButton.textContent = 'Creating Account...';
+        registerButton.classList.add('loading');
+        buttonText.textContent = 'Creating Account...';
 
         try {
             const response = await fetch('/auth/register', {
@@ -324,9 +284,13 @@
             const result = await response.json();
 
             if (response.ok && result.success) {
+                // Show success states
+                setInputState(emailInput, 'success');
+                setInputState(passwordInput, 'success');
+                setInputState(passwordConfirmInput, 'success');
+                
                 // Show success message
-                successMessage.textContent = '🎉 Account created successfully! You\'ve received 1000 free starter tokens. Redirecting to login...';
-                successMessage.style.display = 'block';
+                showMessage('successMessage', '🎉 Account created successfully! You\'ve received 1000 free starter tokens. Redirecting to login...', false);
                 
                 // Redirect to login page after short delay
                 setTimeout(() => {
@@ -335,23 +299,30 @@
             } else {
                 // Handle different error types
                 let errorText = result.detail || result.message || 'Registration failed';
-                if (errorText.includes('Email already exists')) {
+                
+                if (errorText.includes('Email already exists') || errorText.includes('already registered')) {
                     errorText = '❌ An account with this email already exists. Please use a different email or try logging in.';
+                    setInputState(emailInput, 'error');
                 } else if (errorText.includes('Password must be at least')) {
                     errorText = '❌ Password must be at least 6 characters long.';
-                } else if (errorText.includes('email')) {
+                    setInputState(passwordInput, 'error');
+                } else if (errorText.includes('email') || errorText.includes('Email')) {
                     errorText = '❌ Please enter a valid email address.';
+                    setInputState(emailInput, 'error');
+                } else {
+                    errorText = '❌ ' + errorText;
                 }
-                errorMessage.textContent = errorText;
-                errorMessage.style.display = 'block';
+                
+                showMessage('errorMessage', errorText);
             }
         } catch (error) {
-            errorMessage.textContent = '🌐 Connection error: Unable to connect to server. Please check your internet connection and try again.';
-            errorMessage.style.display = 'block';
+            console.error('Registration error:', error);
+            showMessage('errorMessage', '🌐 Connection error: Unable to connect to server. Please check your internet connection and try again.');
         } finally {
-            // Re-enable button
+            // Reset button state
             registerButton.disabled = false;
-            registerButton.textContent = 'Create Account';
+            registerButton.classList.remove('loading');
+            buttonText.textContent = 'Create Your Account';
         }
     });
 
@@ -364,6 +335,18 @@
             // User is already logged in, redirect to main page
             window.location.href = '/';
         }
+
+        // Add focus effects
+        const inputs = document.querySelectorAll('.form-input');
+        inputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.classList.add('focused');
+            });
+            
+            input.addEventListener('blur', () => {
+                input.parentElement.classList.remove('focused');
+            });
+        });
     });
 </script>
 {% endblock %} 
