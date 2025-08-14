@@ -1,0 +1,1243 @@
+{% extends "base.html" %}
+
+{% block title %}{{ api_name }} - API Documentation{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
+    <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <link rel="stylesheet" href="/static/docs.css">
+    <style>
+        .docs-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 0;
+            min-height: 100vh;
+        }
+        
+        .docs-sidebar {
+            background: rgba(15, 23, 42, 0.95);
+            border-right: 1px solid rgba(100, 116, 139, 0.2);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            backdrop-filter: blur(12px);
+        }
+        
+        .docs-content {
+            background: rgba(2, 6, 23, 0.8);
+            overflow-y: auto;
+        }
+        
+        .nav-section {
+            padding: 1.5rem 1rem;
+            border-bottom: 1px solid rgba(100, 116, 139, 0.1);
+        }
+        
+        .nav-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+        
+        .nav-item {
+            display: block;
+            padding: 0.5rem 0.75rem;
+            color: #cbd5e1;
+            text-decoration: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            margin-bottom: 0.25rem;
+        }
+        
+        .nav-item:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: #93c5fd;
+        }
+        
+        .nav-item.active {
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            border-left: 3px solid #3b82f6;
+        }
+        
+        .content-section {
+            padding: 3rem 2rem;
+            max-width: 900px;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+        }
+        
+        .section-icon {
+            width: 2rem;
+            height: 2rem;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .endpoint-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.2);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(12px);
+        }
+        
+        .endpoint-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .method-badge {
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .method-post {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        
+        .method-get {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        
+        .endpoint-url {
+            font-family: 'JetBrains Mono', 'Monaco', 'Menlo', monospace;
+            font-size: 1.125rem;
+            color: #e2e8f0;
+            background: rgba(30, 41, 59, 0.5);
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(100, 116, 139, 0.2);
+        }
+        
+        .code-block {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            margin: 1.5rem 0;
+        }
+        
+        .code-header {
+            background: #0f172a;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            justify-content: between;
+        }
+        
+        .code-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #94a3b8;
+        }
+        
+        .copy-btn {
+            padding: 0.25rem 0.5rem;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 0.375rem;
+            color: #60a5fa;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+        
+        .code-content {
+            padding: 1.5rem;
+            overflow-x: auto;
+        }
+        
+        .code-content pre {
+            margin: 0;
+            font-family: 'JetBrains Mono', 'Monaco', 'Menlo', monospace;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        .tabs-container {
+            margin: 2rem 0;
+        }
+        
+        .tabs-nav {
+            display: flex;
+            border-bottom: 1px solid rgba(100, 116, 139, 0.2);
+            margin-bottom: 1.5rem;
+        }
+        
+        .tab-button {
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .tab-button:hover {
+            color: #cbd5e1;
+        }
+        
+        .tab-button.active {
+            color: #60a5fa;
+            border-bottom-color: #3b82f6;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .parameter-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        
+        .parameter-table th,
+        .parameter-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(100, 116, 139, 0.2);
+        }
+        
+        .parameter-table th {
+            background: rgba(30, 41, 59, 0.5);
+            color: #e2e8f0;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        
+        .parameter-table td {
+            color: #cbd5e1;
+            font-size: 0.875rem;
+        }
+        
+        .param-name {
+            font-family: 'JetBrains Mono', monospace;
+            color: #fbbf24;
+        }
+        
+        .param-type {
+            color: #10b981;
+            font-size: 0.75rem;
+            background: rgba(16, 185, 129, 0.1);
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+        }
+        
+        .param-required {
+            color: #ef4444;
+            font-size: 0.75rem;
+            background: rgba(239, 68, 68, 0.1);
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+        }
+        
+        .param-optional {
+            color: #6b7280;
+            font-size: 0.75rem;
+            background: rgba(107, 114, 128, 0.1);
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+        }
+        
+        .response-example {
+            background: rgba(6, 78, 59, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .error-example {
+            background: rgba(127, 29, 29, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .status-200 {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+        }
+        
+        .status-400 {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+        
+        .status-500 {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+        
+        .interactive-test {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(100, 116, 139, 0.2);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+        
+        .test-form {
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .form-label {
+            color: #e2e8f0;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .form-input {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: #e2e8f0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .test-button {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .test-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
+        }
+        
+        .test-result {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(100, 116, 139, 0.2);
+            background: rgba(15, 23, 42, 0.8);
+        }
+        
+        @media (max-width: 768px) {
+            .docs-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .docs-sidebar {
+                position: relative;
+                height: auto;
+            }
+            
+            .content-section {
+                padding: 2rem 1rem;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="docs-container">
+    <!-- Sidebar Navigation -->
+    <nav class="docs-sidebar">
+        <div class="nav-section">
+            <div class="p-4 border-b border-slate-600/50">
+                <h1 class="text-xl font-bold text-white">{{ api_name }}</h1>
+                <p class="text-sm text-slate-400 mt-1">API Documentation</p>
+            </div>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-title">Getting Started</div>
+            <a href="#overview" class="nav-item active">Overview</a>
+            <a href="#authentication" class="nav-item">Authentication</a>
+            <a href="#rate-limits" class="nav-item">Rate Limits</a>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-title">API Reference</div>
+            <a href="#openapi-spec" class="nav-item">OpenAPI Spec</a>
+            <a href="#endpoints" class="nav-item">Endpoints</a>
+            <a href="#request-format" class="nav-item">Request Format</a>
+            <a href="#response-format" class="nav-item">Response Format</a>
+            <a href="#error-codes" class="nav-item">Error Codes</a>
+        </div>
+        
+        <div class="nav-section">
+            <div class="nav-title">Examples</div>
+            <a href="#code-examples" class="nav-item">Code Examples</a>
+            <a href="#curl-examples" class="nav-item">cURL Examples</a>
+            <a href="#interactive-test" class="nav-item">Try It Out</a>
+        </div>
+    </nav>
+    
+    <!-- Main Content -->
+    <main class="docs-content">
+        <!-- Overview Section -->
+        <section id="overview" class="content-section">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-white">Overview</h2>
+            </div>
+            
+            <div class="prose prose-invert max-w-none">
+                <p class="text-lg text-slate-300 leading-relaxed mb-6">{{ description }}</p>
+                
+                <div class="endpoint-card">
+                    <h3 class="text-xl font-semibold text-white mb-4">Base URL</h3>
+                    <div class="endpoint-url">{{ base_url }}</div>
+                </div>
+                
+                <div class="grid md:grid-cols-2 gap-6 mt-8">
+                    <div class="endpoint-card">
+                        <h4 class="text-lg font-semibold text-white mb-3">✨ Features</h4>
+                        <ul class="space-y-2 text-slate-300">
+                            <li class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                RESTful API design
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                JSON request/response format
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Comprehensive error handling
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Rate limiting protection
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <div class="endpoint-card">
+                        <h4 class="text-lg font-semibold text-white mb-3">🚀 Quick Start</h4>
+                        <ol class="space-y-2 text-slate-300 list-decimal list-inside">
+                            <li>Get your API endpoint URL</li>
+                            <li>Prepare your JSON request data</li>
+                            <li>Send a POST request</li>
+                            <li>Parse the JSON response</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Authentication Section -->
+        <section id="authentication" class="content-section">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-white">Authentication</h2>
+            </div>
+            
+            <div class="prose prose-invert max-w-none">
+                <p class="text-lg text-slate-300 mb-6">This API currently does not require authentication. Simply send your requests to the endpoint URL.</p>
+                
+                <div class="endpoint-card">
+                    <h3 class="text-lg font-semibold text-white mb-4">Public Access</h3>
+                    <p class="text-slate-300">No API keys or authentication headers are required. The API is publicly accessible for testing and integration.</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Rate Limits Section -->
+        <section id="rate-limits" class="content-section">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-white">Rate Limits</h2>
+            </div>
+            
+            <div class="prose prose-invert max-w-none">
+                <p class="text-lg text-slate-300 mb-6">To ensure fair usage and optimal performance, the following rate limits apply:</p>
+                
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="endpoint-card">
+                        <h4 class="text-lg font-semibold text-white mb-3">Standard Limits</h4>
+                        <ul class="space-y-2 text-slate-300">
+                            <li><strong>Requests per minute:</strong> 60</li>
+                            <li><strong>Requests per hour:</strong> 1,000</li>
+                            <li><strong>Requests per day:</strong> 10,000</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="endpoint-card">
+                        <h4 class="text-lg font-semibold text-white mb-3">Rate Limit Headers</h4>
+                        <ul class="space-y-2 text-slate-300 font-mono text-sm">
+                            <li><code>X-RateLimit-Limit</code></li>
+                            <li><code>X-RateLimit-Remaining</code></li>
+                            <li><code>X-RateLimit-Reset</code></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- OpenAPI Specification Section -->
+        <section id="openapi-spec" class="content-section">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-white">OpenAPI Specification</h2>
+            </div>
+            
+            <div class="prose prose-invert max-w-none">
+                <p class="text-lg text-slate-300 mb-6">Interactive API specification viewer powered by Swagger UI.</p>
+                
+                <div class="endpoint-card">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-semibold text-white">API Specification</h3>
+                        <div class="flex gap-2">
+                            <button onclick="downloadOpenAPISpec()" class="copy-btn">Download YAML</button>
+                            <button onclick="viewSwaggerUI()" class="copy-btn">Open in Swagger UI</button>
+                        </div>
+                    </div>
+                    
+                    <div class="tabs-container">
+                        <div class="tabs-nav">
+                            <button class="tab-button active" onclick="switchSpecTab('viewer')">Interactive Viewer</button>
+                            <button class="tab-button" onclick="switchSpecTab('raw')">Raw YAML</button>
+                        </div>
+                        
+                        <div id="viewer-tab" class="tab-content active">
+                            <div id="swagger-ui" style="background: #1e293b; border-radius: 0.75rem; overflow: hidden;">
+                                <div class="p-8 text-center text-slate-400">
+                                    <div class="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                                    Loading OpenAPI specification...
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="raw-tab" class="tab-content">
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <div class="code-title">OpenAPI 3.0 Specification</div>
+                                    <button class="copy-btn" onclick="copyCode('openapi-yaml')">Copy</button>
+                                </div>
+                                <div class="code-content">
+                                    <pre><code id="openapi-yaml" class="language-yaml">Loading specification...</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Endpoints Section -->
+        <section id="endpoints" class="content-section">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-white">API Endpoints</h2>
+            </div>
+            
+            <div id="endpoint-list">
+                <!-- Endpoints will be populated by JavaScript -->
+            </div>
+        </section>
+        
+        <!-- Code Examples Section -->
+        <section id="code-examples" class="content-section">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-white">Code Examples</h2>
+            </div>
+            
+            <div class="tabs-container">
+                <div class="tabs-nav">
+                    <button class="tab-button active" onclick="switchCodeTab('curl')">cURL</button>
+                    <button class="tab-button" onclick="switchCodeTab('python')">Python</button>
+                    <button class="tab-button" onclick="switchCodeTab('javascript')">JavaScript</button>
+                    <button class="tab-button" onclick="switchCodeTab('php')">PHP</button>
+                </div>
+                
+                <div id="curl-tab" class="tab-content active">
+                    <div class="code-block">
+                        <div class="code-header">
+                            <div class="code-title">cURL Example</div>
+                            <button class="copy-btn" onclick="copyCode('curl-code')">Copy</button>
+                        </div>
+                        <div class="code-content">
+                            <pre><code id="curl-code" class="language-bash">{{ curl_example }}</code></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="python-tab" class="tab-content">
+                    <div class="code-block">
+                        <div class="code-header">
+                            <div class="code-title">Python Example</div>
+                            <button class="copy-btn" onclick="copyCode('python-code')">Copy</button>
+                        </div>
+                        <div class="code-content">
+                            <pre><code id="python-code" class="language-python">import requests
+import json
+
+# API endpoint
+url = "{{ base_url }}"
+
+# Request data
+data = {
+    "example": "value",
+    "key": "data"
+}
+
+# Make the request
+response = requests.post(url, json=data)
+
+# Handle the response
+if response.status_code == 200:
+    result = response.json()
+    print("Success:", result)
+else:
+    print("Error:", response.status_code, response.text)</code></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="javascript-tab" class="tab-content">
+                    <div class="code-block">
+                        <div class="code-header">
+                            <div class="code-title">JavaScript Example</div>
+                            <button class="copy-btn" onclick="copyCode('javascript-code')">Copy</button>
+                        </div>
+                        <div class="code-content">
+                            <pre><code id="javascript-code" class="language-javascript">// API endpoint
+const url = '{{ base_url }}';
+
+// Request data
+const data = {
+    example: 'value',
+    key: 'data'
+};
+
+// Make the request
+fetch(url, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data)
+})
+.then(response => response.json())
+.then(result => {
+    console.log('Success:', result);
+})
+.catch(error => {
+    console.error('Error:', error);
+});</code></pre>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="php-tab" class="tab-content">
+                    <div class="code-block">
+                        <div class="code-header">
+                            <div class="code-title">PHP Example</div>
+                            <button class="copy-btn" onclick="copyCode('php-code')">Copy</button>
+                        </div>
+                        <div class="code-content">
+                            <pre><code id="php-code" class="language-php"><?php
+// API endpoint
+$url = '{{ base_url }}';
+
+// Request data
+$data = array(
+    'example' => 'value',
+    'key' => 'data'
+);
+
+// Initialize cURL
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+    'Content-Type: application/json'
+));
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+// Execute request
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+// Handle response
+if ($httpCode == 200) {
+    $result = json_decode($response, true);
+    echo "Success: " . print_r($result, true);
+} else {
+    echo "Error: " . $httpCode . " " . $response;
+}
+?></code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Interactive Test Section -->
+        <section id="interactive-test" class="content-section">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-white">Try It Out</h2>
+            </div>
+            
+            <div class="interactive-test">
+                <h3 class="text-xl font-semibold text-white mb-4">Test the API</h3>
+                <p class="text-slate-300 mb-6">Enter your request data below and test the API directly from this documentation.</p>
+                
+                <form class="test-form" id="api-test-form">
+                    <div class="form-group">
+                        <label class="form-label" for="test-data">Request Body (JSON)</label>
+                        <textarea 
+                            id="test-data" 
+                            class="form-input" 
+                            rows="8" 
+                            placeholder='{\n  "example": "value",\n  "key": "data"\n}'
+                        ></textarea>
+                    </div>
+                    
+                    <div class="flex gap-4">
+                        <button type="submit" class="test-button">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                            Send Request
+                        </button>
+                        <button type="button" onclick="clearTestData()" class="test-button" style="background: #6b7280;">Clear</button>
+                    </div>
+                </form>
+                
+                <div id="test-result" class="test-result" style="display: none;">
+                    <h4 class="text-lg font-semibold text-white mb-3">Response</h4>
+                    <div class="code-block">
+                        <div class="code-header">
+                            <div class="code-title">Response Body</div>
+                            <button class="copy-btn" onclick="copyCode('response-body')">Copy</button>
+                        </div>
+                        <div class="code-content">
+                            <pre><code id="response-body" class="language-json"></code></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Global variables
+    const apiData = {
+        base_url: "{{ base_url }}",
+        user_id: "{{ user_id }}",
+        api_slug: "{{ api_slug }}"
+    };
+    
+    let openApiSpec = null;
+    let swaggerUI = null;
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAPIData();
+        setupInteractiveTest();
+        setupSmoothScrolling();
+        loadOpenAPISpec();
+    });
+
+    // Load API data and populate endpoints
+    async function loadAPIData() {
+        try {
+            const response = await fetch(`/api/${apiData.user_id}/${apiData.api_slug}/apidetails`);
+            const data = await response.json();
+            
+            if (response.ok) {
+                populateEndpoints(data);
+            }
+        } catch (error) {
+            console.error('Failed to load API data:', error);
+        }
+    }
+
+    // Populate endpoints section
+    function populateEndpoints(data) {
+        const endpointList = document.getElementById('endpoint-list');
+        
+        // Main endpoint
+        const endpointHtml = `
+            <div class="endpoint-card">
+                <div class="endpoint-header">
+                    <span class="method-badge method-post">POST</span>
+                    <div class="flex-1">
+                        <div class="endpoint-url">${data.endpoint_url || apiData.base_url}</div>
+                    </div>
+                </div>
+                
+                <div class="prose prose-invert max-w-none">
+                    <h4 class="text-lg font-semibold text-white mb-3">Description</h4>
+                    <p class="text-slate-300 mb-4">${data.prompt || 'API endpoint for processing requests'}</p>
+                    
+                    <h4 class="text-lg font-semibold text-white mb-3">Request</h4>
+                    <div class="tabs-container">
+                        <div class="tabs-nav">
+                            <button class="tab-button active" onclick="switchEndpointTab('parameters')">Parameters</button>
+                            <button class="tab-button" onclick="switchEndpointTab('example-request')">Example</button>
+                        </div>
+                        
+                        <div id="parameters-tab" class="tab-content active">
+                            <table class="parameter-table">
+                                <thead>
+                                    <tr>
+                                        <th>Parameter</th>
+                                        <th>Type</th>
+                                        <th>Required</th>
+                                        <th>Description</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><span class="param-name">data</span></td>
+                                        <td><span class="param-type">object</span></td>
+                                        <td><span class="param-optional">optional</span></td>
+                                        <td>Request payload data</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="example-request-tab" class="tab-content">
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <div class="code-title">Example Request</div>
+                                    <button class="copy-btn" onclick="copyCode('example-request')">Copy</button>
+                                </div>
+                                <div class="code-content">
+                                    <pre><code id="example-request" class="language-json">{
+  "example": "value",
+  "key": "data",
+  "timestamp": "2024-01-01T00:00:00Z"
+}</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h4 class="text-lg font-semibold text-white mb-3 mt-6">Responses</h4>
+                    
+                    <div class="response-example">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="status-badge status-200">200</span>
+                            <span class="text-white font-medium">Success</span>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-content">
+                                <pre><code class="language-json">{
+  "success": true,
+  "data": {
+    "result": "processed successfully"
+  },
+  "timestamp": "2024-01-01T00:00:00Z"
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="error-example">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="status-badge status-400">400</span>
+                            <span class="text-white font-medium">Bad Request</span>
+                        </div>
+                        <div class="code-block">
+                            <div class="code-content">
+                                <pre><code class="language-json">{
+  "error": "Invalid request format",
+  "message": "Request body must be valid JSON",
+  "timestamp": "2024-01-01T00:00:00Z"
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        endpointList.innerHTML = endpointHtml;
+    }
+
+    // Setup interactive testing
+    function setupInteractiveTest() {
+        const form = document.getElementById('api-test-form');
+        form.addEventListener('submit', handleTestSubmit);
+        
+        // Load example data
+        const testData = document.getElementById('test-data');
+        testData.value = JSON.stringify({
+            "example": "value",
+            "key": "data",
+            "timestamp": new Date().toISOString()
+        }, null, 2);
+    }
+
+    // Handle test form submission
+    async function handleTestSubmit(e) {
+        e.preventDefault();
+        
+        const testDataInput = document.getElementById('test-data');
+        const resultDiv = document.getElementById('test-result');
+        const responseBody = document.getElementById('response-body');
+        
+        try {
+            // Parse test data
+            let requestData = {};
+            if (testDataInput.value.trim()) {
+                requestData = JSON.parse(testDataInput.value);
+            }
+            
+            // Show loading state
+            resultDiv.style.display = 'block';
+            responseBody.textContent = 'Sending request...';
+            
+            // Make the API request
+            const response = await fetch('/test-api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: apiData.user_id,
+                    api_slug: apiData.api_slug,
+                    test_data: requestData,
+                    test_type: 'documentation'
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Display the result
+            if (result.success && result.response_data) {
+                responseBody.textContent = JSON.stringify(result.response_data, null, 2);
+            } else if (result.error) {
+                responseBody.textContent = JSON.stringify({ error: result.error }, null, 2);
+            } else {
+                responseBody.textContent = JSON.stringify(result, null, 2);
+            }
+            
+            // Highlight the code
+            Prism.highlightElement(responseBody);
+            
+        } catch (error) {
+            responseBody.textContent = JSON.stringify({ 
+                error: 'Test failed', 
+                message: error.message 
+            }, null, 2);
+            Prism.highlightElement(responseBody);
+        }
+    }
+
+    // Clear test data
+    function clearTestData() {
+        document.getElementById('test-data').value = '';
+        document.getElementById('test-result').style.display = 'none';
+    }
+
+    // Setup smooth scrolling for navigation
+    function setupSmoothScrolling() {
+        document.querySelectorAll('.nav-item').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1);
+                const targetElement = document.getElementById(targetId);
+                
+                if (targetElement) {
+                    // Update active nav item
+                    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Scroll to target
+                    targetElement.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    }
+
+    // Tab switching functions
+    function switchCodeTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('#code-examples .tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // Remove active class from all buttons
+        document.querySelectorAll('#code-examples .tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Show selected tab
+        document.getElementById(tabName + '-tab').classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    function switchEndpointTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.endpoint-card .tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // Remove active class from all buttons
+        document.querySelectorAll('.endpoint-card .tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Show selected tab
+        document.getElementById(tabName + '-tab').classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // Load OpenAPI specification
+    async function loadOpenAPISpec() {
+        try {
+            const response = await fetch(`/api/${apiData.user_id}/${apiData.api_slug}/openapi`);
+            openApiSpec = await response.json();
+            
+            // Initialize Swagger UI
+            initializeSwaggerUI();
+            
+            // Show raw YAML
+            displayRawSpec();
+            
+        } catch (error) {
+            console.error('Failed to load OpenAPI spec:', error);
+            document.getElementById('swagger-ui').innerHTML = `
+                <div class="p-8 text-center text-red-400">
+                    <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                    <p>Failed to load OpenAPI specification</p>
+                </div>
+            `;
+        }
+    }
+
+    // Initialize Swagger UI
+    function initializeSwaggerUI() {
+        if (!openApiSpec) return;
+        
+        swaggerUI = SwaggerUIBundle({
+            dom_id: '#swagger-ui',
+            spec: openApiSpec,
+            deepLinking: true,
+            presets: [
+                SwaggerUIBundle.presets.apis,
+                SwaggerUIBundle.presets.standalone
+            ],
+            plugins: [
+                SwaggerUIBundle.plugins.DownloadUrl
+            ],
+            layout: "BaseLayout",
+            theme: "dark",
+            tryItOutEnabled: true,
+            requestInterceptor: (req) => {
+                // Add any custom headers or modifications here
+                return req;
+            }
+        });
+    }
+
+    // Display raw OpenAPI spec as YAML
+    function displayRawSpec() {
+        if (!openApiSpec) return;
+        
+        try {
+            const yamlString = jsyaml.dump(openApiSpec, {
+                indent: 2,
+                lineWidth: -1,
+                noRefs: true
+            });
+            
+            document.getElementById('openapi-yaml').textContent = yamlString;
+            Prism.highlightElement(document.getElementById('openapi-yaml'));
+        } catch (error) {
+            document.getElementById('openapi-yaml').textContent = 'Error converting to YAML: ' + error.message;
+        }
+    }
+
+    // Switch between OpenAPI spec tabs
+    function switchSpecTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('#openapi-spec .tab-content').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        
+        // Remove active class from all buttons
+        document.querySelectorAll('#openapi-spec .tab-button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        // Show selected tab
+        document.getElementById(tabName + '-tab').classList.add('active');
+        event.target.classList.add('active');
+        
+        // Re-initialize Swagger UI if switching to viewer tab
+        if (tabName === 'viewer' && openApiSpec && !swaggerUI) {
+            setTimeout(initializeSwaggerUI, 100);
+        }
+    }
+
+    // Download OpenAPI spec as YAML
+    function downloadOpenAPISpec() {
+        if (!openApiSpec) return;
+        
+        try {
+            const yamlString = jsyaml.dump(openApiSpec, {
+                indent: 2,
+                lineWidth: -1,
+                noRefs: true
+            });
+            
+            const blob = new Blob([yamlString], { type: 'text/yaml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${apiData.api_slug}-openapi.yaml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to download OpenAPI spec:', error);
+        }
+    }
+
+    // Open in external Swagger UI
+    function viewSwaggerUI() {
+        if (!openApiSpec) return;
+        
+        const specUrl = `/api/${apiData.user_id}/${apiData.api_slug}/openapi`;
+        const swaggerUrl = `https://petstore.swagger.io/?url=${encodeURIComponent(window.location.origin + specUrl)}`;
+        window.open(swaggerUrl, '_blank');
+    }
+
+    // Copy code function
+    function copyCode(elementId) {
+        const element = document.getElementById(elementId);
+        const text = element.textContent;
+        
+        navigator.clipboard.writeText(text).then(() => {
+            // Show feedback
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            setTimeout(() => {
+                button.textContent = originalText;
+            }, 2000);
+        });
+    }
+</script>
+{% endblock %}

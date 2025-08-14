@@ -199,6 +199,12 @@
                             </svg>
                             Back
                         </button>
+                        <button onclick="viewDocs()" class="action-btn btn-success">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            View Docs
+                        </button>
                         <button onclick="testAPI()" class="action-btn btn-primary">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
@@ -437,24 +443,94 @@
 
                     <!-- Documentation Tab -->
                     <div id="documentationTab" class="tab-content hidden">
-                        <h3 class="section-header text-xl font-semibold text-white">API Documentation</h3>
-                        <div class="prose prose-invert max-w-none">
-                            <div id="documentationContent" class="text-slate-300 leading-relaxed">
-                                Loading documentation...
+                        <div class="text-center py-12">
+                            <div class="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-2xl font-bold text-white mb-4">Professional API Documentation</h3>
+                            <p class="text-slate-300 text-lg mb-8 max-w-2xl mx-auto">
+                                Experience comprehensive, interactive API documentation with live testing, code examples, 
+                                OpenAPI specifications, and more - all in a beautiful, professional interface.
+                            </p>
+                            
+                            <div class="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-8">
+                                <div class="endpoint-card text-center p-6">
+                                    <div class="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                        </svg>
+                                    </div>
+                                    <h4 class="text-white font-semibold mb-2">Interactive Testing</h4>
+                                    <p class="text-slate-400 text-sm">Test your API directly from the documentation with live examples</p>
+                                </div>
+                                
+                                <div class="endpoint-card text-center p-6">
+                                    <div class="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                                        </svg>
+                                    </div>
+                                    <h4 class="text-white font-semibold mb-2">Code Examples</h4>
+                                    <p class="text-slate-400 text-sm">Multi-language code samples for easy integration</p>
+                                </div>
+                                
+                                <div class="endpoint-card text-center p-6">
+                                    <div class="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                    </div>
+                                    <h4 class="text-white font-semibold mb-2">OpenAPI Spec</h4>
+                                    <p class="text-slate-400 text-sm">Interactive Swagger UI with downloadable specifications</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                                <button onclick="viewDocs()" class="action-btn btn-primary px-8 py-3 text-lg">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    View Full Documentation
+                                </button>
+                                <button onclick="quickPreview()" class="action-btn btn-secondary px-6 py-3">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                    </svg>
+                                    Quick Preview
+                                </button>
                             </div>
                         </div>
                         
-                        <div class="mt-8">
-                            <h4 class="text-lg font-semibold text-white mb-4">cURL Example</h4>
-                            <div class="code-viewer">
-                                <pre id="curlExample" class="text-slate-300 text-sm font-mono">Loading...</pre>
+                        <!-- Quick Preview Section (Initially Hidden) -->
+                        <div id="quickPreviewSection" class="hidden mt-8">
+                            <div class="border-t border-slate-600/50 pt-8">
+                                <h4 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                    </svg>
+                                    Quick cURL Example
+                                </h4>
+                                <div class="code-viewer">
+                                    <pre id="curlExample" class="text-slate-300 text-sm font-mono">Loading...</pre>
+                                </div>
+                                <div class="flex gap-3 mt-4">
+                                    <button onclick="copyCurl()" class="action-btn btn-secondary">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                        </svg>
+                                        Copy cURL Command
+                                    </button>
+                                    <button onclick="viewDocs()" class="action-btn btn-primary">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                        View Full Docs
+                                    </button>
+                                </div>
                             </div>
-                            <button onclick="copyCurl()" class="action-btn btn-secondary mt-4">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                                </svg>
-                                Copy cURL Command
-                            </button>
                         </div>
                     </div>
 
@@ -506,52 +582,79 @@
                 showError(data.detail || 'Failed to load API details');
             }
         } catch (error) {
+            console.error('Error loading API details:', error);
             showError('Network error: ' + error.message);
         }
     }
     
     // Populate page with API details
     function populateAPIDetails(data) {
-        // Header
-        document.getElementById('apiName').textContent = data.api_name || `API ${apiSlug}`;
-        document.getElementById('apiDescription').textContent = truncateText(data.prompt || 'No description available', 120);
-        document.getElementById('createdDate').textContent = `Created: ${formatDate(data.created_at)}`;
+        try {
+            // Header - with null checks
+            const apiNameEl = document.getElementById('apiName');
+            const apiDescEl = document.getElementById('apiDescription');
+            const createdDateEl = document.getElementById('createdDate');
+            
+            if (apiNameEl) apiNameEl.textContent = data.api_name || `API ${apiSlug}`;
+            if (apiDescEl) apiDescEl.textContent = truncateText(data.prompt || 'No description available', 120);
+            if (createdDateEl) createdDateEl.textContent = `Created: ${formatDate(data.created_at)}`;
+            
+            // Status
+            const statusEl = document.getElementById('apiStatus');
+            if (statusEl) {
+                if (data.code_available) {
+                    statusEl.className = 'api-status-badge status-active';
+                    statusEl.innerHTML = '<div class="w-2 h-2 bg-current rounded-full mr-2"></div>Active';
+                } else {
+                    statusEl.className = 'api-status-badge status-inactive';
+                    statusEl.innerHTML = '<div class="w-2 h-2 bg-current rounded-full mr-2"></div>Inactive';
+                }
+            }
+            
+            // Metrics - with null checks
+            const fileSizeEl = document.getElementById('fileSize');
+            const lastModifiedEl = document.getElementById('lastModified');
+            
+            if (fileSizeEl) fileSizeEl.textContent = formatFileSize(data.file_size || 0);
+            if (lastModifiedEl) lastModifiedEl.textContent = data.last_modified ? formatRelativeTime(data.last_modified) : '--';
         
-        // Status
-        const statusEl = document.getElementById('apiStatus');
-        if (data.code_available) {
-            statusEl.className = 'api-status-badge status-active';
-            statusEl.innerHTML = '<div class="w-2 h-2 bg-current rounded-full mr-2"></div>Active';
-        } else {
-            statusEl.className = 'api-status-badge status-inactive';
-            statusEl.innerHTML = '<div class="w-2 h-2 bg-current rounded-full mr-2"></div>Inactive';
-        }
-        
-        // Metrics
-        document.getElementById('fileSize').textContent = formatFileSize(data.file_size || 0);
-        document.getElementById('lastModified').textContent = data.last_modified ? formatRelativeTime(data.last_modified) : '--';
-        
-        // Overview tab
-        document.getElementById('endpointUrl').textContent = data.endpoint_url || '--';
-        document.getElementById('originalPrompt').textContent = data.prompt || 'No prompt available';
-        document.getElementById('createdAt').textContent = formatDateTime(data.created_at);
-        document.getElementById('savedAt').textContent = data.saved_at ? formatDateTime(data.saved_at) : 'Not saved';
-        
-        // Test tab - display endpoint URL
-        const endpointDisplayEl = document.getElementById('endpointDisplay');
-        if (endpointDisplayEl) {
-            endpointDisplayEl.textContent = data.endpoint_url || '--';
-        }
-        
-        // Documentation tab
-        if (data.documentation) {
-            document.getElementById('documentationContent').innerHTML = formatMarkdown(data.documentation);
-        }
-        document.getElementById('curlExample').textContent = data.curl_example || 'No cURL example available';
-        
-        // Load source code if available
-        if (data.code_available) {
-            loadSourceCode();
+            // Overview tab - with null checks
+            const endpointUrlEl = document.getElementById('endpointUrl');
+            const originalPromptEl = document.getElementById('originalPrompt');
+            const createdAtEl = document.getElementById('createdAt');
+            const savedAtEl = document.getElementById('savedAt');
+            
+            if (endpointUrlEl) endpointUrlEl.textContent = data.endpoint_url || '--';
+            if (originalPromptEl) originalPromptEl.textContent = data.prompt || 'No prompt available';
+            if (createdAtEl) createdAtEl.textContent = formatDateTime(data.created_at);
+            if (savedAtEl) savedAtEl.textContent = data.saved_at ? formatDateTime(data.saved_at) : 'Not saved';
+            
+            // Test tab - display endpoint URL
+            const endpointDisplayEl = document.getElementById('endpointDisplay');
+            if (endpointDisplayEl) {
+                endpointDisplayEl.textContent = data.endpoint_url || '--';
+            }
+            
+            // Documentation tab - handle both old and new structure
+            const documentationContent = document.getElementById('documentationContent');
+            if (documentationContent && data.documentation) {
+                documentationContent.innerHTML = formatMarkdown(data.documentation);
+            }
+            
+            // cURL example - check if element exists
+            const curlExample = document.getElementById('curlExample');
+            if (curlExample) {
+                curlExample.textContent = data.curl_example || 'No cURL example available';
+            }
+            
+            // Load source code if available
+            if (data.code_available) {
+                loadSourceCode();
+            }
+            
+        } catch (error) {
+            console.error('Error populating API details:', error);
+            showError('Failed to display API details: ' + error.message);
         }
     }
     
@@ -595,6 +698,23 @@
     
     function testAPI() {
         switchTab('test');
+    }
+    
+    function viewDocs() {
+        window.open(`/api/${userId}/${apiSlug}/docs`, '_blank');
+    }
+    
+    function quickPreview() {
+        const previewSection = document.getElementById('quickPreviewSection');
+        const isHidden = previewSection.classList.contains('hidden');
+        
+        if (isHidden) {
+            previewSection.classList.remove('hidden');
+            // Scroll to the preview section
+            previewSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+            previewSection.classList.add('hidden');
+        }
     }
     
     async function runAPITestDetails() {
@@ -761,8 +881,14 @@
     }
     
     function copyCurl() {
-        navigator.clipboard.writeText(apiData.curl_example);
-        showNotification('cURL command copied to clipboard!');
+        const curlElement = document.getElementById('curlExample');
+        const curlText = curlElement ? curlElement.textContent : (apiData?.curl_example || 'No cURL example available');
+        
+        navigator.clipboard.writeText(curlText).then(() => {
+            showNotification('cURL command copied to clipboard!');
+        }).catch(() => {
+            showNotification('Failed to copy cURL command', 'error');
+        });
     }
     
     function downloadCode() {

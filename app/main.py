@@ -190,6 +190,32 @@ async def api_details_page(request: Request, user_id: str, api_slug: str):
         "api_slug": api_slug
     })
 
+@app.get("/api/{user_id}/{api_slug}/docs", response_class=HTMLResponse)
+async def api_documentation_page(request: Request, user_id: str, api_slug: str):
+    """Serve the enhanced API documentation page."""
+    try:
+        # Get API details for documentation
+        api_details = await file_service.get_api_details(user_id, api_slug)
+        
+        # Build the base URL for the API
+        base_url = f"{settings.API_PREFIX}/{user_id}/{api_slug}"
+        
+        return templates.TemplateResponse("api_documentation.html", {
+            "request": request,
+            "user_id": user_id,
+            "api_slug": api_slug,
+            "api_name": api_details.get('api_name', f"API {api_slug}"),
+            "description": api_details.get('prompt', 'API endpoint for processing requests'),
+            "base_url": base_url,
+            "curl_example": api_details.get('curl_example', f'curl -X POST "{base_url}" \\\n  -H "Content-Type: application/json" \\\n  -d \'{{\"example\": \"value\"}}\'')
+        })
+    except Exception as e:
+        logger.error(f"Failed to load API documentation: {str(e)}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"API documentation not found: {str(e)}"
+        )
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint."""
@@ -1281,6 +1307,102 @@ async def apidetails(user_id: str, api_slug: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get API details: {str(e)}"
+        )
+
+@app.get("/api/{user_id}/{api_slug}/openapi")
+async def get_openapi_spec(request: Request, user_id: str, api_slug: str):
+    """
+    Get OpenAPI specification for a specific API.
+    """
+    try:
+        api_details = await file_service.get_api_details(user_id, api_slug)
+        
+        # Check if we have OpenAPI spec in the details
+        if 'openapi_spec' in api_details and api_details['openapi_spec']:
+            return api_details['openapi_spec']
+        
+        # If not available, generate a basic OpenAPI spec
+        base_url = f"{settings.API_PREFIX}/{user_id}/{api_slug}"
+        basic_spec = {
+            "openapi": "3.0.0",
+            "info": {
+                "title": api_details.get('api_name', f"API {api_slug}"),
+                "description": api_details.get('prompt', 'API endpoint for processing requests'),
+                "version": "1.0.0"
+            },
+            "servers": [
+                {
+                    "url": str(request.base_url).rstrip('/'),
+                    "description": "Production server"
+                }
+            ],
+            "paths": {
+                f"/{user_id}/{api_slug}": {
+                    "post": {
+                        "summary": "Process API request",
+                        "description": api_details.get('prompt', 'API endpoint for processing requests'),
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "data": {
+                                                "type": "object",
+                                                "description": "Request payload"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "responses": {
+                            "200": {
+                                "description": "Successful response",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "type": "object",
+                                            "properties": {
+                                                "success": {
+                                                    "type": "boolean"
+                                                },
+                                                "data": {
+                                                    "type": "object"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "400": {
+                                "description": "Bad request",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "type": "object",
+                                            "properties": {
+                                                "error": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        return basic_spec
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get OpenAPI specification: {str(e)}"
         )
 
 @app.get("/api/{user_id}/{api_slug}/code")
