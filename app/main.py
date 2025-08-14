@@ -542,15 +542,21 @@ async def generate_api(
         )
         
         if limits.is_over_limit:
+            # Log the limit breach for monitoring
+            logger.warning(f"Rate limit exceeded for user {request.user_id}: {limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
-                detail=f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+                detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
             )
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Failed to check usage limits: {e}")
-        # Continue without limits check if service is unavailable
+        logger.error(f"Usage service unavailable: {e}")
+        # SECURITY FIX: Fail closed instead of open
+        raise HTTPException(
+            status_code=503,
+            detail="Usage tracking service temporarily unavailable. Please try again later."
+        )
     
     try:
         # Initialize analysis_result
@@ -784,15 +790,21 @@ async def modify_api(
         )
         
         if limits.is_over_limit:
+            # Log the limit breach for monitoring
+            logger.warning(f"Rate limit exceeded for user {request.user_id}: {limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
-                detail=f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+                detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
             )
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"Failed to check usage limits: {e}")
-        # Continue without limits check if service is unavailable
+        logger.error(f"Usage service unavailable: {e}")
+        # SECURITY FIX: Fail closed instead of open
+        raise HTTPException(
+            status_code=503,
+            detail="Usage tracking service temporarily unavailable. Please try again later."
+        )
     
     try:
         # Check if API exists
@@ -1086,8 +1098,12 @@ async def execute_api(
         except HTTPException:
             raise
         except Exception as e:
-            logger.warning(f"Failed to check execution limits: {e}")
-            # Continue without limits check if service is unavailable
+            logger.error(f"Execution limits service unavailable: {e}")
+            # SECURITY FIX: Fail closed instead of open
+            raise HTTPException(
+                status_code=503,
+                detail="Rate limiting service temporarily unavailable. Please try again later."
+            )
 
         # Execute the API with timeout
         try:

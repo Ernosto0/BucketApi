@@ -352,6 +352,14 @@ class UsageLimitsResponse(BaseModel):
     daily_cost_remaining_cents: int
     limit_reset_time: datetime
     is_over_limit: bool
+    # New short-term rate limiting fields
+    hourly_token_limit: int
+    hourly_tokens_used: int
+    hourly_tokens_remaining: int
+    minutely_request_limit: int
+    minutely_requests_used: int
+    minutely_requests_remaining: int
+    limit_exceeded_reason: Optional[str] = None
 
 class CreateUsageRequest(BaseModel):
     service_type: str

@@ -20,6 +20,10 @@ class UsageService:
         self.DEFAULT_MONTHLY_TOKEN_LIMIT = 1000000  # 1M tokens per month
         self.DEFAULT_DAILY_COST_LIMIT_CENTS = 1000  # $10 per day
         
+        # Short-term rate limits for burst protection
+        self.DEFAULT_HOURLY_TOKEN_LIMIT = 10000  # 10k tokens per hour
+        self.DEFAULT_MINUTELY_REQUEST_LIMIT = 100  # 100 requests per minute
+        
         # Cost per token in cents (approximate, based on current pricing)
         self.COST_PER_TOKEN = {
             # Claude pricing (input/output tokens) - Updated December 2024
@@ -139,6 +143,8 @@ class UsageService:
                 now = datetime.utcnow()
                 today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
                 month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                hour_start = now.replace(minute=0, second=0, microsecond=0)
+                minute_start = now.replace(second=0, microsecond=0)
                 
                 # Query daily usage
                 daily_query = select(
@@ -179,20 +185,83 @@ class UsageService:
                 monthly_row = monthly_result.first()
                 monthly_tokens_used = monthly_row.total_tokens or 0
                 
+                # Query hourly usage
+                hourly_query = select(
+                    func.sum(LLMUsageDB.total_tokens).label('total_tokens')
+                ).where(
+                    and_(
+                        LLMUsageDB.user_id == user_id,
+                        LLMUsageDB.created_at >= hour_start,
+                        LLMUsageDB.success == True
+                    )
+                )
+                
+                if api_key_id:
+                    hourly_query = hourly_query.where(LLMUsageDB.api_key_id == api_key_id)
+                
+                hourly_result = await session.execute(hourly_query)
+                hourly_row = hourly_result.first()
+                hourly_tokens_used = hourly_row.total_tokens or 0
+                
+                # Query minute usage (request count)
+                minute_query = select(
+                    func.count(LLMUsageDB.id).label('request_count')
+                ).where(
+                    and_(
+                        LLMUsageDB.user_id == user_id,
+                        LLMUsageDB.created_at >= minute_start,
+                        LLMUsageDB.success == True
+                    )
+                )
+                
+                if api_key_id:
+                    minute_query = minute_query.where(LLMUsageDB.api_key_id == api_key_id)
+                
+                minute_result = await session.execute(minute_query)
+                minute_row = minute_result.first()
+                minute_requests_used = minute_row.request_count or 0
+                
                 # Calculate limits and remaining usage
                 daily_token_limit = self.DEFAULT_DAILY_TOKEN_LIMIT
                 monthly_token_limit = self.DEFAULT_MONTHLY_TOKEN_LIMIT
                 daily_cost_limit_cents = self.DEFAULT_DAILY_COST_LIMIT_CENTS
+                hourly_token_limit = self.DEFAULT_HOURLY_TOKEN_LIMIT
+                minutely_request_limit = self.DEFAULT_MINUTELY_REQUEST_LIMIT
                 
                 daily_tokens_remaining = max(0, daily_token_limit - daily_tokens_used)
                 monthly_tokens_remaining = max(0, monthly_token_limit - monthly_tokens_used)
                 daily_cost_remaining_cents = max(0, daily_cost_limit_cents - daily_cost_used_cents)
+                hourly_tokens_remaining = max(0, hourly_token_limit - hourly_tokens_used)
+                minutely_requests_remaining = max(0, minutely_request_limit - minute_requests_used)
+                
+                # Estimate cost for the new tokens
+                estimated_new_cost_cents = self._calculate_cost_cents(
+                    "gpt-3.5-turbo",  # Use default model for estimation
+                    tokens_to_use // 2,  # Rough split between input/output
+                    tokens_to_use // 2
+                )
                 
                 # Check if adding the new tokens would exceed limits
                 is_over_limit = (
                     (daily_tokens_used + tokens_to_use) > daily_token_limit or
-                    (monthly_tokens_used + tokens_to_use) > monthly_token_limit
+                    (monthly_tokens_used + tokens_to_use) > monthly_token_limit or
+                    (daily_cost_used_cents + estimated_new_cost_cents) > daily_cost_limit_cents or
+                    (hourly_tokens_used + tokens_to_use) > hourly_token_limit or
+                    (minute_requests_used + 1) > minutely_request_limit  # +1 for this request
                 )
+                
+                # Determine which limit was exceeded for better error messages
+                limit_exceeded_reason = None
+                if (daily_tokens_used + tokens_to_use) > daily_token_limit:
+                    limit_exceeded_reason = f"Daily token limit exceeded: {daily_tokens_used + tokens_to_use}/{daily_token_limit}"
+                elif (monthly_tokens_used + tokens_to_use) > monthly_token_limit:
+                    limit_exceeded_reason = f"Monthly token limit exceeded: {monthly_tokens_used + tokens_to_use}/{monthly_token_limit}"
+                elif (daily_cost_used_cents + estimated_new_cost_cents) > daily_cost_limit_cents:
+                    limit_exceeded_reason = f"Daily cost limit exceeded: ${(daily_cost_used_cents + estimated_new_cost_cents)/100:.2f}/${daily_cost_limit_cents/100:.2f}"
+                elif (hourly_tokens_used + tokens_to_use) > hourly_token_limit:
+                    limit_exceeded_reason = f"Hourly token limit exceeded: {hourly_tokens_used + tokens_to_use}/{hourly_token_limit}"
+                elif (minute_requests_used + 1) > minutely_request_limit:
+                    limit_exceeded_reason = f"Rate limit exceeded: {minute_requests_used + 1}/{minutely_request_limit} requests per minute"
                 
                 # Next reset time (tomorrow at midnight)
                 limit_reset_time = today_start + timedelta(days=1)
@@ -210,7 +279,15 @@ class UsageService:
                     daily_cost_used_cents=daily_cost_used_cents,
                     daily_cost_remaining_cents=daily_cost_remaining_cents,
                     limit_reset_time=limit_reset_time,
-                    is_over_limit=is_over_limit
+                    is_over_limit=is_over_limit,
+                    # New short-term limits
+                    hourly_token_limit=hourly_token_limit,
+                    hourly_tokens_used=hourly_tokens_used,
+                    hourly_tokens_remaining=hourly_tokens_remaining,
+                    minutely_request_limit=minutely_request_limit,
+                    minutely_requests_used=minute_requests_used,
+                    minutely_requests_remaining=minutely_requests_remaining,
+                    limit_exceeded_reason=limit_exceeded_reason
                 )
                 
         except Exception as e:
