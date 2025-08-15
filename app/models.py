@@ -448,6 +448,161 @@ class APIMetadata(BaseModel):
     created_at: datetime
     last_updated: datetime
 
+# Logging Models
+class SystemLog(BaseModel):
+    id: str
+    timestamp: datetime
+    level: str  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    category: str  # HTTP_REQUEST, LLM_CALL, CHAT_MESSAGE, etc.
+    message: str
+    details: Optional[Dict[str, Any]] = None
+    user_id: Optional[str] = None
+    api_key_id: Optional[str] = None
+    session_id: Optional[str] = None
+    request_id: Optional[str] = None
+    endpoint: Optional[str] = None
+    method: Optional[str] = None
+    status_code: Optional[int] = None
+    duration_ms: Optional[int] = None
+    memory_usage_mb: Optional[float] = None
+    error_type: Optional[str] = None
+    error_traceback: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+
+class HTTPRequestLog(BaseModel):
+    id: str
+    timestamp: datetime
+    request_id: str
+    method: str
+    endpoint: str
+    full_url: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
+    query_params: Optional[Dict[str, Any]] = None
+    body: Optional[Any] = None
+    body_size: Optional[int] = None
+    status_code: Optional[int] = None
+    response_headers: Optional[Dict[str, str]] = None
+    response_body: Optional[Any] = None
+    response_size: Optional[int] = None
+    duration_ms: Optional[int] = None
+    user_id: Optional[str] = None
+    api_key_id: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    success: Optional[bool] = None
+    error_message: Optional[str] = None
+
+class LLMCallLog(BaseModel):
+    id: str
+    timestamp: datetime
+    request_id: Optional[str] = None
+    service_type: str  # 'openai', 'claude'
+    model_name: str
+    operation_type: str  # 'code_generation', 'documentation', etc.
+    system_prompt: Optional[str] = None
+    user_prompt: Optional[str] = None
+    prompt_length: Optional[int] = None
+    response_content: Optional[str] = None
+    response_length: Optional[int] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    estimated_cost_cents: Optional[int] = None
+    duration_ms: Optional[int] = None
+    user_id: Optional[str] = None
+    api_key_id: Optional[str] = None
+    api_slug: Optional[str] = None
+    success: bool = True
+    error_message: Optional[str] = None
+    operation_context: Optional[Dict[str, Any]] = None
+
+class ChatMessageLog(BaseModel):
+    id: str
+    timestamp: datetime
+    user_id: str
+    session_id: Optional[str] = None
+    message_type: str  # 'user_message', 'ai_response', 'system_message'
+    content: str
+    content_length: Optional[int] = None
+    ai_model_used: Optional[str] = None
+    response_time_ms: Optional[int] = None
+    confidence_score: Optional[float] = None
+    conversation_id: Optional[str] = None
+    parent_message_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+# Logging API Request/Response Models
+class LogsRequest(BaseModel):
+    level: Optional[str] = None
+    category: Optional[str] = None
+    user_id: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = 100
+    offset: int = 0
+
+class LogsResponse(BaseModel):
+    success: bool
+    logs: List[SystemLog]
+    total_count: int
+    has_more: bool
+
+class HTTPLogsRequest(BaseModel):
+    endpoint: Optional[str] = None
+    method: Optional[str] = None
+    status_code: Optional[int] = None
+    user_id: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = 100
+    offset: int = 0
+
+class HTTPLogsResponse(BaseModel):
+    success: bool
+    logs: List[HTTPRequestLog]
+    total_count: int
+    has_more: bool
+
+class LLMLogsRequest(BaseModel):
+    service_type: Optional[str] = None
+    model_name: Optional[str] = None
+    operation_type: Optional[str] = None
+    user_id: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = 100
+    offset: int = 0
+
+class LLMLogsResponse(BaseModel):
+    success: bool
+    logs: List[LLMCallLog]
+    total_count: int
+    has_more: bool
+
+class ChatLogsRequest(BaseModel):
+    user_id: Optional[str] = None
+    message_type: Optional[str] = None
+    conversation_id: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = 100
+    offset: int = 0
+
+class ChatLogsResponse(BaseModel):
+    success: bool
+    logs: List[ChatMessageLog]
+    total_count: int
+    has_more: bool
+
+class LogStatisticsResponse(BaseModel):
+    success: bool
+    period_start: str
+    period_end: str
+    total_logs: Dict[str, int]
+    error_count: int
+    statistics: Dict[str, Any]
+
 class InternalToken(BaseModel):
     """Internal tokens for API usage - different from AI model tokens"""
     id: str

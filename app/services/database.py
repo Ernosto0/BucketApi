@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Text, Integer, Float
+from sqlalchemy import create_engine, Column, String, DateTime, Boolean, Text, Integer, Float, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -186,6 +186,157 @@ class APIProcessDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     memory_usage = Column(Integer, nullable=True)  # in MB
     cpu_usage = Column(Float, nullable=True)  # percentage
+
+# Logging Models
+class SystemLogDB(Base):
+    __tablename__ = "system_logs"
+    
+    # Primary fields
+    id = Column(String, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    level = Column(String, nullable=False, index=True)  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    category = Column(String, nullable=False, index=True)  # HTTP_REQUEST, LLM_CALL, etc.
+    
+    # User context
+    user_id = Column(String, index=True, nullable=True)
+    api_key_id = Column(String, index=True, nullable=True)
+    session_id = Column(String, index=True, nullable=True)
+    
+    # Request context
+    request_id = Column(String, index=True, nullable=True)
+    endpoint = Column(String, nullable=True)
+    method = Column(String, nullable=True)
+    status_code = Column(Integer, nullable=True)
+    
+    # Message and details
+    message = Column(Text, nullable=False)
+    details = Column(Text, nullable=True)  # JSON string with additional data
+    
+    # Performance metrics
+    duration_ms = Column(Integer, nullable=True)
+    memory_usage_mb = Column(Float, nullable=True)
+    
+    # Error information
+    error_type = Column(String, nullable=True)
+    error_traceback = Column(Text, nullable=True)
+    
+    # Additional metadata
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    
+    # Indexes for better performance
+    __table_args__ = (
+        Index('idx_logs_timestamp_category', 'timestamp', 'category'),
+        Index('idx_logs_user_timestamp', 'user_id', 'timestamp'),
+        Index('idx_logs_level_timestamp', 'level', 'timestamp'),
+        Index('idx_logs_request_id', 'request_id'),
+    )
+
+class HTTPRequestLogDB(Base):
+    __tablename__ = "http_request_logs"
+    
+    id = Column(String, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    request_id = Column(String, index=True, nullable=False)
+    
+    # Request details
+    method = Column(String, nullable=False)
+    endpoint = Column(String, nullable=False, index=True)
+    full_url = Column(String, nullable=True)
+    
+    # Request data
+    headers = Column(Text, nullable=True)  # JSON
+    query_params = Column(Text, nullable=True)  # JSON
+    body = Column(Text, nullable=True)  # JSON or text
+    body_size = Column(Integer, nullable=True)
+    
+    # Response details
+    status_code = Column(Integer, nullable=True, index=True)
+    response_headers = Column(Text, nullable=True)  # JSON
+    response_body = Column(Text, nullable=True)
+    response_size = Column(Integer, nullable=True)
+    
+    # Performance
+    duration_ms = Column(Integer, nullable=True)
+    
+    # User context
+    user_id = Column(String, index=True, nullable=True)
+    api_key_id = Column(String, index=True, nullable=True)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(String, nullable=True)
+    
+    # Success/Error
+    success = Column(Boolean, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+class LLMCallLogDB(Base):
+    __tablename__ = "llm_call_logs"
+    
+    id = Column(String, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    request_id = Column(String, index=True, nullable=True)
+    
+    # LLM service details
+    service_type = Column(String, nullable=False, index=True)  # 'openai', 'claude'
+    model_name = Column(String, nullable=False, index=True)
+    operation_type = Column(String, nullable=False, index=True)  # 'code_generation', 'documentation', etc.
+    
+    # Request details
+    system_prompt = Column(Text, nullable=True)
+    user_prompt = Column(Text, nullable=True)
+    prompt_length = Column(Integer, nullable=True)
+    
+    # Response details
+    response_content = Column(Text, nullable=True)
+    response_length = Column(Integer, nullable=True)
+    
+    # Token usage
+    input_tokens = Column(Integer, nullable=True)
+    output_tokens = Column(Integer, nullable=True)
+    total_tokens = Column(Integer, nullable=True)
+    
+    # Cost and performance
+    estimated_cost_cents = Column(Integer, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    
+    # User context
+    user_id = Column(String, index=True, nullable=True)
+    api_key_id = Column(String, index=True, nullable=True)
+    api_slug = Column(String, index=True, nullable=True)
+    
+    # Success/Error
+    success = Column(Boolean, nullable=False, default=True)
+    error_message = Column(Text, nullable=True)
+    
+    # Additional context
+    operation_context = Column(Text, nullable=True)  # JSON
+
+class ChatMessageLogDB(Base):
+    __tablename__ = "chat_message_logs"
+    
+    id = Column(String, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # User context
+    user_id = Column(String, index=True, nullable=False)
+    session_id = Column(String, index=True, nullable=True)
+    
+    # Message details
+    message_type = Column(String, nullable=False)  # 'user_message', 'ai_response', 'system_message'
+    content = Column(Text, nullable=False)
+    content_length = Column(Integer, nullable=True)
+    
+    # AI response details (if applicable)
+    ai_model_used = Column(String, nullable=True)
+    response_time_ms = Column(Integer, nullable=True)
+    confidence_score = Column(Float, nullable=True)
+    
+    # Conversation context
+    conversation_id = Column(String, index=True, nullable=True)
+    parent_message_id = Column(String, nullable=True)
+    
+    # Additional metadata
+    message_metadata = Column(Text, nullable=True)  # JSON
 
 # Database dependency
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

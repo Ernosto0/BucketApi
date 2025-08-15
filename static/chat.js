@@ -880,16 +880,6 @@ function addAPIResultMessage(result) {
                 </div>
             </div>
             
-            <!-- Documentation Card -->
-            <div id="documentationSection" class="glass-card rounded-xl p-6">
-                <h4 class="font-semibold text-white mb-4 flex items-center space-x-2">
-                    <span class="text-blue-400">📚</span>
-                    <span>Documentation</span>
-                </h4>
-                <div class="code-highlight rounded-lg p-4">
-                    <pre class="whitespace-pre-wrap text-slate-300 text-sm">${result.documentation}</pre>
-                </div>
-            </div>
             
             <!-- cURL Example Card (Initially Hidden) -->
             <div id="curlSection" class="hidden glass-card rounded-xl p-6">

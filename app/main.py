@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status, Body
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status, Body, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -8,6 +8,7 @@ from fastapi import Request
 import requests
 import time
 import base64
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 import logging
@@ -22,7 +23,11 @@ from .models import (
     UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest,
     APIExecutionStatsResponse, APIExecutionLimitsResponse, CreateAPIExecutionUsageRequest,
     EstimateAPIUsageCostRequest, EstimateAPIUsageCostResponse, InternalTokenBalance,
-    CreateInternalTokenRequest
+    CreateInternalTokenRequest,
+    # Logging models
+    LogsRequest, LogsResponse, HTTPLogsRequest, HTTPLogsResponse,
+    LLMLogsRequest, LLMLogsResponse, ChatLogsRequest, ChatLogsResponse,
+    LogStatisticsResponse
 )
 from .services.openai_service import openai_service
 from .services.claude_service import claude_service
@@ -37,6 +42,8 @@ from .services.api_pricing_service import api_pricing_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database
 from .services.test_service import test_service
+from .services.logging_service import logging_service, LogLevel, LogCategory
+from .middleware.logging_middleware import LoggingMiddleware, RequestContextMiddleware
 from .config import settings
 
 # Configure logging
@@ -73,6 +80,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add logging middleware (disabled - causes deadlocks with database sessions)
+app.add_middleware(RequestContextMiddleware)
+# app.add_middleware(
+#     LoggingMiddleware,
+#     log_request_body=True,
+#     log_response_body=True,
+#     max_body_size=5000,  # Limit body size for logging
+#     exclude_paths=['/health', '/docs', '/redoc', '/openapi.json', '/static', '/logs']
+# )
 
 # Mount static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -156,6 +173,14 @@ async def require_auth_or_api_key(current_user: User = Depends(get_current_user_
         )
     return current_user
 
+def get_or_create_session_id(request: Request) -> str:
+    """Get session ID from cookies or create a new one."""
+    session_id = request.cookies.get('session_id')
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        logger.debug(f"Generated new session ID: {session_id}")
+    return session_id
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Serve the main frontend page for authenticated users, redirect to landing for non-authenticated."""
@@ -180,6 +205,11 @@ async def register_page(request: Request):
 async def profile_page(request: Request):
     """Serve the profile page."""
     return templates.TemplateResponse("profile.html", {"request": request})
+
+@app.get("/logs", response_class=HTMLResponse)
+async def logs_dashboard_page(request: Request, current_user: User = Depends(require_auth)):
+    """Serve the logs dashboard page (requires authentication)."""
+    return templates.TemplateResponse("logs_dashboard.html", {"request": request})
 
 @app.get("/api/{user_id}/{api_slug}/details", response_class=HTMLResponse)
 async def api_details_page(request: Request, user_id: str, api_slug: str):
@@ -514,17 +544,69 @@ async def estimate_usage_cost(
         )
 
 @app.post("/chat/analyze", response_model=ChatAnalysisResponse)
-async def analyze_chat_prompt(request: ChatAnalysisRequest):
+async def analyze_chat_prompt(request: ChatAnalysisRequest, http_request: Request, response: Response):
     """
     Analyze a chat prompt to determine if it's buildable and provide appropriate response.
     """
-    logger.info(f"Analyzing chat prompt for user {request.user_id}: {request.prompt[:100]}...")
+    import uuid
+    conversation_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    # Extract session ID from cookies or generate a new one
+    session_id = get_or_create_session_id(http_request)
+    
+    logger.info(f"Analyzing chat prompt for user {request.user_id}: {request.prompt[:100]}... (session: {session_id[:8]})")
+    
+    # Log user message
+    try:
+        await logging_service.log_chat_message(
+            user_id=request.user_id,
+            message_type="user_message",
+            content=request.prompt,
+            session_id=session_id,
+            conversation_id=conversation_id,
+            metadata={"endpoint": "/chat/analyze", "operation": "prompt_analysis"}
+        )
+    except Exception as log_error:
+        logger.error(f"Failed to log user chat message: {log_error}")
+    
     try:
         # Use PromptService to analyze the prompt
         prompt_service = PromptServiceBuild()
         analysis_result = await prompt_service.CanIBuildThis(request.user_id, request.prompt)
         
+        duration_ms = int((time.time() - start_time) * 1000)
         logger.info(f"Analysis completed for user {request.user_id}")
+        
+        # Log AI response
+        try:
+            await logging_service.log_chat_message(
+                user_id=request.user_id,
+                message_type="ai_response",
+                content=analysis_result,
+                session_id=session_id,
+                conversation_id=conversation_id,
+                ai_model_used="gpt-3.5-turbo",  # Default model used by PromptService
+                response_time_ms=duration_ms,
+                metadata={
+                    "endpoint": "/chat/analyze", 
+                    "operation": "prompt_analysis",
+                    "success": True
+                }
+            )
+        except Exception as log_error:
+            logger.error(f"Failed to log AI chat response: {log_error}")
+        
+        # Set session ID cookie for future requests (expires in 30 days)
+        response.set_cookie(
+            key="session_id",
+            value=session_id,
+            max_age=30 * 24 * 60 * 60,  # 30 days
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax"
+        )
+        
         return {
             "success": True,
             "user_id": request.user_id,
@@ -534,12 +616,45 @@ async def analyze_chat_prompt(request: ChatAnalysisRequest):
         }
         
     except Exception as e:
+        duration_ms = int((time.time() - start_time) * 1000)
         logger.error(f"Error analyzing chat prompt: {str(e)}")
+        
+        error_response = f'{{"status": "error", "message": "Error analyzing prompt: {str(e)}"}}'
+        
+        # Log error response
+        try:
+            await logging_service.log_chat_message(
+                user_id=request.user_id,
+                message_type="ai_response",
+                content=error_response,
+                session_id=session_id,
+                conversation_id=conversation_id,
+                response_time_ms=duration_ms,
+                metadata={
+                    "endpoint": "/chat/analyze", 
+                    "operation": "prompt_analysis",
+                    "success": False,
+                    "error": str(e)
+                }
+            )
+        except Exception as log_error:
+            logger.error(f"Failed to log error chat response: {log_error}")
+        
+        # Set session ID cookie even for error responses
+        response.set_cookie(
+            key="session_id",
+            value=session_id,
+            max_age=30 * 24 * 60 * 60,  # 30 days
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax"
+        )
+        
         return {
             "success": False,
             "user_id": request.user_id,
             "prompt": request.prompt,
-            "analysis_result": f'{{"status": "error", "message": "Error analyzing prompt: {str(e)}"}}',
+            "analysis_result": error_response,
             "timestamp": datetime.now()
         }
 
@@ -1917,7 +2032,146 @@ async def get_api_execution_cost(
         logger.error(f"Failed to get API cost: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get API cost: {str(e)}")
 
+# Logging Endpoints
+@app.post("/logs/system", response_model=LogsResponse)
+async def get_system_logs(
+    request: LogsRequest,
+    current_user: User = Depends(require_auth)
+):
+    """Get system logs with filters"""
+    try:
+        logs = await logging_service.get_logs(
+            level=LogLevel(request.level) if request.level else None,
+            category=LogCategory(request.category) if request.category else None,
+            user_id=request.user_id,
+            start_time=request.start_time,
+            end_time=request.end_time,
+            limit=request.limit,
+            offset=request.offset
+        )
+        
+        return LogsResponse(
+            success=True,
+            logs=[],  # Convert to pydantic models
+            total_count=len(logs),
+            has_more=len(logs) == request.limit
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get system logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get system logs: {str(e)}")
 
+@app.post("/logs/http-requests", response_model=HTTPLogsResponse)
+async def get_http_request_logs(
+    request: HTTPLogsRequest,
+    current_user: User = Depends(require_auth)
+):
+    """Get HTTP request logs with filters"""
+    try:
+        logs = await logging_service.get_http_request_logs(
+            endpoint=request.endpoint,
+            method=request.method,
+            status_code=request.status_code,
+            user_id=request.user_id,
+            start_time=request.start_time,
+            end_time=request.end_time,
+            limit=request.limit,
+            offset=request.offset
+        )
+        
+        return HTTPLogsResponse(
+            success=True,
+            logs=[],  # Convert to pydantic models
+            total_count=len(logs),
+            has_more=len(logs) == request.limit
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get HTTP request logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get HTTP request logs: {str(e)}")
+
+@app.post("/logs/llm-calls", response_model=LLMLogsResponse)
+async def get_llm_call_logs(
+    request: LLMLogsRequest,
+    current_user: User = Depends(require_auth)
+):
+    """Get LLM call logs with filters"""
+    try:
+        logs = await logging_service.get_llm_call_logs(
+            service_type=request.service_type,
+            model_name=request.model_name,
+            operation_type=request.operation_type,
+            user_id=request.user_id,
+            start_time=request.start_time,
+            end_time=request.end_time,
+            limit=request.limit,
+            offset=request.offset
+        )
+        
+        return LLMLogsResponse(
+            success=True,
+            logs=[],  # Convert to pydantic models
+            total_count=len(logs),
+            has_more=len(logs) == request.limit
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get LLM call logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get LLM call logs: {str(e)}")
+
+@app.post("/logs/chat-messages", response_model=ChatLogsResponse)
+async def get_chat_message_logs(
+    request: ChatLogsRequest,
+    current_user: User = Depends(require_auth)
+):
+    """Get chat message logs with filters"""
+    try:
+        logs = await logging_service.get_chat_message_logs(
+            user_id=request.user_id,
+            message_type=request.message_type,
+            conversation_id=request.conversation_id,
+            start_time=request.start_time,
+            end_time=request.end_time,
+            limit=request.limit,
+            offset=request.offset
+        )
+        
+        return ChatLogsResponse(
+            success=True,
+            logs=[],  # Convert to pydantic models
+            total_count=len(logs),
+            has_more=len(logs) == request.limit
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get chat message logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get chat message logs: {str(e)}")
+
+@app.get("/logs/statistics", response_model=LogStatisticsResponse)
+async def get_log_statistics(
+    start_time: Optional[datetime] = None,
+    end_time: Optional[datetime] = None,
+    current_user: User = Depends(require_auth)
+):
+    """Get logging statistics"""
+    try:
+        stats = await logging_service.get_log_statistics(
+            start_time=start_time,
+            end_time=end_time
+        )
+        
+        return LogStatisticsResponse(
+            success=True,
+            period_start=stats.get("period_start", ""),
+            period_end=stats.get("period_end", ""),
+            total_logs=stats.get("total_logs", {}),
+            error_count=stats.get("error_count", 0),
+            statistics=stats
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to get log statistics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get log statistics: {str(e)}")
 
 
 if __name__ == "__main__":

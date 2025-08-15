@@ -156,7 +156,7 @@
 
 /* Form styles */
 .auth-form {
-    space-y: 1.5rem;
+    space-y: 1.5rem; /* ignore this */
 }
 
 .form-group {

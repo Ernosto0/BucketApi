@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs Dashboard - AI API Generator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .log-level-DEBUG { color: #6c757d; }
+        .log-level-INFO { color: #0dcaf0; }
+        .log-level-WARNING { color: #ffc107; }
+        .log-level-ERROR { color: #dc3545; }
+        .log-level-CRITICAL { color: #dc3545; font-weight: bold; }
+        
+        .log-category {
+            font-size: 0.8em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-right: 8px;
+        }
+        
+        .log-category-HTTP_REQUEST { background-color: #e3f2fd; color: #1976d2; }
+        .log-category-LLM_CALL { background-color: #f3e5f5; color: #7b1fa2; }
+        .log-category-CHAT_MESSAGE { background-color: #e8f5e8; color: #388e3c; }
+        .log-category-API_EXECUTION { background-color: #fff3e0; color: #f57c00; }
+        .log-category-AUTHENTICATION { background-color: #fce4ec; color: #c2185b; }
+        .log-category-SYSTEM_EVENT { background-color: #f1f8e9; color: #689f38; }
+        .log-category-ERROR { background-color: #ffebee; color: #d32f2f; }
+        
+        .log-entry {
+            border-left: 3px solid #ddd;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .log-entry.level-ERROR,
+        .log-entry.level-CRITICAL {
+            border-left-color: #dc3545;
+            background-color: #fff5f5;
+        }
+        
+        .log-entry.level-WARNING {
+            border-left-color: #ffc107;
+            background-color: #fffdf5;
+        }
+        
+        .log-entry.level-INFO {
+            border-left-color: #0dcaf0;
+        }
+        
+        .log-timestamp {
+            font-size: 0.85em;
+            color: #6c757d;
+        }
+        
+        .log-details {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            background-color: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .log-search {
+            position: sticky;
+            top: 20px;
+            z-index: 1000;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .no-logs {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-code"></i> AI API Generator
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">Dashboard</a>
+                <a class="nav-link active" href="/logs">Logs</a>
+                <a class="nav-link" href="/profile">Profile</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Sidebar with filters -->
+            <div class="col-md-3">
+                <div class="log-search">
+                    <h5><i class="fas fa-filter"></i> Filters</h5>
+                    <div class="filter-section">
+                        <div class="mb-3">
+                            <label class="form-label">Log Level</label>
+                            <select class="form-select" id="levelFilter">
+                                <option value="">All Levels</option>
+                                <option value="DEBUG">Debug</option>
+                                <option value="INFO">Info</option>
+                                <option value="WARNING">Warning</option>
+                                <option value="ERROR">Error</option>
+                                <option value="CRITICAL">Critical</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Category</label>
+                            <select class="form-select" id="categoryFilter">
+                                <option value="">All Categories</option>
+                                <option value="HTTP_REQUEST">HTTP Requests</option>
+                                <option value="LLM_CALL">LLM Calls</option>
+                                <option value="CHAT_MESSAGE">Chat Messages</option>
+                                <option value="API_EXECUTION">API Execution</option>
+                                <option value="AUTHENTICATION">Authentication</option>
+                                <option value="SYSTEM_EVENT">System Events</option>
+                                <option value="ERROR">Errors</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Time Range</label>
+                            <select class="form-select" id="timeRangeFilter">
+                                <option value="1">Last Hour</option>
+                                <option value="24" selected>Last 24 Hours</option>
+                                <option value="168">Last Week</option>
+                                <option value="720">Last Month</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Search</label>
+                            <input type="text" class="form-control" id="searchFilter" placeholder="Search logs...">
+                        </div>
+                        
+                        <button class="btn btn-primary w-100" onclick="loadLogs()">
+                            <i class="fas fa-search"></i> Apply Filters
+                        </button>
+                        
+                        <button class="btn btn-outline-secondary w-100 mt-2" onclick="clearFilters()">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                    
+                    <!-- Statistics -->
+                    <div class="stats-card">
+                        <h6><i class="fas fa-chart-bar"></i> Statistics</h6>
+                        <div id="logStats">
+                            <div class="d-flex justify-content-between">
+                                <span>Total Logs:</span>
+                                <span id="totalLogs">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Errors:</span>
+                                <span id="errorCount">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>HTTP Requests:</span>
+                                <span id="httpCount">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>LLM Calls:</span>
+                                <span id="llmCount">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main content area -->
+            <div class="col-md-9">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="fas fa-list-alt"></i> System Logs</h2>
+                    <div>
+                        <button class="btn btn-outline-primary" onclick="loadLogs()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <button class="btn btn-outline-success" onclick="exportLogs()">
+                            <i class="fas fa-download"></i> Export
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Log type tabs -->
+                <ul class="nav nav-tabs mb-3" id="logTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#systemLogs" onclick="setActiveTab('system')">
+                            <i class="fas fa-cog"></i> System Logs
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#httpLogs" onclick="setActiveTab('http')">
+                            <i class="fas fa-globe"></i> HTTP Requests
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#llmLogs" onclick="setActiveTab('llm')">
+                            <i class="fas fa-robot"></i> LLM Calls
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#chatLogs" onclick="setActiveTab('chat')">
+                            <i class="fas fa-comments"></i> Chat Messages
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tab content -->
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="systemLogs">
+                        <div id="systemLogsContent">
+                            <div class="loading">
+                                <i class="fas fa-spinner fa-spin"></i> Loading logs...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="httpLogs">
+                        <div id="httpLogsContent">
+                            <div class="loading">
+                                <i class="fas fa-spinner fa-spin"></i> Loading HTTP logs...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="llmLogs">
+                        <div id="llmLogsContent">
+                            <div class="loading">
+                                <i class="fas fa-spinner fa-spin"></i> Loading LLM logs...
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="chatLogs">
+                        <div id="chatLogsContent">
+                            <div class="loading">
+                                <i class="fas fa-spinner fa-spin"></i> Loading chat logs...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Load more button -->
+                <div class="text-center mt-4">
+                    <button class="btn btn-outline-primary" id="loadMoreBtn" onclick="loadMoreLogs()" style="display: none;">
+                        <i class="fas fa-plus"></i> Load More
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentTab = 'system';
+        let currentOffset = 0;
+        const limit = 50;
+        
+        // Check authentication status
+        async function checkAuthStatus() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    console.log('No token found in localStorage');
+                    showAuthError('No authentication token found. Please log in.');
+                    return false;
+                }
+                
+                // Test the token with the /auth/me endpoint
+                const response = await fetch('/auth/me', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Authentication status:', data);
+                    if (data.authenticated) {
+                        console.log('User is authenticated:', data.user.email);
+                        return true;
+                    } else {
+                        showAuthError('Not authenticated. Please log in.');
+                        return false;
+                    }
+                } else {
+                    console.log('Token validation failed with status:', response.status);
+                    showAuthError('Authentication token is invalid. Please log in again.');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                showAuthError('Authentication check failed. Please try logging in again.');
+                return false;
+            }
+        }
+        
+        function showAuthError(message) {
+            document.body.innerHTML = `
+                <div class="container mt-5">
+                    <div class="alert alert-warning text-center">
+                        <h4><i class="fas fa-exclamation-triangle"></i> Authentication Required</h4>
+                        <p>${message}</p>
+                        <a href="/login" class="btn btn-primary">Go to Login</a>
+                        <button onclick="window.location.reload()" class="btn btn-secondary ms-2">Retry</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            const isAuthenticated = await checkAuthStatus();
+            if (isAuthenticated) {
+                loadLogs();
+                loadStatistics();
+                
+                // Auto-refresh every 30 seconds
+                setInterval(function() {
+                    if (document.visibilityState === 'visible') {
+                        loadLogs();
+                        loadStatistics();
+                    }
+                }, 30000);
+            }
+        });
+        
+        function setActiveTab(tab) {
+            currentTab = tab;
+            currentOffset = 0;
+            loadLogs();
+        }
+        
+        function getFilters() {
+            const now = new Date();
+            const timeRange = document.getElementById('timeRangeFilter').value;
+            const startTime = new Date(now.getTime() - (timeRange * 60 * 60 * 1000));
+            
+            return {
+                level: document.getElementById('levelFilter').value,
+                category: document.getElementById('categoryFilter').value,
+                start_time: startTime.toISOString(),
+                end_time: now.toISOString(),
+                limit: limit,
+                offset: currentOffset
+            };
+        }
+        
+        async function loadLogs() {
+            const filters = getFilters();
+            let endpoint = '/logs/system';
+            let contentId = 'systemLogsContent';
+            
+            switch (currentTab) {
+                case 'http':
+                    endpoint = '/logs/http-requests';
+                    contentId = 'httpLogsContent';
+                    break;
+                case 'llm':
+                    endpoint = '/logs/llm-calls';
+                    contentId = 'llmLogsContent';
+                    break;
+                case 'chat':
+                    endpoint = '/logs/chat-messages';
+                    contentId = 'chatLogsContent';
+                    break;
+            }
+            
+            try {
+                const token = localStorage.getItem('token');
+                console.log('Logs request - Token from localStorage:', token ? 'exists' : 'missing');
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(filters)
+                });
+                
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Authentication required. Please log in first.');
+                    }
+                    throw new Error(`Failed to load logs (${response.status})`);
+                }
+                
+                const data = await response.json();
+                
+                if (currentOffset === 0) {
+                    document.getElementById(contentId).innerHTML = '';
+                }
+                
+                if (data.logs && data.logs.length > 0) {
+                    renderLogs(data.logs, contentId);
+                    document.getElementById('loadMoreBtn').style.display = data.has_more ? 'block' : 'none';
+                } else if (currentOffset === 0) {
+                    document.getElementById(contentId).innerHTML = '<div class="no-logs"><i class="fas fa-inbox"></i><br>No logs found</div>';
+                    document.getElementById('loadMoreBtn').style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('Error loading logs:', error);
+                document.getElementById(contentId).innerHTML = '<div class="alert alert-danger">Error loading logs: ' + error.message + '</div>';
+            }
+        }
+        
+        function renderLogs(logs, contentId) {
+            const container = document.getElementById(contentId);
+            
+            logs.forEach(log => {
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry level-${log.level}`;
+                
+                let content = '';
+                
+                if (currentTab === 'system') {
+                    content = renderSystemLog(log);
+                } else if (currentTab === 'http') {
+                    content = renderHTTPLog(log);
+                } else if (currentTab === 'llm') {
+                    content = renderLLMLog(log);
+                } else if (currentTab === 'chat') {
+                    content = renderChatLog(log);
+                }
+                
+                logEntry.innerHTML = content;
+                container.appendChild(logEntry);
+            });
+        }
+        
+        function renderSystemLog(log) {
+            return `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="log-category log-category-${log.category}">${log.category}</span>
+                            <span class="log-level-${log.level} fw-bold">${log.level}</span>
+                            <span class="log-timestamp ms-auto">${new Date(log.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="log-message">${log.message}</div>
+                        ${log.details ? `<div class="log-details">${JSON.stringify(log.details, null, 2)}</div>` : ''}
+                        ${log.error_traceback ? `<div class="log-details text-danger">${log.error_traceback}</div>` : ''}
+                    </div>
+                </div>
+                ${log.endpoint ? `<small class="text-muted">Endpoint: ${log.method} ${log.endpoint}</small>` : ''}
+                ${log.user_id ? `<small class="text-muted d-block">User: ${log.user_id}</small>` : ''}
+                ${log.duration_ms ? `<small class="text-muted d-block">Duration: ${log.duration_ms}ms</small>` : ''}
+            `;
+        }
+        
+        function renderHTTPLog(log) {
+            const statusColor = log.status_code >= 400 ? 'text-danger' : (log.status_code >= 300 ? 'text-warning' : 'text-success');
+            return `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-primary me-2">${log.method}</span>
+                            <span class="badge bg-secondary me-2 ${statusColor}">${log.status_code || 'N/A'}</span>
+                            <span class="log-timestamp ms-auto">${new Date(log.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="log-message"><code>${log.endpoint}</code></div>
+                        ${log.query_params && Object.keys(log.query_params).length ? `<small class="text-muted">Query: ${JSON.stringify(log.query_params)}</small>` : ''}
+                        ${log.error_message ? `<div class="text-danger mt-2">${log.error_message}</div>` : ''}
+                    </div>
+                </div>
+                <div class="mt-2">
+                    ${log.duration_ms ? `<small class="text-muted">Duration: ${log.duration_ms}ms</small>` : ''}
+                    ${log.user_id ? `<small class="text-muted ms-3">User: ${log.user_id}</small>` : ''}
+                    ${log.ip_address ? `<small class="text-muted ms-3">IP: ${log.ip_address}</small>` : ''}
+                </div>
+            `;
+        }
+        
+        function renderLLMLog(log) {
+            return `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <span class="badge bg-info me-2">${log.service_type}</span>
+                            <span class="badge bg-secondary me-2">${log.model_name}</span>
+                            <span class="badge bg-success me-2">${log.operation_type}</span>
+                            <span class="log-timestamp ms-auto">${new Date(log.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="log-message">
+                            ${log.success ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'}
+                            LLM ${log.operation_type} ${log.success ? 'completed' : 'failed'}
+                        </div>
+                        ${log.error_message ? `<div class="text-danger mt-2">${log.error_message}</div>` : ''}
+                    </div>
+                </div>
+                <div class="mt-2">
+                    ${log.duration_ms ? `<small class="text-muted">Duration: ${log.duration_ms}ms</small>` : ''}
+                    ${log.total_tokens ? `<small class="text-muted ms-3">Tokens: ${log.total_tokens}</small>` : ''}
+                    ${log.estimated_cost_cents ? `<small class="text-muted ms-3">Cost: $${(log.estimated_cost_cents / 100).toFixed(4)}</small>` : ''}
+                    ${log.user_id ? `<small class="text-muted ms-3">User: ${log.user_id}</small>` : ''}
+                </div>
+            `;
+        }
+        
+        function renderChatLog(log) {
+            const typeIcon = log.message_type === 'user_message' ? 'fa-user' : 
+                           log.message_type === 'ai_response' ? 'fa-robot' : 'fa-cog';
+            const typeColor = log.message_type === 'user_message' ? 'text-primary' : 
+                            log.message_type === 'ai_response' ? 'text-success' : 'text-secondary';
+            
+            return `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas ${typeIcon} ${typeColor} me-2"></i>
+                            <span class="badge bg-secondary me-2">${log.message_type}</span>
+                            ${log.ai_model_used ? `<span class="badge bg-info me-2">${log.ai_model_used}</span>` : ''}
+                            <span class="log-timestamp ms-auto">${new Date(log.timestamp).toLocaleString()}</span>
+                        </div>
+                        <div class="log-message">${log.content.length > 200 ? log.content.substring(0, 200) + '...' : log.content}</div>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    ${log.response_time_ms ? `<small class="text-muted">Response Time: ${log.response_time_ms}ms</small>` : ''}
+                    ${log.confidence_score ? `<small class="text-muted ms-3">Confidence: ${(log.confidence_score * 100).toFixed(1)}%</small>` : ''}
+                    ${log.user_id ? `<small class="text-muted ms-3">User: ${log.user_id}</small>` : ''}
+                </div>
+            `;
+        }
+        
+        async function loadStatistics() {
+            try {
+                const token = localStorage.getItem('token');
+                console.log('Token from localStorage:', token ? 'exists' : 'missing');
+                
+                const response = await fetch('/logs/statistics', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('totalLogs').textContent = data.total_logs.total || 0;
+                    document.getElementById('errorCount').textContent = data.error_count || 0;
+                    document.getElementById('httpCount').textContent = data.total_logs.http_requests || 0;
+                    document.getElementById('llmCount').textContent = data.total_logs.llm_calls || 0;
+                } else if (response.status === 401) {
+                    // Show authentication error in statistics section
+                    document.getElementById('totalLogs').textContent = 'Auth Required';
+                    document.getElementById('errorCount').textContent = 'Login First';
+                    document.getElementById('httpCount').textContent = '---';
+                    document.getElementById('llmCount').textContent = '---';
+                }
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+        
+        function loadMoreLogs() {
+            currentOffset += limit;
+            loadLogs();
+        }
+        
+        function clearFilters() {
+            document.getElementById('levelFilter').value = '';
+            document.getElementById('categoryFilter').value = '';
+            document.getElementById('timeRangeFilter').value = '24';
+            document.getElementById('searchFilter').value = '';
+            currentOffset = 0;
+            loadLogs();
+        }
+        
+        function exportLogs() {
+            const filters = getFilters();
+            const params = new URLSearchParams(filters);
+            window.open(`/logs/export?${params}`, '_blank');
+        }
+        
+        // Search functionality
+        document.getElementById('searchFilter').addEventListener('input', debounce(function() {
+            currentOffset = 0;
+            loadLogs();
+        }, 500));
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+    </script>
+</body>
+</html>

@@ -7,6 +7,7 @@ import json
 from fastapi import HTTPException
 from ..config import settings
 from .usage_service import usage_service
+from .logging_service import logging_service, LogLevel, LogCategory
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,12 @@ class OpenAIService:
         
         try:
             logger.info("Making OpenAI API request...")
-            response = await self._make_openai_request(system_prompt, user_prompt)
+            response = await self.make_openai_request(
+                system_prompt, user_prompt,
+                user_id=user_id,
+                api_key_id=api_key_id,
+                operation_type="code_generation"
+            )
             logger.info("OpenAI API request successful")
             code = self._extract_code_from_response(response)
             logger.info(f"Generated code length: {len(code)} characters")
@@ -178,6 +184,35 @@ class OpenAIService:
                 # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
                 estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
                 estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                # Log LLM call
+                try:
+                    await logging_service.log_llm_call(
+                        service_type="openai",
+                        model_name=settings.OPENAI_MODEL,
+                        operation_type="code_generation",
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        prompt_length=prompt_length,
+                        response_content=code if success else None,
+                        response_length=response_length,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        total_tokens=estimated_input_tokens + estimated_output_tokens,
+                        estimated_cost_cents=int((estimated_input_tokens + estimated_output_tokens) * 0.002 * 100),  # GPT-3.5-turbo estimate
+                        duration_ms=duration_ms,
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        success=success,
+                        error_message=error_message,
+                        operation_context={
+                            "has_sample_input": sample_input is not None,
+                            "has_expected_output": expected_output is not None,
+                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                        }
+                    )
+                except Exception as log_error:
+                    logger.error(f"Failed to log LLM call: {log_error}")
                 
                 try:
                     await usage_service.record_usage(
@@ -230,7 +265,14 @@ class OpenAIService:
         response_length = 0
         
         try:
-            response = await self._make_openai_request(system_prompt, user_prompt)
+            response = await self.make_openai_request(
+                system_prompt, user_prompt,
+                prompt_config=self._load_documentation_prompt(),
+                user_id=user_id,
+                api_key_id=api_key_id,
+                operation_type="documentation_generation",
+                api_slug=api_slug
+            )
             doc, openapi_spec, curl = self._parse_documentation_response(response)
             
             success = True
@@ -249,6 +291,35 @@ class OpenAIService:
                 # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
                 estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
                 estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                # Log LLM call
+                try:
+                    await logging_service.log_llm_call(
+                        service_type="openai",
+                        model_name=settings.OPENAI_MODEL,
+                        operation_type="documentation",
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        prompt_length=prompt_length,
+                        response_content=f"Doc: {doc[:200]}... OpenAPI: {str(openapi_spec)[:100]}... Curl: {curl[:200]}..." if success else None,
+                        response_length=response_length,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        total_tokens=estimated_input_tokens + estimated_output_tokens,
+                        estimated_cost_cents=int((estimated_input_tokens + estimated_output_tokens) * 0.002 * 100),
+                        duration_ms=duration_ms,
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        api_slug=api_slug,
+                        success=success,
+                        error_message=error_message,
+                        operation_context={
+                            "code_length": len(code),
+                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                        }
+                    )
+                except Exception as log_error:
+                    logger.error(f"Failed to log LLM call: {log_error}")
                 
                 try:
                     await usage_service.record_usage(
@@ -273,18 +344,24 @@ class OpenAIService:
                 except Exception as usage_error:
                     logger.error(f"Failed to record usage: {usage_error}")
     
-    async def make_openai_request(self, system_prompt: str, user_prompt: str, prompt_config: Dict[str, Any] = None) -> str:
+    async def make_openai_request(self, system_prompt: str, user_prompt: str, prompt_config: Dict[str, Any] = None, 
+                                 user_id: Optional[str] = None, api_key_id: Optional[str] = None, 
+                                 operation_type: str = "general", api_slug: Optional[str] = None) -> str:
         """Make a request to OpenAI API with configurable parameters."""
         import asyncio
+        import uuid
         
         # Use provided config or load documentation config as fallback
         if prompt_config is None:
             prompt_config = self._load_documentation_prompt()
         
+        model = prompt_config.get("model", settings.OPENAI_MODEL)
+        start_time = time.time()
+        request_id = str(uuid.uuid4())
+        
         # Run the synchronous OpenAI call in a thread pool
         def make_request():
             try:
-                model = prompt_config.get("model", settings.OPENAI_MODEL)
                 logger.info(f"Making OpenAI request with model: {model}")
                 response = self.client.chat.completions.create(
                     model=model,
@@ -299,10 +376,10 @@ class OpenAIService:
                 content = response.choices[0].message.content
                 if content is None:
                     logger.error("OpenAI returned None content")
-                    return ""
+                    return "", response
                 
                 logger.info(f"OpenAI response received, length: {len(content)}")
-                return content
+                return content, response
                 
             except Exception as e:
                 logger.error(f"Error in OpenAI request: {str(e)}")
@@ -310,8 +387,88 @@ class OpenAIService:
         
         # Execute the request in thread pool
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, make_request)
+        try:
+            content, response = await loop.run_in_executor(None, make_request)
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Log successful LLM call
+            try:
+                usage = response.usage if hasattr(response, 'usage') else None
+                input_tokens = usage.prompt_tokens if usage else len(system_prompt + user_prompt) // 4
+                output_tokens = usage.completion_tokens if usage else len(content) // 4
+                total_tokens = usage.total_tokens if usage else input_tokens + output_tokens
+                
+                # Estimate cost (rough calculation for OpenAI pricing)
+                estimated_cost_cents = self._estimate_openai_cost(model, input_tokens, output_tokens)
+                
+                await logging_service.log_llm_call(
+                    service_type="openai",
+                    model_name=model,
+                    operation_type=operation_type,
+                    system_prompt=system_prompt[:1000],  # Limit for logging
+                    user_prompt=user_prompt[:1000],  # Limit for logging
+                    prompt_length=len(system_prompt + user_prompt),
+                    response_content=content[:1000] if content else None,  # Limit for logging
+                    response_length=len(content) if content else 0,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    estimated_cost_cents=estimated_cost_cents,
+                    duration_ms=duration_ms,
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    api_slug=api_slug,
+                    success=True,
+                    request_id=request_id
+                )
+            except Exception as log_error:
+                logger.error(f"Failed to log OpenAI LLM call: {log_error}")
+            
+            return content
+            
+        except Exception as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Log failed LLM call
+            try:
+                await logging_service.log_llm_call(
+                    service_type="openai",
+                    model_name=model,
+                    operation_type=operation_type,
+                    system_prompt=system_prompt[:1000],
+                    user_prompt=user_prompt[:1000],
+                    prompt_length=len(system_prompt + user_prompt),
+                    duration_ms=duration_ms,
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    api_slug=api_slug,
+                    success=False,
+                    error_message=str(e),
+                    request_id=request_id
+                )
+            except Exception as log_error:
+                logger.error(f"Failed to log failed OpenAI LLM call: {log_error}")
+            
+            raise e
 
+    def _estimate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
+        """Estimate OpenAI API cost in cents."""
+        # Rough pricing estimates (as of 2024)
+        pricing = {
+            "gpt-4": {"input": 0.03, "output": 0.06},  # per 1K tokens
+            "gpt-4-turbo": {"input": 0.01, "output": 0.03},
+            "gpt-3.5-turbo": {"input": 0.0015, "output": 0.002},
+            "gpt-3.5-turbo-16k": {"input": 0.003, "output": 0.004}
+        }
+        
+        # Default to gpt-3.5-turbo pricing if model not found
+        model_pricing = pricing.get(model, pricing["gpt-3.5-turbo"])
+        
+        input_cost = (input_tokens / 1000) * model_pricing["input"]
+        output_cost = (output_tokens / 1000) * model_pricing["output"]
+        
+        return int((input_cost + output_cost) * 100)  # Convert to cents
+    
     async def _make_openai_request(self, system_prompt: str, user_prompt: str) -> str:
         """Make a request to OpenAI API for documentation generation (legacy method)."""
         return await self.make_openai_request(system_prompt, user_prompt, self._load_documentation_prompt())

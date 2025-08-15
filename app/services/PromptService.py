@@ -3,8 +3,11 @@ from typing import List, Dict, Any
 import logging
 import json
 import os
+import time
+import uuid
 from ..config import settings
 from ..models import ChatMessage
+from .logging_service import logging_service, LogLevel, LogCategory
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,100 @@ class PromptServiceBuild:
         """Get chat history for a user"""
         # TODO: Implement database retrieval
         return []
+    
+    async def _make_openai_request_with_logging(self, system_prompt: str, user_prompt: str, 
+                                               prompt_config: Dict[str, Any], user_id: str,
+                                               operation_type: str) -> str:
+        """Make OpenAI request with logging integration."""
+        start_time = time.time()
+        request_id = str(uuid.uuid4())
+        model = prompt_config.get("model", settings.OPENAI_MODEL)
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=prompt_config.get("temperature", 0.1),
+                max_tokens=prompt_config.get("max_tokens", 500)
+            )
+            
+            content = response.choices[0].message.content.strip()
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Log successful LLM call
+            try:
+                usage = response.usage if hasattr(response, 'usage') else None
+                input_tokens = usage.prompt_tokens if usage else len(system_prompt + user_prompt) // 4
+                output_tokens = usage.completion_tokens if usage else len(content) // 4
+                total_tokens = usage.total_tokens if usage else input_tokens + output_tokens
+                
+                # Estimate cost using the same method as OpenAI service
+                estimated_cost_cents = self._estimate_openai_cost(model, input_tokens, output_tokens)
+                
+                await logging_service.log_llm_call(
+                    service_type="openai",
+                    model_name=model,
+                    operation_type=operation_type,
+                    system_prompt=system_prompt[:1000],
+                    user_prompt=user_prompt[:1000],
+                    prompt_length=len(system_prompt + user_prompt),
+                    response_content=content[:1000],
+                    response_length=len(content),
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_tokens=total_tokens,
+                    estimated_cost_cents=estimated_cost_cents,
+                    duration_ms=duration_ms,
+                    user_id=user_id,
+                    success=True,
+                    request_id=request_id
+                )
+            except Exception as log_error:
+                logger.error(f"Failed to log PromptService LLM call: {log_error}")
+            
+            return content
+            
+        except Exception as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Log failed LLM call
+            try:
+                await logging_service.log_llm_call(
+                    service_type="openai",
+                    model_name=model,
+                    operation_type=operation_type,
+                    system_prompt=system_prompt[:1000],
+                    user_prompt=user_prompt[:1000],
+                    prompt_length=len(system_prompt + user_prompt),
+                    duration_ms=duration_ms,
+                    user_id=user_id,
+                    success=False,
+                    error_message=str(e),
+                    request_id=request_id
+                )
+            except Exception as log_error:
+                logger.error(f"Failed to log failed PromptService LLM call: {log_error}")
+            
+            raise e
+    
+    def _estimate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
+        """Estimate OpenAI API cost in cents."""
+        # Same pricing estimates as OpenAI service
+        pricing = {
+            "gpt-4": {"input": 0.03, "output": 0.06},
+            "gpt-4-turbo": {"input": 0.01, "output": 0.03},
+            "gpt-3.5-turbo": {"input": 0.0015, "output": 0.002},
+            "gpt-3.5-turbo-16k": {"input": 0.003, "output": 0.004}
+        }
+        
+        model_pricing = pricing.get(model, pricing["gpt-3.5-turbo"])
+        input_cost = (input_tokens / 1000) * model_pricing["input"]
+        output_cost = (output_tokens / 1000) * model_pricing["output"]
+        
+        return int((input_cost + output_cost) * 100)
 
     async def analyze_user_prompt(self, user_id: str, prompt: str) -> str:
         """
@@ -49,17 +146,9 @@ class PromptServiceBuild:
             
             user_prompt = f"Analyze this API request: {prompt}"
             
-            response = self.client.chat.completions.create(
-                model=prompt_config.get("model", settings.OPENAI_MODEL),
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=prompt_config.get("temperature", 0.1),
-                max_tokens=prompt_config.get("max_tokens", 500)
+            analysis_result = await self._make_openai_request_with_logging(
+                system_prompt, user_prompt, prompt_config, user_id, "prompt_analysis"
             )
-            
-            analysis_result = response.choices[0].message.content.strip()
             logger.info(f"Analysis result: {analysis_result}")
             
             # Parse the JSON response
