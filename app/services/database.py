@@ -338,6 +338,24 @@ class ChatMessageLogDB(Base):
     # Additional metadata
     message_metadata = Column(Text, nullable=True)  # JSON
 
+class ErrorLogDB(Base):
+    __tablename__ = "error_logs"
+
+    id = Column(String, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    # Error details
+    error_type = Column(String, nullable=False)
+    error_message = Column(Text, nullable=False)
+    user_id = Column(String, index=True, nullable=True)
+    request_id = Column(String, index=True, nullable=True)
+    api_slug = Column(String, nullable=True)
+
+    # Additional metadata
+    model_name = Column(String, nullable=True)
+    details = Column(Text, nullable=True)  # JSON string for additional details
+    success = Column(Boolean, nullable=False, default=False)
+    
 # Database dependency
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency to get database session."""

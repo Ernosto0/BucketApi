@@ -6,6 +6,7 @@ import uuid
 from ..config import settings
 from .usage_service import usage_service
 from .logging_service import logging_service, LogLevel, LogCategory
+from .exceptions import LLMBaseError, PromptBuildError, LLMAPIError, CodeExtractionError, UsageLoggingError
 logger = logging.getLogger(__name__)
 
 class ClaudeService:
@@ -100,20 +101,63 @@ class ClaudeService:
                 system_prompt, user_prompt,
                 user_id=user_id,
                 api_key_id=api_key_id,
-                operation_type="code_generation"
+                operation_type="code_generation",
+                api_slug="code_generation"
             )
             logger.info("Claude API request successful")
-            code = self._extract_code_from_response(response)
-            logger.info(f"Generated code length: {len(code)} characters")
             
-            success = True
-            response_length = len(code)
+            try:
+                code = self._extract_code_from_response(response)
+                logger.info(f"Generated code length: {len(code)} characters")
+                
+                # Validate that we actually got code
+                if not code or len(code.strip()) < 10:
+                    raise CodeExtractionError(
+                        message="No meaningful code extracted from Claude response",
+                        user_id=user_id,
+                        request_id=str(request_id),
+                        api_slug="code_generation",
+                        model_name=settings.CLAUDE_MODEL,
+                        details={
+                            "response_length": len(response),
+                            "extracted_code_length": len(code) if code else 0,
+                            "response_preview": response[:200]
+                        }
+                    )
+                
+                success = True
+                response_length = len(code)
+                return code
+                
+            except CodeExtractionError as extraction_error:
+                # Log the extraction error
+                await logging_service.log_llm_error(extraction_error)
+                raise extraction_error
+                
+        except (LLMAPIError, PromptBuildError, CodeExtractionError) as llm_error:
+            # These are already logged in _make_claude_request or above
+            error_message = str(llm_error)
+            logger.error(f"LLM error in generate_api_code: {str(llm_error)}")
+            raise llm_error
             
-            return code
         except Exception as e:
+            # Create and log unexpected error
+            unexpected_error = LLMAPIError(
+                message=f"Unexpected error in API code generation: {str(e)}",
+                user_id=user_id,
+                request_id=str(request_id),
+                api_slug="code_generation",
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "exception_type": type(e).__name__,
+                    "original_error": str(e)
+                }
+            )
+            
+            await logging_service.log_llm_error(unexpected_error)
             error_message = str(e)
             logger.error(f"Failed to generate API code: {str(e)}")
-            raise Exception(f"Failed to generate API code: {str(e)}")
+            raise unexpected_error
         finally:
             # Record usage regardless of success/failure
             if user_id:
@@ -348,6 +392,7 @@ class ClaudeService:
     async def generate_documentation(self, code: str, prompt: str, user_id: Optional[str] = None,
                                     api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Tuple[str, str]:
         """Generate documentation and curl example for the generated API."""
+        request_id = str(uuid.uuid4())
         
         system_prompt = """You are a technical documentation expert. 
         Generate clear, concise documentation for API endpoints and provide practical curl examples.
@@ -378,17 +423,78 @@ class ClaudeService:
                 user_id=user_id,
                 api_key_id=api_key_id,
                 operation_type="documentation_generation",
-                api_slug=api_slug
+                api_slug=api_slug or "documentation_generation"
             )
-            doc, curl = self._parse_documentation_response(response)
             
-            success = True
-            response_length = len(doc) + len(curl)
+            try:
+                doc, curl = self._parse_documentation_response(response)
+                
+                # Validate that we got meaningful documentation
+                if not doc or len(doc.strip()) < 20:
+                    raise CodeExtractionError(
+                        message="No meaningful documentation extracted from Claude response",
+                        user_id=user_id,
+                        request_id=request_id,
+                        api_slug=api_slug or "documentation_generation",
+                        model_name=settings.CLAUDE_MODEL,
+                        details={
+                            "response_length": len(response),
+                            "extracted_doc_length": len(doc) if doc else 0,
+                            "extracted_curl_length": len(curl) if curl else 0,
+                            "response_preview": response[:200]
+                        }
+                    )
+                
+                if not curl or len(curl.strip()) < 10:
+                    raise CodeExtractionError(
+                        message="No meaningful curl example extracted from Claude response",
+                        user_id=user_id,
+                        request_id=request_id,
+                        api_slug=api_slug or "documentation_generation",
+                        model_name=settings.CLAUDE_MODEL,
+                        details={
+                            "response_length": len(response),
+                            "extracted_doc_length": len(doc) if doc else 0,
+                            "extracted_curl_length": len(curl) if curl else 0,
+                            "response_preview": response[:200]
+                        }
+                    )
+                
+                success = True
+                response_length = len(doc) + len(curl)
+                return doc, curl
+                
+            except CodeExtractionError as extraction_error:
+                # Log the extraction error
+                await logging_service.log_llm_error(extraction_error)
+                raise extraction_error
+                
+        except (LLMAPIError, PromptBuildError, CodeExtractionError) as llm_error:
+            # These are already logged in _make_claude_request or above
+            error_message = str(llm_error)
+            logger.error(f"LLM error in generate_documentation: {str(llm_error)}")
+            raise llm_error
             
-            return doc, curl
         except Exception as e:
+            # Create and log unexpected error
+            unexpected_error = LLMAPIError(
+                message=f"Unexpected error in documentation generation: {str(e)}",
+                user_id=user_id,
+                request_id=request_id,
+                api_slug=api_slug or "documentation_generation",
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "exception_type": type(e).__name__,
+                    "original_error": str(e),
+                    "code_length": len(code),
+                    "prompt_length": len(prompt)
+                }
+            )
+            
+            await logging_service.log_llm_error(unexpected_error)
             error_message = str(e)
-            raise Exception(f"Failed to generate documentation: {str(e)}")
+            logger.error(f"Failed to generate documentation: {str(e)}")
+            raise unexpected_error
         finally:
             # Record usage regardless of success/failure
             if user_id:
@@ -511,14 +617,32 @@ class ClaudeService:
                     request_id=request_id
                 )
             except Exception as log_error:
-                logger.error(f"Failed to log Claude LLM call: {log_error}")
+                # Just log the failure, don't raise an exception for logging issues
+                logger.error(f"Failed to log successful Claude LLM call: {log_error}")
             
             return content
             
-        except Exception as e:
+        except anthropic.RateLimitError as e:
             duration_ms = int((time.time() - start_time) * 1000)
             
-            # Log failed LLM call
+            # Create specific LLM error for rate limiting
+            rate_limit_error = LLMAPIError(
+                message=f"Claude API rate limit exceeded: {str(e)}",
+                user_id=user_id,
+                request_id=request_id,
+                api_slug=api_slug,
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "error_type": "rate_limit",
+                    "duration_ms": duration_ms,
+                    "original_error": str(e)
+                }
+            )
+            
+            # Log the error using the new error logging
+            await logging_service.log_llm_error(rate_limit_error)
+            
+            # Also log failed LLM call for completeness
             try:
                 await logging_service.log_llm_call(
                     service_type="claude",
@@ -538,8 +662,94 @@ class ClaudeService:
             except Exception as log_error:
                 logger.error(f"Failed to log failed Claude LLM call: {log_error}")
             
-            raise e
-    
+            raise rate_limit_error
+            
+        except anthropic.AuthenticationError as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Create specific LLM error for authentication issues
+            auth_error = LLMAPIError(
+                message=f"Claude API authentication failed: {str(e)}",
+                user_id=user_id,
+                request_id=request_id,
+                api_slug=api_slug,
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "error_type": "authentication",
+                    "duration_ms": duration_ms,
+                    "original_error": str(e)
+                }
+            )
+            
+            # Log the error
+            await logging_service.log_llm_error(auth_error)
+            
+            # Also log failed LLM call
+            try:
+                await logging_service.log_llm_call(
+                    service_type="claude",
+                    model_name=settings.CLAUDE_MODEL,
+                    operation_type=operation_type,
+                    system_prompt=system_prompt[:1000],
+                    user_prompt=user_prompt[:1000],
+                    prompt_length=len(system_prompt + user_prompt),
+                    duration_ms=duration_ms,
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    api_slug=api_slug,
+                    success=False,
+                    error_message=str(e),
+                    request_id=request_id
+                )
+            except Exception as log_error:
+                logger.error(f"Failed to log failed Claude LLM call: {log_error}")
+            
+            raise auth_error
+            
+        except Exception as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            # Create generic LLM error for unexpected issues
+            llm_error = LLMAPIError(
+                message=f"Claude API call failed: {str(e)}",
+                user_id=user_id,
+                request_id=request_id,
+                api_slug=api_slug,
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "error_type": "api_error",
+                    "duration_ms": duration_ms,
+                    "original_error": str(e),
+                    "exception_type": type(e).__name__
+                }
+            )
+            
+            # Log the error
+            await logging_service.log_llm_error(llm_error)
+            
+            # Also log failed LLM call
+            try:
+                await logging_service.log_llm_call(
+                    service_type="claude",
+                    model_name=settings.CLAUDE_MODEL,
+                    operation_type=operation_type,
+                    system_prompt=system_prompt[:1000],
+                    user_prompt=user_prompt[:1000],
+                    prompt_length=len(system_prompt + user_prompt),
+                    duration_ms=duration_ms,
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    api_slug=api_slug,
+                    success=False,
+                    error_message=str(e),
+                    request_id=request_id
+                )
+            except Exception as log_error:
+                logger.error(f"Failed to log failed Claude LLM call: {log_error}")
+            
+            raise llm_error
+            
+    # TODO CHANGE THIS LOGIC 
     def _estimate_claude_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
         """Estimate Claude API cost in cents."""
         # Rough pricing estimates for Claude (as of 2024)

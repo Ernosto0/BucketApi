@@ -678,3 +678,16 @@ class InternalTokenUsageStatsResponse(BaseModel):
     recent_usage: List[APIExecutionTokenUsage]
     period_start: datetime
     period_end: datetime
+
+
+class ErrorLog(BaseModel):
+    timestamp: datetime
+    error_type: str
+    error_message: str
+    user_id: str
+    request_id: str
+    api_slug: Optional[str] = None
+    model_name: str
+    details: Optional[Dict[str, Any]] = None
+    success: bool = False
+   

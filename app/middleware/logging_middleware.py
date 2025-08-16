@@ -357,7 +357,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             for k, v in headers.items()
         }
 
-
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """Middleware to add request context for logging"""
     

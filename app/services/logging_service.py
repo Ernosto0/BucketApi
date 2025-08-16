@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc
 from .database import (
     Base, AsyncSessionLocal, database_service,
-    SystemLogDB, HTTPRequestLogDB, LLMCallLogDB, ChatMessageLogDB
+    SystemLogDB, HTTPRequestLogDB, LLMCallLogDB, ChatMessageLogDB, ErrorLogDB
 )
 from ..models import User
+from .exceptions import LLMBaseError
 from enum import Enum
 
 # Configure logger
@@ -279,6 +280,114 @@ class LoggingService:
             
         return log_id
     
+    async def log_llm_error(
+        self,
+        error: LLMBaseError,
+        additional_details: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Log LLM error to database"""
+        
+        log_id = str(uuid.uuid4())
+        
+        try:
+            # Combine error details with additional details
+            all_details = error.details or {}
+            if additional_details:
+                all_details.update(additional_details)
+            
+            async with AsyncSessionLocal() as session:
+                log_entry = ErrorLogDB(
+                    id=log_id,
+                    error_type=error.__class__.__name__,
+                    error_message=error.message,
+                    user_id=error.user_id,
+                    request_id=error.request_id,
+                    api_slug=error.api_slug,
+                    model_name=error.model_name,
+                    details=json.dumps(all_details) if all_details else None,
+                    success=False
+                )
+                
+                session.add(log_entry)
+                await session.commit()
+                
+                # Also log to system logs for centralized error tracking
+                await self.log_system_event(
+                    level=LogLevel.ERROR,
+                    category=LogCategory.ERROR,
+                    message=f"LLM Error: {error.message}",
+                    details={
+                        "error_type": error.__class__.__name__,
+                        "model_name": error.model_name,
+                        "api_slug": error.api_slug,
+                        "error_details": all_details
+                    },
+                    user_id=error.user_id,
+                    request_id=error.request_id,
+                    error_type=error.__class__.__name__
+                )
+                
+        except Exception as e:
+            # Fallback logging if database fails
+            self.logger.error(f"Failed to log LLM error to database: {str(e)}")
+            self.logger.error(f"Original LLM error: {str(error)}")
+            
+        return log_id
+    
+    async def log_error_from_exception(
+        self,
+        error_type: str,
+        error_message: str,
+        user_id: Optional[str] = None,
+        request_id: Optional[str] = None,
+        api_slug: Optional[str] = None,
+        model_name: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Log error from generic exception (not LLMBaseError)"""
+        
+        log_id = str(uuid.uuid4())
+        
+        try:
+            async with AsyncSessionLocal() as session:
+                log_entry = ErrorLogDB(
+                    id=log_id,
+                    error_type=error_type,
+                    error_message=error_message,
+                    user_id=user_id,
+                    request_id=request_id,
+                    api_slug=api_slug,
+                    model_name=model_name,
+                    details=json.dumps(details) if details else None,
+                    success=False
+                )
+                
+                session.add(log_entry)
+                await session.commit()
+                
+                # Also log to system logs
+                await self.log_system_event(
+                    level=LogLevel.ERROR,
+                    category=LogCategory.ERROR,
+                    message=f"Error: {error_message}",
+                    details={
+                        "error_type": error_type,
+                        "model_name": model_name,
+                        "api_slug": api_slug,
+                        "error_details": details
+                    },
+                    user_id=user_id,
+                    request_id=request_id,
+                    error_type=error_type
+                )
+                
+        except Exception as e:
+            # Fallback logging
+            self.logger.error(f"Failed to log error to database: {str(e)}")
+            self.logger.error(f"Original error: {error_type}: {error_message}")
+            
+        return log_id
+    
     # Query Methods
     async def get_logs(
         self,
@@ -458,6 +567,126 @@ class LoggingService:
             self.logger.error(f"Failed to get chat message logs: {str(e)}")
             return []
     
+    async def get_error_logs(
+        self,
+        error_type: Optional[str] = None,
+        user_id: Optional[str] = None,
+        model_name: Optional[str] = None,
+        api_slug: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get error logs with filters"""
+        
+        try:
+            async with AsyncSessionLocal() as session:
+                query = select(ErrorLogDB)
+                
+                # Apply filters
+                conditions = []
+                if error_type:
+                    conditions.append(ErrorLogDB.error_type == error_type)
+                if user_id:
+                    conditions.append(ErrorLogDB.user_id == user_id)
+                if model_name:
+                    conditions.append(ErrorLogDB.model_name == model_name)
+                if api_slug:
+                    conditions.append(ErrorLogDB.api_slug == api_slug)
+                if start_time:
+                    conditions.append(ErrorLogDB.timestamp >= start_time)
+                if end_time:
+                    conditions.append(ErrorLogDB.timestamp <= end_time)
+                
+                if conditions:
+                    query = query.where(and_(*conditions))
+                
+                query = query.order_by(desc(ErrorLogDB.timestamp)).limit(limit).offset(offset)
+                
+                result = await session.execute(query)
+                logs = result.scalars().all()
+                
+                return [self._error_log_to_dict(log) for log in logs]
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get error logs: {str(e)}")
+            return []
+    
+    async def get_error_stats(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """Get error statistics"""
+        
+        try:
+            if not start_time:
+                start_time = datetime.utcnow() - timedelta(days=7)
+            if not end_time:
+                end_time = datetime.utcnow()
+            
+            async with AsyncSessionLocal() as session:
+                # Total error count
+                total_errors = await session.execute(
+                    select(func.count(ErrorLogDB.id)).where(
+                        and_(
+                            ErrorLogDB.timestamp >= start_time,
+                            ErrorLogDB.timestamp <= end_time
+                        )
+                    )
+                )
+                total_errors = total_errors.scalar()
+                
+                # Error count by type
+                error_by_type = await session.execute(
+                    select(ErrorLogDB.error_type, func.count(ErrorLogDB.id))
+                    .where(
+                        and_(
+                            ErrorLogDB.timestamp >= start_time,
+                            ErrorLogDB.timestamp <= end_time
+                        )
+                    )
+                    .group_by(ErrorLogDB.error_type)
+                )
+                error_by_type_dict = {row[0]: row[1] for row in error_by_type.fetchall()}
+                
+                # Error count by model
+                error_by_model = await session.execute(
+                    select(ErrorLogDB.model_name, func.count(ErrorLogDB.id))
+                    .where(
+                        and_(
+                            ErrorLogDB.timestamp >= start_time,
+                            ErrorLogDB.timestamp <= end_time,
+                            ErrorLogDB.model_name.isnot(None)
+                        )
+                    )
+                    .group_by(ErrorLogDB.model_name)
+                )
+                error_by_model_dict = {row[0]: row[1] for row in error_by_model.fetchall()}
+                
+                # Recent errors (last 24 hours)
+                recent_start = datetime.utcnow() - timedelta(hours=24)
+                recent_errors = await session.execute(
+                    select(func.count(ErrorLogDB.id)).where(
+                        ErrorLogDB.timestamp >= recent_start
+                    )
+                )
+                recent_errors = recent_errors.scalar()
+                
+                return {
+                    "period_start": start_time.isoformat(),
+                    "period_end": end_time.isoformat(),
+                    "total_errors": total_errors,
+                    "recent_errors_24h": recent_errors,
+                    "errors_by_type": error_by_type_dict,
+                    "errors_by_model": error_by_model_dict
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get error statistics: {str(e)}")
+            return {}
+    
     async def get_log_statistics(
         self,
         start_time: Optional[datetime] = None,
@@ -516,6 +745,17 @@ class LoggingService:
                 )
                 chat_logs_count = chat_logs_count.scalar()
                 
+                # Error logs stats
+                error_logs_count = await session.execute(
+                    select(func.count(ErrorLogDB.id)).where(
+                        and_(
+                            ErrorLogDB.timestamp >= start_time,
+                            ErrorLogDB.timestamp <= end_time
+                        )
+                    )
+                )
+                error_logs_count = error_logs_count.scalar()
+                
                 # Error count
                 error_count = await session.execute(
                     select(func.count(SystemLogDB.id)).where(
@@ -536,9 +776,11 @@ class LoggingService:
                         "http_requests": http_logs_count,
                         "llm_calls": llm_logs_count,
                         "chat_messages": chat_logs_count,
-                        "total": system_logs_count + http_logs_count + llm_logs_count + chat_logs_count
+                        "error_logs": error_logs_count,
+                        "total": system_logs_count + http_logs_count + llm_logs_count + chat_logs_count + error_logs_count
                     },
-                    "error_count": error_count
+                    "error_count": error_count,
+                    "llm_error_count": error_logs_count
                 }
                 
         except Exception as e:
@@ -662,6 +904,21 @@ class LoggingService:
             "conversation_id": log.conversation_id,
             "parent_message_id": log.parent_message_id,
             "metadata": json.loads(log.message_metadata) if log.message_metadata else None
+        }
+    
+    def _error_log_to_dict(self, log: ErrorLogDB) -> Dict[str, Any]:
+        """Convert ErrorLogDB to dictionary"""
+        return {
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat(),
+            "error_type": log.error_type,
+            "error_message": log.error_message,
+            "user_id": log.user_id,
+            "request_id": log.request_id,
+            "api_slug": log.api_slug,
+            "model_name": log.model_name,
+            "details": json.loads(log.details) if log.details else None,
+            "success": log.success
         }
 
 # Global instance
