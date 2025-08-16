@@ -1,0 +1,22 @@
+{
+  "system_prompt": "You are a technical documentation expert. \nGenerate clear, concise documentation for API endpoints and provide practical curl examples.",
+  "user_prompt_template": "Based on this API code and original request, generate:\n1. Clear documentation (markdown format)\n2. A practical curl example\n\nOriginal Request: {prompt}\n\nGenerated Code:\n{code}\n\n## Documentation\n\n## Curl Example",
+  "description": "System prompt for generating API documentation and curl examples using Claude",
+  "model": "claude-3-sonnet-20240229",
+  "temperature": 0.3,
+  "max_tokens": 2000,
+  "operation_type": "documentation_generation",
+  "expected_format": {
+    "sections": [
+      "## Documentation",
+      "## Curl Example"
+    ],
+    "documentation_min_length": 20,
+    "curl_min_length": 10
+  },
+  "validation_rules": {
+    "must_contain_documentation": true,
+    "must_contain_curl_example": true,
+    "documentation_format": "markdown"
+  }
+}

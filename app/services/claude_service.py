@@ -7,6 +7,14 @@ from ..config import settings
 from .usage_service import usage_service
 from .logging_service import logging_service, LogLevel, LogCategory
 from .exceptions import LLMBaseError, PromptBuildError, LLMAPIError, CodeExtractionError, UsageLoggingError
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+from ..prompts.claude.prompt_loader import (
+    load_claude_prompt, 
+    format_claude_prompt, 
+    get_claude_prompt_config,
+    validate_claude_response
+)
 logger = logging.getLogger(__name__)
 
 class ClaudeService:
@@ -25,69 +33,36 @@ class ClaudeService:
         request_id = uuid.uuid4()
         logger.info(f"Generating API code for prompt: {prompt[:100]}... Request ID: {request_id}")
         
-        
-
-        system_prompt = """You are an expert Python developer specializing in AI-powered APIs using FastAPI. 
-        Generate clean, secure, and efficient Python code that implements the requested functionality.
-        
-        IMPORTANT: When the user requests AI-powered functionality (like text analysis, extraction, classification, etc.), 
-        you SHOULD make real API calls to AI services like OpenAI, Anthropic, or other AI APIs.
-        
-        CRITICAL - NEVER USE THESE DEPRECATED PATTERNS:
-        - openai.Completion.create() (DEPRECATED)
-        - openai.ChatCompletion.create() (DEPRECATED) 
-        - openai.api_key = "..." (DEPRECATED)
-        - engine="text-davinci-003" (DEPRECATED)
-        
-        ALWAYS USE MODERN OPENAI CLIENT:
-        - from openai import OpenAI
-        - client = OpenAI(api_key=api_key)
-        - client.chat.completions.create()
-        - model="gpt-3.5-turbo" or "gpt-4"
-        
-        MANDATORY REQUIREMENTS:
-        1. ALWAYS wrap your code in an async function called `async def run(file_bytes=None, input_data=None)`
-        2. The function MUST accept either file_bytes (bytes) or input_data (dict)
-        3. ALWAYS return a JSON-serializable result
-        4. The run function MUST be async (use async/await)
-        4. You CAN use HTTP libraries: requests, urllib, httpx, openai
-        5. You CAN make API calls to external AI services
-        6. Never use dangerous modules like os, subprocess, eval, exec for system operations
-        7. Use safe libraries: json, re, datetime, math, base64, hashlib, requests, openai, os (only for os.getenv)
-        8. Include proper error handling with try-catch blocks
-        9. Add docstrings and comments for clarity
-        10. If working with files, assume file_bytes contains the file content
-        11. For text processing, decode file_bytes to string first
-        12. Return results in a structured format: {"result": your_data, "message": "success"}
-        13. For AI-powered requests, make REAL API calls to OpenAI or other AI services
-        14. Include API keys as environment variables using os.getenv() or hardcode them for demo purposes
-        15. Always include confidence scores and detailed AI analysis in results
-        16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
-        17. For file processing, always handle bytes properly - use io.BytesIO for binary data
-        18. ENSURE PROPER PYTHON SYNTAX - all return statements must be properly formatted
-        19. ALWAYS include 'return' keyword before return statements in except blocks
-        20. Use os.getenv('OPENAI_API_KEY') instead of hardcoded API keys
-        21. Only import libraries that are commonly available or specified in requirements
-        22. NEVER have multiple return statements in the same except block
-        
-        
-        
-        CRITICAL: Ensure all Python syntax is correct, especially return statements in except blocks.
-        """
-        
-        user_prompt = f"""
-        Please generate Python code for the following API:
-        
-        Description: {prompt}
-        """
-        
-        if sample_input:
-            user_prompt += f"\nSample Input: {sample_input}"
-        
-        if expected_output:
-            user_prompt += f"\nExpected Output: {expected_output}"
-        
-        user_prompt += "\n\nGenerate only the Python code, no explanations."
+        # Load prompt configuration
+        try:
+            prompt_config = load_claude_prompt("api_code_generator")
+            
+            # Prepare prompt variables
+            prompt_vars = {
+                "prompt": prompt,
+                "sample_input_section": f"\nSample Input: {sample_input}" if sample_input else "",
+                "expected_output_section": f"\nExpected Output: {expected_output}" if expected_output else ""
+            }
+            
+            # Format prompts using the template
+            system_prompt, user_prompt = format_claude_prompt(prompt_config, **prompt_vars)
+            
+        except Exception as e:
+            # Fallback to create a PromptBuildError
+            prompt_error = PromptBuildError(
+                message=f"Failed to load or format API code generation prompt: {str(e)}",
+                user_id=user_id,
+                request_id=str(request_id),
+                api_slug="code_generation",
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "prompt_name": "api_code_generator",
+                    "error_type": type(e).__name__,
+                    "original_error": str(e)
+                }
+            )
+            await logging_service.log_llm_error(prompt_error)
+            raise prompt_error
         
         # Track usage
         start_time = time.time()
@@ -110,7 +85,23 @@ class ClaudeService:
                 code = self._extract_code_from_response(response)
                 logger.info(f"Generated code length: {len(code)} characters")
                 
-                # Validate that we actually got code
+                # Validate using prompt configuration
+                if not validate_claude_response(code, prompt_config):
+                    raise CodeExtractionError(
+                        message="Code validation failed according to prompt rules",
+                        user_id=user_id,
+                        request_id=str(request_id),
+                        api_slug="code_generation",
+                        model_name=settings.CLAUDE_MODEL,
+                        details={
+                            "response_length": len(response),
+                            "extracted_code_length": len(code) if code else 0,
+                            "response_preview": response[:200],
+                            "validation_rules": prompt_config.get("validation_rules", {})
+                        }
+                    )
+                
+                # Additional basic validation
                 if not code or len(code.strip()) < 10:
                     raise CodeExtractionError(
                         message="No meaningful code extracted from Claude response",
@@ -226,74 +217,41 @@ class ClaudeService:
                              user_id: Optional[str] = None, api_key_id: Optional[str] = None,
                              api_slug: Optional[str] = None) -> str:
         """Modify existing API code based on user prompt."""
-        request_id = uuid.uuid4()
-
+        request_id = str(uuid.uuid4())
         logger.info(f"Modifying API code with prompt: {prompt[:100]}... Request ID: {request_id}")
         
-        system_prompt = """You are an expert Python developer specializing in AI-powered APIs using FastAPI. 
-        Modify the existing Python code based on the user's requirements while maintaining the original functionality.
-        
-        IMPORTANT: When the user requests AI-powered functionality (like text analysis, extraction, classification, etc.), 
-        you SHOULD make real API calls to AI services like OpenAI, Anthropic, or other AI APIs.
-        
-        CRITICAL - NEVER USE THESE DEPRECATED PATTERNS:
-        - openai.Completion.create() (DEPRECATED)
-        - openai.ChatCompletion.create() (DEPRECATED) 
-        - openai.api_key = "..." (DEPRECATED)
-        - engine="text-davinci-003" (DEPRECATED)
-        
-        ALWAYS USE MODERN OPENAI CLIENT:
-        - from openai import OpenAI
-        - client = OpenAI(api_key=api_key)
-        - client.chat.completions.create()
-        - model="gpt-3.5-turbo" or "gpt-4"
-        
-        MANDATORY REQUIREMENTS:
-        1. ALWAYS maintain the function signature `run(file_bytes=None, input_data=None)`
-        2. The function MUST accept either file_bytes (bytes) or input_data (dict)
-        3. ALWAYS return a JSON-serializable result
-        4. You CAN use HTTP libraries: requests, urllib, httpx, openai
-        5. You CAN make API calls to external AI services
-        6. Never use dangerous modules like os, subprocess, eval, exec for system operations
-        7. Use safe libraries: json, re, datetime, math, base64, hashlib, requests, openai, os (only for os.getenv)
-        8. Include proper error handling with try-catch blocks
-        9. Add docstrings and comments for clarity
-        10. If working with files, assume file_bytes contains the file content
-        11. For text processing, decode file_bytes to string first
-        12. Return results in a structured format: {"result": your_data, "message": "success"}
-        13. For AI-powered requests, make REAL API calls to OpenAI or other AI services
-        14. Include API keys as environment variables using os.getenv() or hardcode them for demo purposes
-        15. Always include confidence scores and detailed AI analysis in results
-        16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
-        17. For file processing, always handle bytes properly - use io.BytesIO for binary data
-        18. ENSURE PROPER PYTHON SYNTAX - all return statements must be properly formatted
-        19. ALWAYS include 'return' keyword before return statements in except blocks
-        20. Use os.getenv('OPENAI_API_KEY') instead of hardcoded API keys
-        21. Only import libraries that are commonly available or specified in requirements
-        22. NEVER have multiple return statements in the same except block
-        23. PRESERVE the core structure and functionality of the existing code
-        24. Only modify the parts that the user specifically requests
-        25. Maintain backward compatibility unless explicitly asked to break it
-        
-        CRITICAL: Ensure all Python syntax is correct, especially return statements in except blocks.
-        """
-        
-        user_prompt = f"""
-        Please modify the following Python code based on the requirements:
-        
-        Modification Request: {prompt}
-        
-        Existing Code:
-        {existing_code or "No existing code provided"}
-        """
-        
-        if sample_input:
-            user_prompt += f"\n\nSample Input: {sample_input}"
-        
-        if expected_output:
-            user_prompt += f"\n\nExpected Output: {expected_output}"
-        
-        user_prompt += "\n\nGenerate only the modified Python code, no explanations. Ensure the code maintains the same function signature and structure while implementing the requested changes."
+        # Load prompt configuration
+        try:
+            prompt_config = load_claude_prompt("api_code_modifier")
+            
+            # Prepare prompt variables
+            prompt_vars = {
+                "prompt": prompt,
+                "existing_code": existing_code or "No existing code provided",
+                "sample_input_section": f"\n\nSample Input: {sample_input}" if sample_input else "",
+                "expected_output_section": f"\n\nExpected Output: {expected_output}" if expected_output else ""
+            }
+            
+            # Format prompts using the template
+            system_prompt, user_prompt = format_claude_prompt(prompt_config, **prompt_vars)
+            
+        except Exception as e:
+            # Fallback to create a PromptBuildError
+            prompt_error = PromptBuildError(
+                message=f"Failed to load or format API code modification prompt: {str(e)}",
+                user_id=user_id,
+                request_id=request_id,
+                api_slug=api_slug or "code_modification",
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "prompt_name": "api_code_modifier",
+                    "error_type": type(e).__name__,
+                    "original_error": str(e),
+                    "existing_code_length": len(existing_code) if existing_code else 0
+                }
+            )
+            await logging_service.log_llm_error(prompt_error)
+            raise prompt_error
         
         # Track usage
         start_time = time.time()
@@ -308,20 +266,97 @@ class ClaudeService:
                 user_id=user_id,
                 api_key_id=api_key_id,
                 operation_type="code_modification",
-                api_slug=api_slug
+                api_slug=api_slug or "code_modification"
             )
             logger.info("Claude API request for modification successful")
-            code = self._extract_code_from_response(response)
-            logger.info(f"Modified code length: {len(code)} characters")
             
-            success = True
-            response_length = len(code)
+            try:
+                # Validate using prompt configuration first
+                if not validate_claude_response(response, prompt_config):
+                    raise CodeExtractionError(
+                        message="Code modification validation failed according to prompt rules",
+                        user_id=user_id,
+                        request_id=request_id,
+                        api_slug=api_slug or "code_modification",
+                        model_name=settings.CLAUDE_MODEL,
+                        details={
+                            "response_length": len(response),
+                            "response_preview": response[:200],
+                            "validation_rules": prompt_config.get("validation_rules", {}),
+                            "preservation_rules": prompt_config.get("validation_rules", {}).get("preservation_rules", {})
+                        }
+                    )
+                
+                code = self._extract_code_from_response(response)
+                logger.info(f"Modified code length: {len(code)} characters")
+                
+                # Additional validation for code modification
+                if not code or len(code.strip()) < 10:
+                    raise CodeExtractionError(
+                        message="No meaningful modified code extracted from Claude response",
+                        user_id=user_id,
+                        request_id=request_id,
+                        api_slug=api_slug or "code_modification",
+                        model_name=settings.CLAUDE_MODEL,
+                        details={
+                            "response_length": len(response),
+                            "extracted_code_length": len(code) if code else 0,
+                            "response_preview": response[:200],
+                            "existing_code_length": len(existing_code) if existing_code else 0
+                        }
+                    )
+                
+                # Validate that function signature is preserved (if existing code had it)
+                if existing_code and "def run(" in existing_code and "def run(" not in code:
+                    raise CodeExtractionError(
+                        message="Modified code missing required 'run' function signature",
+                        user_id=user_id,
+                        request_id=request_id,
+                        api_slug=api_slug or "code_modification",
+                        model_name=settings.CLAUDE_MODEL,
+                        details={
+                            "response_length": len(response),
+                            "extracted_code_length": len(code),
+                            "missing_signature": "def run(",
+                            "preservation_failed": True
+                        }
+                    )
+                
+                success = True
+                response_length = len(code)
+                return code
+                
+            except CodeExtractionError as extraction_error:
+                # Log the extraction error
+                await logging_service.log_llm_error(extraction_error)
+                raise extraction_error
+                
+        except (LLMAPIError, PromptBuildError, CodeExtractionError) as llm_error:
+            # These are already logged in _make_claude_request or above
+            error_message = str(llm_error)
+            logger.error(f"LLM error in modify_api_code: {str(llm_error)}")
+            raise llm_error
             
-            return code
         except Exception as e:
+            # Create and log unexpected error
+            unexpected_error = LLMAPIError(
+                message=f"Unexpected error in API code modification: {str(e)}",
+                user_id=user_id,
+                request_id=request_id,
+                api_slug=api_slug or "code_modification",
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "exception_type": type(e).__name__,
+                    "original_error": str(e),
+                    "existing_code_length": len(existing_code) if existing_code else 0,
+                    "prompt_length": len(prompt)
+                }
+            )
+            
+            await logging_service.log_llm_error(unexpected_error)
             error_message = str(e)
             logger.error(f"Failed to modify API code: {str(e)}")
-            raise Exception(f"Failed to modify API code: {str(e)}")
+            raise unexpected_error
         finally:
             # Record usage regardless of success/failure
             if user_id:
@@ -394,22 +429,35 @@ class ClaudeService:
         """Generate documentation and curl example for the generated API."""
         request_id = str(uuid.uuid4())
         
-        system_prompt = """You are a technical documentation expert. 
-        Generate clear, concise documentation for API endpoints and provide practical curl examples.
-        """
-        
-        user_prompt = f"""
-        Based on this API code and original request, generate:
-        1. Clear documentation (markdown format)
-        2. A practical curl example
-        
-        Original Request: {prompt}
-        
-        Generated Code:
-        {code}
-        
-        
-        """
+        # Load prompt configuration
+        try:
+            prompt_config = load_claude_prompt("documentation_generator")
+            
+            # Prepare prompt variables
+            prompt_vars = {
+                "prompt": prompt,
+                "code": code
+            }
+            
+            # Format prompts using the template
+            system_prompt, user_prompt = format_claude_prompt(prompt_config, **prompt_vars)
+            
+        except Exception as e:
+            # Fallback to create a PromptBuildError
+            prompt_error = PromptBuildError(
+                message=f"Failed to load or format documentation generation prompt: {str(e)}",
+                user_id=user_id,
+                request_id=request_id,
+                api_slug=api_slug or "documentation_generation",
+                model_name=settings.CLAUDE_MODEL,
+                details={
+                    "prompt_name": "documentation_generator",
+                    "error_type": type(e).__name__,
+                    "original_error": str(e)
+                }
+            )
+            await logging_service.log_llm_error(prompt_error)
+            raise prompt_error
         
         # Track usage
         start_time = time.time()
@@ -427,27 +475,32 @@ class ClaudeService:
             )
             
             try:
-                doc, curl = self._parse_documentation_response(response)
-                
-                # Validate that we got meaningful documentation
-                if not doc or len(doc.strip()) < 20:
+                # Validate using prompt configuration first
+                if not validate_claude_response(response, prompt_config):
                     raise CodeExtractionError(
-                        message="No meaningful documentation extracted from Claude response",
+                        message="Documentation validation failed according to prompt rules",
                         user_id=user_id,
                         request_id=request_id,
                         api_slug=api_slug or "documentation_generation",
                         model_name=settings.CLAUDE_MODEL,
                         details={
                             "response_length": len(response),
-                            "extracted_doc_length": len(doc) if doc else 0,
-                            "extracted_curl_length": len(curl) if curl else 0,
-                            "response_preview": response[:200]
+                            "response_preview": response[:200],
+                            "validation_rules": prompt_config.get("validation_rules", {}),
+                            "expected_format": prompt_config.get("expected_format", {})
                         }
                     )
                 
-                if not curl or len(curl.strip()) < 10:
+                doc, curl = self._parse_documentation_response(response)
+                
+                # Additional specific validation
+                expected_format = prompt_config.get("expected_format", {})
+                min_doc_length = expected_format.get("documentation_min_length", 20)
+                min_curl_length = expected_format.get("curl_min_length", 10)
+                
+                if not doc or len(doc.strip()) < min_doc_length:
                     raise CodeExtractionError(
-                        message="No meaningful curl example extracted from Claude response",
+                        message=f"Documentation too short (min {min_doc_length} chars required)",
                         user_id=user_id,
                         request_id=request_id,
                         api_slug=api_slug or "documentation_generation",
@@ -456,7 +509,24 @@ class ClaudeService:
                             "response_length": len(response),
                             "extracted_doc_length": len(doc) if doc else 0,
                             "extracted_curl_length": len(curl) if curl else 0,
-                            "response_preview": response[:200]
+                            "response_preview": response[:200],
+                            "min_required_length": min_doc_length
+                        }
+                    )
+                
+                if not curl or len(curl.strip()) < min_curl_length:
+                    raise CodeExtractionError(
+                        message=f"Curl example too short (min {min_curl_length} chars required)",
+                        user_id=user_id,
+                        request_id=request_id,
+                        api_slug=api_slug or "documentation_generation",
+                        model_name=settings.CLAUDE_MODEL,
+                        details={
+                            "response_length": len(response),
+                            "extracted_doc_length": len(doc) if doc else 0,
+                            "extracted_curl_length": len(curl) if curl else 0,
+                            "response_preview": response[:200],
+                            "min_required_length": min_curl_length
                         }
                     )
                 
