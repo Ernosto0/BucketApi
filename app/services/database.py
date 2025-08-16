@@ -355,6 +355,42 @@ class ErrorLogDB(Base):
     model_name = Column(String, nullable=True)
     details = Column(Text, nullable=True)  # JSON string for additional details
     success = Column(Boolean, nullable=False, default=False)
+
+class RetryLogDB(Base):
+    __tablename__ = "retry_logs"
+
+    id = Column(String, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    
+    # Retry context
+    request_id = Column(String, index=True, nullable=False)
+    original_error_type = Column(String, nullable=False)
+    original_error_message = Column(Text, nullable=False)
+    
+    # Retry attempt details
+    attempt_number = Column(Integer, nullable=False)  # 1, 2, 3, etc.
+    max_attempts = Column(Integer, nullable=False)    # Total retry attempts configured
+    retry_delay_seconds = Column(Float, nullable=True)  # Delay before this retry
+    
+    # Context
+    user_id = Column(String, index=True, nullable=True)
+    api_key_id = Column(String, index=True, nullable=True)
+    api_slug = Column(String, index=True, nullable=True)
+    
+    # Service details
+    service_type = Column(String, nullable=False, index=True)  # 'claude', 'openai'
+    model_name = Column(String, nullable=True)
+    operation_type = Column(String, nullable=False, index=True)  # 'code_generation', etc.
+    
+    # Additional details
+    details = Column(Text, nullable=True)  # JSON with additional retry context
+    
+    # Indexes for better performance
+    __table_args__ = (
+        Index('idx_retry_logs_request_id', 'request_id'),
+        Index('idx_retry_logs_user_timestamp', 'user_id', 'timestamp'),
+        Index('idx_retry_logs_service_operation', 'service_type', 'operation_type'),
+    )
     
 # Database dependency
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

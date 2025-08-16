@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc
 from .database import (
     Base, AsyncSessionLocal, database_service,
-    SystemLogDB, HTTPRequestLogDB, LLMCallLogDB, ChatMessageLogDB, ErrorLogDB
+    SystemLogDB, HTTPRequestLogDB, LLMCallLogDB, ChatMessageLogDB, ErrorLogDB, RetryLogDB
 )
 from ..models import User
+from ..config import settings
 from .exceptions import LLMBaseError
 from enum import Enum
 
@@ -388,6 +389,81 @@ class LoggingService:
             
         return log_id
     
+    async def log_retry_attempt(
+        self,
+        request_id: str,
+        original_error_type: str,
+        original_error_message: str,
+        attempt_number: int,
+        max_attempts: int,
+        retry_delay_seconds: Optional[float] = None,
+        user_id: Optional[str] = None,
+        api_key_id: Optional[str] = None,
+        api_slug: Optional[str] = None,
+        service_type: str = "unknown",
+        model_name: Optional[str] = None,
+        operation_type: str = "unknown",
+        additional_details: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Log a retry attempt to the database"""
+        
+        log_id = str(uuid.uuid4())
+        
+        try:
+            async with AsyncSessionLocal() as session:
+                log_entry = RetryLogDB(
+                    id=log_id,
+                    request_id=request_id,
+                    original_error_type=original_error_type,
+                    original_error_message=original_error_message,
+                    attempt_number=attempt_number,
+                    max_attempts=max_attempts,
+                    retry_delay_seconds=retry_delay_seconds,
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    api_slug=api_slug,
+                    service_type=service_type,
+                    model_name=model_name,
+                    operation_type=operation_type,
+                    details=json.dumps(additional_details) if additional_details else None
+                )
+                
+                session.add(log_entry)
+                await session.commit()
+                
+                # Also log to system logs for centralized retry tracking
+                await self.log_system_event(
+                    level=LogLevel.WARNING,
+                    category=LogCategory.LLM_CALL,
+                    message=f"Retry attempt {attempt_number}/{max_attempts} for {service_type} {operation_type}",
+                    details={
+                        "retry_context": {
+                            "original_error_type": original_error_type,
+                            "original_error_message": original_error_message[:200],  # Truncate for system log
+                            "attempt_number": attempt_number,
+                            "max_attempts": max_attempts,
+                            "retry_delay_seconds": retry_delay_seconds,
+                            "service_type": service_type,
+                            "operation_type": operation_type,
+                            "model_name": model_name
+                        },
+                        "additional_details": additional_details
+                    },
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    request_id=request_id
+                )
+                
+        except Exception as e:
+            # Fallback logging if database fails
+            self.logger.error(f"Failed to log retry attempt to database: {str(e)}")
+            self.logger.warning(
+                f"Retry attempt {attempt_number}/{max_attempts} for {service_type} {operation_type} "
+                f"due to {original_error_type}: {original_error_message[:100]}"
+            )
+            
+        return log_id
+    
     # Query Methods
     async def get_logs(
         self,
@@ -613,6 +689,52 @@ class LoggingService:
             self.logger.error(f"Failed to get error logs: {str(e)}")
             return []
     
+    async def get_retry_logs(
+        self,
+        service_type: Optional[str] = None,
+        operation_type: Optional[str] = None,
+        user_id: Optional[str] = None,
+        request_id: Optional[str] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get retry logs with filters"""
+        
+        try:
+            async with AsyncSessionLocal() as session:
+                query = select(RetryLogDB)
+                
+                # Apply filters
+                conditions = []
+                if service_type:
+                    conditions.append(RetryLogDB.service_type == service_type)
+                if operation_type:
+                    conditions.append(RetryLogDB.operation_type == operation_type)
+                if user_id:
+                    conditions.append(RetryLogDB.user_id == user_id)
+                if request_id:
+                    conditions.append(RetryLogDB.request_id == request_id)
+                if start_time:
+                    conditions.append(RetryLogDB.timestamp >= start_time)
+                if end_time:
+                    conditions.append(RetryLogDB.timestamp <= end_time)
+                
+                if conditions:
+                    query = query.where(and_(*conditions))
+                
+                query = query.order_by(desc(RetryLogDB.timestamp)).limit(limit).offset(offset)
+                
+                result = await session.execute(query)
+                logs = result.scalars().all()
+                
+                return [self._retry_log_to_dict(log) for log in logs]
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get retry logs: {str(e)}")
+            return []
+    
     async def get_error_stats(
         self,
         start_time: Optional[datetime] = None,
@@ -787,6 +909,105 @@ class LoggingService:
             self.logger.error(f"Failed to get log statistics: {str(e)}")
             return {}
     
+    async def get_retry_stats(
+        self,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """Get retry statistics"""
+        
+        try:
+            if not start_time:
+                start_time = datetime.utcnow() - timedelta(days=7)
+            if not end_time:
+                end_time = datetime.utcnow()
+            
+            async with AsyncSessionLocal() as session:
+                # Total retry count
+                total_retries = await session.execute(
+                    select(func.count(RetryLogDB.id)).where(
+                        and_(
+                            RetryLogDB.timestamp >= start_time,
+                            RetryLogDB.timestamp <= end_time
+                        )
+                    )
+                )
+                total_retries = total_retries.scalar()
+                
+                # Retry count by service type
+                retry_by_service = await session.execute(
+                    select(RetryLogDB.service_type, func.count(RetryLogDB.id))
+                    .where(
+                        and_(
+                            RetryLogDB.timestamp >= start_time,
+                            RetryLogDB.timestamp <= end_time
+                        )
+                    )
+                    .group_by(RetryLogDB.service_type)
+                )
+                retry_by_service_dict = {row[0]: row[1] for row in retry_by_service.fetchall()}
+                
+                # Retry count by operation type
+                retry_by_operation = await session.execute(
+                    select(RetryLogDB.operation_type, func.count(RetryLogDB.id))
+                    .where(
+                        and_(
+                            RetryLogDB.timestamp >= start_time,
+                            RetryLogDB.timestamp <= end_time
+                        )
+                    )
+                    .group_by(RetryLogDB.operation_type)
+                )
+                retry_by_operation_dict = {row[0]: row[1] for row in retry_by_operation.fetchall()}
+                
+                # Retry count by error type
+                retry_by_error = await session.execute(
+                    select(RetryLogDB.original_error_type, func.count(RetryLogDB.id))
+                    .where(
+                        and_(
+                            RetryLogDB.timestamp >= start_time,
+                            RetryLogDB.timestamp <= end_time
+                        )
+                    )
+                    .group_by(RetryLogDB.original_error_type)
+                )
+                retry_by_error_dict = {row[0]: row[1] for row in retry_by_error.fetchall()}
+                
+                # Average retry attempts per request
+                avg_attempts = await session.execute(
+                    select(func.avg(RetryLogDB.attempt_number)).where(
+                        and_(
+                            RetryLogDB.timestamp >= start_time,
+                            RetryLogDB.timestamp <= end_time
+                        )
+                    )
+                )
+                avg_attempts = avg_attempts.scalar() or 0
+                
+                # Recent retries (last 24 hours)
+                recent_start = datetime.utcnow() - timedelta(hours=24)
+                recent_retries = await session.execute(
+                    select(func.count(RetryLogDB.id)).where(
+                        RetryLogDB.timestamp >= recent_start
+                    )
+                )
+                recent_retries = recent_retries.scalar()
+                
+                return {
+                    "period_start": start_time.isoformat(),
+                    "period_end": end_time.isoformat(),
+                    "total_retries": total_retries,
+                    "recent_retries_24h": recent_retries,
+                    "average_attempts_per_request": round(avg_attempts, 2),
+                    "retries_by_service": retry_by_service_dict,
+                    "retries_by_operation": retry_by_operation_dict,
+                    "retries_by_error_type": retry_by_error_dict
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Failed to get retry statistics: {str(e)}")
+            return {}
+    
     # Helper Methods
     def _sanitize_headers(self, headers: Dict[str, str]) -> Dict[str, str]:
         """Remove sensitive information from headers"""
@@ -920,6 +1141,93 @@ class LoggingService:
             "details": json.loads(log.details) if log.details else None,
             "success": log.success
         }
+    
+    def _retry_log_to_dict(self, log: RetryLogDB) -> Dict[str, Any]:
+        """Convert RetryLogDB to dictionary"""
+        return {
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat(),
+            "request_id": log.request_id,
+            "original_error_type": log.original_error_type,
+            "original_error_message": log.original_error_message,
+            "attempt_number": log.attempt_number,
+            "max_attempts": log.max_attempts,
+            "retry_delay_seconds": log.retry_delay_seconds,
+            "user_id": log.user_id,
+            "api_key_id": log.api_key_id,
+            "api_slug": log.api_slug,
+            "service_type": log.service_type,
+            "model_name": log.model_name,
+            "operation_type": log.operation_type,
+            "details": json.loads(log.details) if log.details else None
+        }
+
+# Retry logging functions for tenacity integration
+def log_retry_before_sleep(retry_state):
+    """Retry logging for tenacity before_sleep callback"""
+    try:
+        if retry_state.outcome and retry_state.outcome.exception():
+            exception = retry_state.outcome.exception()
+            
+            # Console logging
+            logger.warning(
+                f"Retry attempt {retry_state.attempt_number}: {type(exception).__name__} - "
+                f"retrying in {retry_state.next_action.sleep:.1f}s"
+            )
+            
+            # For database logging, we'll use a fire-and-forget approach
+            # Create a task to run the async logging without blocking the retry
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                # Set context on retry_state for async logging
+                retry_state._claude_context = _current_retry_context.copy()
+                # Fire and forget - don't wait for this to complete
+                loop.create_task(_async_log_retry(retry_state, exception))
+            except RuntimeError:
+                # No event loop running, skip async logging
+                pass
+                
+    except Exception:
+        pass  # Don't let logging errors break retries
+
+async def _async_log_retry(retry_state, exception):
+    """Async helper to log retry attempts to database"""
+    try:
+        # Get context from the retry state (will be set by the calling method)
+        context = getattr(retry_state, '_claude_context', {})
+        
+        await logging_service.log_retry_attempt(
+            request_id=context.get('request_id', 'unknown'),
+            original_error_type=type(exception).__name__,
+            original_error_message=str(exception),
+            attempt_number=retry_state.attempt_number,
+            max_attempts=3,
+            retry_delay_seconds=retry_state.next_action.sleep if hasattr(retry_state.next_action, 'sleep') else None,
+            user_id=context.get('user_id'),
+            api_key_id=context.get('api_key_id'),
+            api_slug=context.get('api_slug', 'unknown'),
+            service_type=context.get('service_type', 'claude'),
+            model_name=context.get('model_name', 'unknown'),
+            operation_type=context.get('operation_type', 'unknown'),
+            additional_details={
+                'retry_statistics': {
+                    'total_elapsed_time': retry_state.seconds_since_start,
+                    'attempts_so_far': retry_state.attempt_number
+                },
+                'error_details': getattr(exception, 'details', {})
+            }
+        )
+    except Exception as e:
+        logger.debug(f"Failed to log retry to database: {e}")
+
+# Global context for retry logging - will be set by service methods
+_current_retry_context = {}
+
+def set_retry_context(context: dict):
+    """Set the global retry context for logging"""
+    global _current_retry_context
+    _current_retry_context = context.copy()
 
 # Global instance
 logging_service = LoggingService()

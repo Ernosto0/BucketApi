@@ -20,6 +20,10 @@ class Settings:
     
     GENERATE_DOCS_SERVICE: str = "OPENAI_SERVICE"
 
+    RETRY_MAX_ATTEMPTS: int = 3
+    RETRY_MAX_DELAY_SECONDS: int = 10
+    RETRY_MIN_DELAY_SECONDS: int = 2
+
     # Application Configuration
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB

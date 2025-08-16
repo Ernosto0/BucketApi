@@ -690,4 +690,50 @@ class ErrorLog(BaseModel):
     model_name: str
     details: Optional[Dict[str, Any]] = None
     success: bool = False
+
+# Retry Logging Models
+class RetryLog(BaseModel):
+    id: str
+    timestamp: datetime
+    request_id: str
+    original_error_type: str
+    original_error_message: str
+    attempt_number: int
+    max_attempts: int
+    retry_delay_seconds: Optional[float] = None
+    user_id: Optional[str] = None
+    api_key_id: Optional[str] = None
+    api_slug: Optional[str] = None
+    service_type: str
+    model_name: Optional[str] = None
+    operation_type: str
+    details: Optional[Dict[str, Any]] = None
+
+class RetryLogsRequest(BaseModel):
+    service_type: Optional[str] = None
+    operation_type: Optional[str] = None
+    user_id: Optional[str] = None
+    request_id: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    limit: int = 100
+    offset: int = 0
+
+class RetryLogsResponse(BaseModel):
+    success: bool
+    logs: List[RetryLog]
+    total_count: int
+    has_more: bool
+
+class RetryStatsResponse(BaseModel):
+    success: bool
+    period_start: str
+    period_end: str
+    total_retries: int
+    recent_retries_24h: int
+    average_attempts_per_request: float
+    retries_by_service: Dict[str, int]
+    retries_by_operation: Dict[str, int]
+    retries_by_error_type: Dict[str, int]
+    statistics: Dict[str, Any]
    

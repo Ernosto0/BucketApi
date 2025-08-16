@@ -5,10 +5,10 @@ import time
 import uuid
 from ..config import settings
 from .usage_service import usage_service
-from .logging_service import logging_service, LogLevel, LogCategory
+from .logging_service import logging_service, LogLevel, LogCategory, log_retry_before_sleep, set_retry_context
 from .exceptions import LLMBaseError, PromptBuildError, LLMAPIError, CodeExtractionError, UsageLoggingError
-from tenacity import retry, stop_after_attempt, wait_exponential
-
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+from ..config import settings
 from ..prompts.claude.prompt_loader import (
     load_claude_prompt, 
     format_claude_prompt, 
@@ -25,12 +25,31 @@ class ClaudeService:
         logger.info("Initializing Claude client...")
         self.client = anthropic.Anthropic(api_key=settings.CLAUDE_API_KEY)
         logger.info("Claude client initialized successfully")
+        self._current_request_id = None  # Track current request for retry logging
     
+    @retry(
+        retry=retry_if_exception(lambda e: isinstance(e, (LLMAPIError, PromptBuildError, CodeExtractionError))),
+        stop=stop_after_attempt(settings.RETRY_MAX_ATTEMPTS),
+        wait=wait_exponential(multiplier=1, min=settings.RETRY_MIN_DELAY_SECONDS, max=settings.RETRY_MAX_DELAY_SECONDS),
+        before_sleep=log_retry_before_sleep
+    )
     async def generate_api_code(self, prompt: str, sample_input: Optional[str] = None, 
                                expected_output: Optional[str] = None, user_id: Optional[str] = None,
                                api_key_id: Optional[str] = None) -> str:
         """Generate FastAPI-compatible code based on user prompt."""
         request_id = uuid.uuid4()
+        self._current_request_id = request_id  # Set for retry logging
+        
+        # Set retry context for logging
+        set_retry_context({
+            'request_id': str(request_id),
+            'user_id': user_id,
+            'api_key_id': api_key_id,
+            'api_slug': 'code_generation',
+            'service_type': 'claude',
+            'operation_type': 'code_generation',
+            'model_name': settings.CLAUDE_MODEL
+        })
         logger.info(f"Generating API code for prompt: {prompt[:100]}... Request ID: {request_id}")
         
         # Load prompt configuration
@@ -129,6 +148,9 @@ class ClaudeService:
             # These are already logged in _make_claude_request or above
             error_message = str(llm_error)
             logger.error(f"LLM error in generate_api_code: {str(llm_error)}")
+            
+            # Retry logging is now handled by log_retry_before_sleep callback
+            
             raise llm_error
             
         except Exception as e:
@@ -211,13 +233,30 @@ class ClaudeService:
                     )
                 except Exception as usage_error:
                     logger.error(f"Failed to record usage: {usage_error}")
-    
+    @retry(
+        retry=retry_if_exception(lambda e: isinstance(e, (LLMAPIError, PromptBuildError, CodeExtractionError))),
+        stop=stop_after_attempt(settings.RETRY_MAX_ATTEMPTS),
+        wait=wait_exponential(multiplier=1, min=settings.RETRY_MIN_DELAY_SECONDS, max=settings.RETRY_MAX_DELAY_SECONDS),
+        before_sleep=log_retry_before_sleep
+    )
     async def modify_api_code(self, prompt: str, sample_input: Optional[str] = None, 
                              expected_output: Optional[str] = None, existing_code: Optional[str] = None,
                              user_id: Optional[str] = None, api_key_id: Optional[str] = None,
                              api_slug: Optional[str] = None) -> str:
         """Modify existing API code based on user prompt."""
         request_id = str(uuid.uuid4())
+        self._current_request_id = request_id  # Set for retry logging
+        
+        # Set retry context for logging
+        set_retry_context({
+            'request_id': str(request_id),
+            'user_id': user_id,
+            'api_key_id': api_key_id,
+            'api_slug': api_slug or 'code_modification',
+            'service_type': 'claude',
+            'operation_type': 'code_modification',
+            'model_name': settings.CLAUDE_MODEL
+        })
         logger.info(f"Modifying API code with prompt: {prompt[:100]}... Request ID: {request_id}")
         
         # Load prompt configuration
@@ -423,11 +462,28 @@ class ClaudeService:
                     )
                 except Exception as usage_error:
                     logger.error(f"Failed to record usage: {usage_error}")
-    
+                    
+    @retry(
+        retry=retry_if_exception(lambda e: isinstance(e, (LLMAPIError, PromptBuildError, CodeExtractionError))),
+        stop=stop_after_attempt(settings.RETRY_MAX_ATTEMPTS),
+        wait=wait_exponential(multiplier=1, min=settings.RETRY_MIN_DELAY_SECONDS, max=settings.RETRY_MAX_DELAY_SECONDS),
+        before_sleep=log_retry_before_sleep
+    )
     async def generate_documentation(self, code: str, prompt: str, user_id: Optional[str] = None,
                                     api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Tuple[str, str]:
         """Generate documentation and curl example for the generated API."""
         request_id = str(uuid.uuid4())
+        
+        # Set retry context for logging
+        set_retry_context({
+            'request_id': str(request_id),
+            'user_id': user_id,
+            'api_key_id': api_key_id,
+            'api_slug': api_slug or 'documentation_generation',
+            'service_type': 'claude',
+            'operation_type': 'documentation_generation',
+            'model_name': settings.CLAUDE_MODEL
+        })
         
         # Load prompt configuration
         try:
