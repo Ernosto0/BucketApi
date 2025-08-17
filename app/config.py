@@ -1,5 +1,5 @@
 import os
-from typing import Set
+from typing import Set, List
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -28,8 +28,50 @@ class Settings:
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
     
+    # Cookie Security Configuration
+    @property
+    def COOKIE_SECURE(self) -> bool:
+        """Whether to use secure cookies (HTTPS only)"""
+        return self.ENVIRONMENT == "production"
+    
+    @property
+    def COOKIE_SAMESITE(self) -> str:
+        """SameSite cookie setting based on environment"""
+        return "strict" if self.ENVIRONMENT == "production" else "lax"
+    
+    # Error Handling Configuration
+    @property
+    def EXPOSE_ERROR_DETAILS(self) -> bool:
+        """Whether to expose detailed error information"""
+        return self.ENVIRONMENT != "production"
+    
+    @property
+    def INCLUDE_ERROR_IDS(self) -> bool:
+        """Whether to include error IDs in responses for debugging"""
+        return self.ENVIRONMENT == "development"
+    
+    # CORS Security Configuration
+    @property
+    def ALLOWED_ORIGINS(self) -> List[str]:
+        """Allowed CORS origins based on environment"""
+        if self.ENVIRONMENT == "production":
+            # 🔒 PRODUCTION: Specify your actual domains
+            return [
+                "https://yourdomain.com",
+                "https://app.yourdomain.com", 
+                "https://api.yourdomain.com"
+            ]
+        else:
+            # 🔧 DEVELOPMENT: Local development origins
+            return [
+                "http://localhost:3000",
+                "http://localhost:8000", 
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:8000"
+            ]
+    
     # Authentication Configuration
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production-please-make-it-very-long-and-random")
+    SECRET_KEY: str = os.getenv("SECRET_KEY")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 4320  # 3 days
     
     # Security Configuration

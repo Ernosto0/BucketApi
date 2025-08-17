@@ -173,7 +173,12 @@ class SandboxService:
             return namespace['result']
             
         except Exception as e:
-            raise Exception(f"Error in API execution: {str(e)}\n{traceback.format_exc()}")
+            # Log detailed error for debugging but don't expose to users
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"API execution error: {str(e)}", exc_info=True)
+            # Return safe error message
+            raise Exception("API execution failed. Please check your code and try again.")
     
     async def execute_api_sandboxed(
         self,

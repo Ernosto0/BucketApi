@@ -2,6 +2,7 @@ import os
 import re
 import importlib.util
 import sys
+from pathlib import Path
 from typing import Optional, Any, Dict, List
 from datetime import datetime
 from sqlalchemy import select, and_
@@ -20,10 +21,77 @@ class FileService:
     def __init__(self):
         self.generated_apis_dir = settings.GENERATED_APIS_DIR
         self._ensure_directory_exists()
+        # Store the absolute path for security validation
+        self.safe_base_path = Path(self.generated_apis_dir).resolve()
     
     def _ensure_directory_exists(self):
         """Ensure the generated APIs directory exists."""
         os.makedirs(self.generated_apis_dir, exist_ok=True)
+    
+    def _validate_api_slug(self, api_slug: str) -> str:
+        """
+        Validate and sanitize API slug to prevent path traversal attacks.
+        
+        Args:
+            api_slug: The API slug to validate
+            
+        Returns:
+            Sanitized API slug
+            
+        Raises:
+            ValueError: If the slug contains dangerous characters
+        """
+        if not api_slug or not isinstance(api_slug, str):
+            raise ValueError("API slug must be a non-empty string")
+        
+        # Remove any null bytes (can be used to bypass filters)
+        api_slug = api_slug.replace('\x00', '')
+        
+        # Check for path traversal patterns
+        dangerous_patterns = ['..', '/', '\\', '~', '$', '|', ';', '&', '`', '<', '>', '"', "'"]
+        for pattern in dangerous_patterns:
+            if pattern in api_slug:
+                raise ValueError(f"API slug contains dangerous character sequence: '{pattern}'")
+        
+        # Only allow alphanumeric, underscore, and hyphen
+        if not re.match(r'^[a-zA-Z0-9_-]+$', api_slug):
+            raise ValueError("API slug can only contain letters, numbers, underscores, and hyphens")
+        
+        # Limit length to prevent buffer overflow issues
+        if len(api_slug) > 100:
+            raise ValueError("API slug too long (max 100 characters)")
+        
+        return api_slug
+    
+    def _get_safe_file_path(self, api_slug: str) -> str:
+        """
+        Get a safe file path that's guaranteed to be within the allowed directory.
+        
+        Args:
+            api_slug: The API slug (will be validated)
+            
+        Returns:
+            Safe absolute file path
+            
+        Raises:
+            ValueError: If path validation fails
+        """
+        # Validate the slug first
+        safe_slug = self._validate_api_slug(api_slug)
+        
+        # Construct the path
+        file_path = self.safe_base_path / f"{safe_slug}.py"
+        
+        # Resolve to absolute path and check it's within our base directory
+        resolved_path = file_path.resolve()
+        
+        # Security check: ensure the resolved path is within our safe directory
+        try:
+            resolved_path.relative_to(self.safe_base_path)
+        except ValueError:
+            raise ValueError(f"File path '{resolved_path}' is outside the allowed directory")
+        
+        return str(resolved_path)
     
     # User Management Methods (delegated to auth_service)
     async def save_user(self, user_data: UserCreate, hashed_password: str) -> User:
@@ -40,10 +108,19 @@ class FileService:
 
     # API Management Methods
     def generate_api_slug(self, user_id: str, api_name: Optional[str] = None) -> str:
-        """Generate a unique slug for the API."""
+        """Generate a unique and secure slug for the API."""
+        # Validate user_id for security
+        if not user_id or not re.match(r'^[a-zA-Z0-9_-]+$', user_id):
+            raise ValueError("Invalid user_id: must contain only letters, numbers, underscores, and hyphens")
+        
         if api_name:
-            # Clean the API name
+            # Clean the API name thoroughly
             slug_base = re.sub(r'[^a-zA-Z0-9_-]', '_', api_name.lower())
+            # Remove consecutive underscores and trim
+            slug_base = re.sub(r'_+', '_', slug_base).strip('_')
+            # Ensure it's not empty after cleaning
+            if not slug_base:
+                slug_base = "api"
         else:
             # Generate timestamp-based slug
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -52,25 +129,42 @@ class FileService:
         # Combine with user_id
         api_slug = f"{user_id}_{slug_base}"
         
+        # Ensure the generated slug passes our security validation
+        try:
+            self._validate_api_slug(api_slug)
+        except ValueError:
+            # If validation fails, use a safe fallback
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            api_slug = f"{user_id}_api_{timestamp}"
+        
         # Ensure uniqueness
         counter = 1
         original_slug = api_slug
         while self._api_file_exists(api_slug):
             api_slug = f"{original_slug}_{counter}"
             counter += 1
+            # Validate the new slug with counter
+            try:
+                self._validate_api_slug(api_slug)
+            except ValueError:
+                # If even with counter it's invalid, something is very wrong
+                raise ValueError(f"Unable to generate safe API slug for user {user_id}")
         
         return api_slug
     
     async def save_api_code(self, api_slug: str, code: str) -> str:
-        """Save generated API code to file."""
+        """Save generated API code to file with security validation."""
         logger.info(f"Saving API code to {api_slug}")
         try:
-            # Extract user_id from api_slug
-            user_id = api_slug.split('_')[0]
-            api_name = '_'.join(api_slug.split('_')[1:])
+            # Validate API slug for security (will raise ValueError if invalid)
+            safe_slug = self._validate_api_slug(api_slug)
             
-            # Get the file path
-            file_path = self._get_api_file_path(api_slug)
+            # Extract user_id from api_slug
+            user_id = safe_slug.split('_')[0]
+            api_name = '_'.join(safe_slug.split('_')[1:])
+            
+            # Get the secure file path
+            file_path = self._get_safe_file_path(safe_slug)
             
             # Ensure directory exists
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -82,6 +176,10 @@ class FileService:
             except SyntaxError as e:
                 logger.error(f"Syntax error in generated code: {e}")
                 raise Exception(f"Generated code has syntax errors: {str(e)}")
+            
+            # Additional security: validate code size to prevent DOS
+            if len(code) > 1024 * 1024:  # 1MB limit
+                raise Exception("Generated code too large (max 1MB)")
             
             # Save the code directly (FastAPI wrapper is now handled by sandbox)
             with open(file_path, 'w', encoding='utf-8', newline='\n') as f:
@@ -99,9 +197,13 @@ class FileService:
             
             logger.info(f"API code saved to {file_path}")
             return file_path
+        except ValueError as e:
+            # Security validation error
+            logger.error(f"Security validation failed for API slug '{api_slug}': {e}")
+            raise Exception("Invalid API identifier. Please use only letters, numbers, underscores, and hyphens.")
         except Exception as e:
             logger.error(f"Error saving API code: {e}")
-            raise Exception(f"Failed to save API code: {str(e)}")
+            raise Exception("Failed to save API code. Please try again.")
     
     def load_api_code(self, user_id: str, api_slug: str) -> str:
         """Load existing API code from file."""
@@ -141,7 +243,8 @@ class FileService:
                 
                 return content
         except Exception as e:
-            raise Exception(f"Failed to load API code: {str(e)}")
+            logger.error(f"Failed to load API code for {user_id}/{api_slug}: {e}")
+            raise Exception("Failed to load API code. The API may not exist or be corrupted.")
     
     async def save_api_metadata(self, request: SaveAPIRequest) -> SavedAPI:
         """Save API metadata to database."""
@@ -437,8 +540,13 @@ class FileService:
         return os.path.exists(file_path)
     
     def _get_api_file_path(self, api_slug: str) -> str:
-        """Get the full file path for an API."""
-        return os.path.join(self.generated_apis_dir, f"{api_slug}.py")
+        """
+        Get the full file path for an API with security validation.
+        
+        DEPRECATED: Use _get_safe_file_path instead for new code.
+        This method is kept for backward compatibility but now includes security checks.
+        """
+        return self._get_safe_file_path(api_slug)
     
     def _get_file_creation_time(self, filename: str) -> datetime:
         """Get file creation time."""

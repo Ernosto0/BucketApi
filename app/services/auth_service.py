@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 import uuid
+from passlib.context import CryptContext
 from ..models import User, UserCreate, TokenData
 from ..config import settings
 from .database import UserDB, AsyncSessionLocal, SessionLocal
@@ -21,26 +22,38 @@ class AuthService:
         self.secret_key = settings.SECRET_KEY if hasattr(settings, 'SECRET_KEY') else "your-secret-key-change-this"
         self.algorithm = "HS256"
         self.access_token_expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        
+        # 🔒 bcrypt password hashing context (production-grade security)
+        self.pwd_context = CryptContext(
+            schemes=["bcrypt"], 
+            deprecated="auto",
+            bcrypt__rounds=12  # 🔒 Strong hashing rounds (2^12 = 4096 iterations)
+        )
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        """Verify a plaintext password against its hash."""
-        # Split the stored hash to get salt and hash
+        """
+        Verify a plaintext password against its hash.
+        Supports both bcrypt (new) and PBKDF2 (legacy) for backward compatibility.
+        """
         try:
+            # 🔒 Try bcrypt first (new secure method)
+            if hashed_password.startswith('$2b$') or hashed_password.startswith('$2a$'):
+                return self.pwd_context.verify(plain_password, hashed_password)
+            
+            # 🔄 Fallback to PBKDF2 for existing users (legacy support)
             salt, stored_hash = hashed_password.split('$', 1)
-            # Hash the plain password with the same salt
             password_hash = hashlib.pbkdf2_hmac('sha256', plain_password.encode(), salt.encode(), 100000)
             return password_hash.hex() == stored_hash
-        except:
+        except Exception as e:
+            logger.warning(f"Password verification failed: {e}")
             return False
 
     def get_password_hash(self, password: str) -> str:
-        """Hash a password for storing."""
-        # Generate a random salt
-        salt = secrets.token_hex(16)
-        # Hash the password with the salt
-        password_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
-        # Return salt$hash format
-        return f"{salt}${password_hash.hex()}"
+        """
+        Hash a password for storing using bcrypt (production-grade security).
+        """
+        # 🔒 Use bcrypt for all new passwords (industry standard)
+        return self.pwd_context.hash(password)
 
     def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None):
         """Create a JWT access token."""

@@ -5,6 +5,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Request
+from collections import defaultdict
+import asyncio
 import requests
 import time
 import base64
@@ -43,6 +45,7 @@ from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database
 from .services.test_service import test_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
+from .services.exceptions import create_secure_error, SecureHTTPException
 from .middleware.logging_middleware import LoggingMiddleware, RequestContextMiddleware
 from .config import settings
 
@@ -72,14 +75,41 @@ async def startup_event():
 
 
 
-# Add CORS middleware
+# Add CORS middleware with secure configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual origins
+    allow_origins=settings.ALLOWED_ORIGINS,  # 🔒 Environment-specific secure origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # 🔒 Specific methods only
+    allow_headers=["*"],  # Headers can remain permissive for API flexibility
+    max_age=600,  # 🔒 Cache preflight for 10 minutes
 )
+
+# Add security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    
+    # 🔒 Security headers for defense in depth
+    response.headers["X-Content-Type-Options"] = "nosniff"  # Prevent MIME sniffing
+    response.headers["X-Frame-Options"] = "DENY"  # Prevent clickjacking
+    response.headers["X-XSS-Protection"] = "1; mode=block"  # XSS protection
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"  # Control referrer info
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"  # Feature policy
+    
+    # 🔒 Content Security Policy (CSP)
+    if settings.ENVIRONMENT == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"  # HTTPS only
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self'"
+        )
+    
+    return response
 
 # Add logging middleware (disabled - causes deadlocks with database sessions)
 app.add_middleware(RequestContextMiddleware)
@@ -97,6 +127,33 @@ templates = Jinja2Templates(directory="templates")
 
 # Authentication setup
 security = HTTPBearer(auto_error=False)
+
+# 🔒 Simple rate limiting (in-memory for basic protection)
+rate_limit_storage = defaultdict(list)
+RATE_LIMIT_REQUESTS = 100  # requests per minute per IP
+RATE_LIMIT_WINDOW = 60  # seconds
+
+def check_rate_limit_auth(request: Request) -> bool:
+    """Simple rate limiting by IP address."""
+    if settings.ENVIRONMENT != "production":
+        return True  # Skip rate limiting in development
+    
+    client_ip = request.client.host if request.client else "unknown"
+    current_time = time.time()
+    
+    # Clean old entries
+    rate_limit_storage[client_ip] = [
+        timestamp for timestamp in rate_limit_storage[client_ip] 
+        if current_time - timestamp < RATE_LIMIT_WINDOW
+    ]
+    
+    # Check if rate limit exceeded
+    if len(rate_limit_storage[client_ip]) >= RATE_LIMIT_REQUESTS:
+        return False
+    
+    # Add current request
+    rate_limit_storage[client_ip].append(current_time)
+    return True
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
     """Get current authenticated user from JWT token."""
@@ -257,8 +314,15 @@ async def health_check():
 
 # Authentication Endpoints
 @app.post("/auth/register", response_model=RegisterResponse)
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, request: Request):
     """Register a new user."""
+    # 🔒 Rate limiting check
+    if not check_rate_limit_auth(request):
+        raise HTTPException(
+            status_code=429, 
+            detail="Too many requests. Please try again later."
+        )
+    
     try:
         # Hash the password
         hashed_password = auth_service.get_password_hash(user_data.password)
@@ -288,10 +352,13 @@ async def register(user_data: UserCreate):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
+        secure_error = create_secure_error(
             status_code=400,
-            detail=str(e)
+            category='auth',
+            internal_error=e,
+            user_message='Registration failed. Please check your information and try again.'
         )
+        raise secure_error.to_http_exception()
 
 @app.post("/auth/login", response_model=LoginResponse)
 async def login(login_data: UserLogin):
@@ -329,10 +396,14 @@ async def login(login_data: UserLogin):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
+        secure_error = create_secure_error(
             status_code=500,
-            detail=f"Login failed: {str(e)}"
+            category='auth',
+            internal_error=e,
+            user_message='Login failed. Please try again later.',
+            context={'email': login_data.email}
         )
+        raise secure_error.to_http_exception()
 
 @app.get("/auth/profile", response_model=UserProfile)
 async def get_profile(current_user: User = Depends(require_auth)):
@@ -603,8 +674,8 @@ async def analyze_chat_prompt(request: ChatAnalysisRequest, http_request: Reques
             value=session_id,
             max_age=30 * 24 * 60 * 60,  # 30 days
             httponly=True,
-            secure=False,  # Set to True in production with HTTPS
-            samesite="lax"
+            secure=settings.COOKIE_SECURE,  # Secure in production with HTTPS
+            samesite=settings.COOKIE_SAMESITE
         )
         
         return {
@@ -646,8 +717,8 @@ async def analyze_chat_prompt(request: ChatAnalysisRequest, http_request: Reques
             value=session_id,
             max_age=30 * 24 * 60 * 60,  # 30 days
             httponly=True,
-            secure=False,  # Set to True in production with HTTPS
-            samesite="lax"
+            secure=settings.COOKIE_SECURE,  # Secure in production with HTTPS
+            samesite=settings.COOKIE_SAMESITE
         )
         
         return {
@@ -1881,8 +1952,15 @@ async def get_api_execution_stats(
         )
         return stats
     except Exception as e:
-        logger.error(f"Failed to get API execution stats: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to get execution stats: {str(e)}")
+        secure_error = create_secure_error(
+            status_code=500,
+            category='api',
+            internal_error=e,
+            user_message='Unable to retrieve execution statistics at this time.',
+            user_id=current_user.id,
+            context={'endpoint': '/api-execution-stats'}
+        )
+        raise secure_error.to_http_exception()
 
 @app.get("/api-execution-limits", response_model=APIExecutionLimitsResponse)
 async def get_api_execution_limits(
