@@ -182,24 +182,9 @@ class APIKeyService:
             return False
 
     async def update_api_key(self, user_id: str, key_id: str, key_name: Optional[str] = None, is_active: Optional[bool] = None) -> bool:
-        logger.info(f"🔑 update_api_key called for user {user_id} with key ID {key_id}")
         """Update an API key."""
+        logger.info(f"🔑 update_api_key called for user {user_id} with key ID {key_id}")
         async with AsyncSessionLocal() as session:
-
-            # check if user's api key is valid
-            api_key = await self.validate_api_key(api_key)
-            if not api_key.is_active:
-                raise HTTPException(
-                    status_code=401,
-                    detail="Invalid API key"
-                )
-            
-            if api_key.expires_at and api_key.expires_at < datetime.now():
-                raise HTTPException(
-                    status_code=401,
-                    detail="API key expired"
-                )
-            
             try:
                 result = await session.execute(
                     select(APIKeyDB).where(

@@ -55,8 +55,6 @@ function hideChatInput() {
             chatContainer.classList.add('chat-input-hidden');
         }
         
-        // Add a message to indicate why chat input is hidden
-        addMessage('system', '💡 Chat input hidden - Your API is being generated! You can test and deploy it once it\'s ready.');
     }
 }
 
