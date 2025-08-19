@@ -1,25 +1,39 @@
 {
-  "system_prompt": "You are a technical documentation expert. \nGenerate clear, concise documentation for API endpoints and provide practical curl examples.",
-  "user_prompt_template": "Based on this API code and original request, generate:\n1. Clear documentation (markdown format)\n2. A practical curl example\n\nOriginal Request: {prompt}\n\nGenerated Code:\n{code}\n\n## Documentation\n\n## Curl Example",
-  "description": "System prompt for generating API documentation and curl examples using Claude",
+  "system_prompt": "You are a technical documentation expert. Generate clear, comprehensive documentation for API endpoints with structured parameter information and practical examples.",
+  "user_prompt_template": "Based on this API code and original request, generate comprehensive documentation with:\n\n1. API Description\n2. Structured Parameters section (if applicable)\n3. Sample Test Data for easy testing\n4. Example Response in JSON format\n5. Practical curl example\n\nOriginal Request: {prompt}\n\nGenerated Code:\n{code}\n\n## Documentation\n\n### Description\n[Provide a clear description of what this API does]\n\n### Parameters\n[If this API accepts parameters, list them in this format:]\n- `parameter_name` (type, required/optional): Description and example value\n\n### Sample Test Data\n```json\n{{\n  \"realistic_field\": \"realistic_test_value_here\"\n}}\n```\n\n### Example Response\n```json\n{{\n  \"example\": \"response structure\"\n}}\n```\n\n## Curl Example",
+  "description": "Enhanced system prompt for generating structured API documentation with parameters and examples using Claude",
   "model": "claude-3-sonnet-20240229",
   "temperature": 0.3,
-  "max_tokens": 2000,
+  "max_tokens": 2500,
   "operation_type": "documentation_generation",
   "expected_format": {
     "sections": [
       "## Documentation",
+      "### Description",
+      "### Parameters",
+      "### Sample Test Data",
+      "### Example Response",
       "## Curl Example"
     ],
-    "documentation_min_length": 20,
-    "curl_min_length": 10
+    "documentation_min_length": 50,
+    "curl_min_length": 10,
+    "must_have_description": true,
+    "should_have_parameters": true,
+    "must_have_sample_test_data": true,
+    "must_have_example_response": true
   },
   "validation_rules": {
     "must_contain_documentation": true,
     "must_contain_curl_example": true,
-    "documentation_format": "markdown"
+    "documentation_format": "markdown",
+    "must_contain_description": true,
+    "should_contain_parameters": true,
+    "must_contain_sample_test_data": true,
+    "must_contain_example_response": true
   }
 }
+
+
 
 
 

@@ -248,6 +248,7 @@ async def landing_page(request: Request):
     """Serve the landing page for non-authenticated users."""
     return templates.TemplateResponse("landing.html", {"request": request})
 
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Serve the login page."""

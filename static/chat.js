@@ -683,216 +683,47 @@ function cancelAPIBuild() {
 function addAPIResultMessage(result) {
     const endpointUrl = window.location.origin + result.endpoint_url;
     
+    // Update the API preview panel
+    updateAPIPreview(result);
+    
     // Extract or generate smart test data based on the API
     const testData = {"json": "Place Holder", "description": "Place Holder", "examples": []}
     
     const content = `
-        <div class="space-y-6">
+        <div class="space-y-4">
             <div class="flex items-center space-x-2">
                 <span class="status-badge status-buildable">Success</span>
                 <h3 class="font-semibold text-white">🎉 API Generated Successfully!</h3>
             </div>
             
-            <!-- API Test Section -->
-            <div class="glass-card rounded-xl p-6 border-blue-500/30 test-section">
-                <div class="flex items-center justify-between mb-4">
-                    <h4 class="font-semibold text-white flex items-center space-x-2">
-                        <span class="text-blue-400">🧪</span>
-                        <span>Test Your API</span>
-                    </h4>
-                    <div class="flex items-center space-x-2">
-                        <div id="testStatus" class="w-3 h-3 bg-gray-500 rounded-full"></div>
-                        <span id="testStatusText" class="text-sm text-gray-400">Ready to test</span>
+            <div class="glass-card rounded-xl p-6 border-green-500/30">
+                <div class="flex items-center space-x-3 mb-4">
+                    <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
                     </div>
+                    <div class="flex-1">
+                        <h4 class="font-medium text-white mb-1">Your API is ready!</h4>
+                        <p class="text-sm text-green-200">Check the preview panel on the right to test, get code snippets, and deploy your API.</p>
                 </div>
-                
-                <!-- API Documentation -->
-                <div class="mb-6 p-4 bg-slate-800/30 rounded-lg border border-slate-600/30">
-                    <div class="flex items-center justify-between mb-3">
-                        <h5 class="font-medium text-white flex items-center space-x-2">
-                            <span class="text-blue-400">📚</span>
-                            <span>API Documentation</span>
-                        </h5>
-                        <div class="flex items-center space-x-2">
-                            <button onclick="copyToClipboard('${endpointUrl}')" 
-                                    class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded transition-colors">
-                                Copy URL
-                            </button>
                         </div>
-                    </div>
-                    <div class="space-y-3">
+                
+                <div class="bg-slate-800/30 rounded-lg p-4">
                         <div class="text-sm">
                             <span class="text-slate-400">Endpoint:</span>
-                            <code class="ml-2 text-emerald-400 font-mono text-xs bg-slate-700/50 px-2 py-1 rounded">${endpointUrl}</code>
-                        </div>
-                        <div class="text-sm text-slate-300 leading-relaxed">
-                            ${result.documentation.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`(.*?)`/g, '<code class="bg-slate-700/50 px-1 py-0.5 rounded text-xs font-mono">$1</code>')}
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Test Input Area -->
-                <div class="space-y-4">
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <label class="block text-sm font-medium text-slate-300">Request Data (JSON)</label>
-                            <div class="flex items-center space-x-2">
-                                <button onclick="formatTestInput()" class="text-xs text-blue-400 hover:text-blue-300 transition-colors format-json-btn">Format JSON</button>
-                            </div>
-                        </div>
-                        <div class="test-input-container">
-                            <textarea 
-                                id="testInput" 
-                                class="w-full h-32 p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono text-sm" 
-                                placeholder="Generated example data will appear here..."
-                            >${testData.json}</textarea>
-                        </div>
-                        <div class="mt-2">
-                            <div class="flex items-center justify-between">
-                                <p class="text-xs text-slate-400">${testData.description}</p>
-                                <div class="flex items-center space-x-2">
-                                    ${testData.requiresFile ? '<span class="text-xs text-amber-400">📎 File upload supported</span>' : ''}
-                                </div>
-                            </div>
-                            ${testData.examples.length > 0 ? `
-                            <div class="mt-2">
-                                <details class="text-xs">
-                                    <summary class="text-slate-400 cursor-pointer hover:text-slate-300">More examples</summary>
-                                    <div class="mt-2 space-y-1 pl-4 border-l border-slate-600">
-                                        ${testData.examples.map(example => `
-                                            <button onclick="setTestData('${example.data.replace(/'/g, "\\'")}', '${example.label}')" 
-                                                    class="block text-blue-400 hover:text-blue-300 transition-colors">
-                                                ${example.label}
+                        <code class="ml-2 text-emerald-400 font-mono text-sm bg-slate-700/50 px-2 py-1 rounded">${endpointUrl}</code>
+                        <button onclick="copyToClipboard('${endpointUrl}')" 
+                                class="ml-2 px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded transition-colors">
+                            Copy
                                             </button>
-                                        `).join('')}
-                                    </div>
-                                </details>
-                            </div>
-                            ` : ''}
                         </div>
                     </div>
                     
-                    <!-- Test Controls -->
-                    <div class="flex items-center justify-between test-controls">
-                        <div class="flex items-center space-x-3">
-                            <button onclick="runAPITest('${endpointUrl}')" 
-                                    id="runTestBtn"
-                                    class="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2 test-button">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
-                                </svg>
-                                <span>Run Test</span>
-                            </button>
-                            <button onclick="clearTestData()" 
-                                    class="px-3 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">
-                                Clear
-                            </button>
-                        </div>
-                        <div class="flex items-center space-x-2 text-xs text-slate-400">
-                            <span>Method:</span>
-                            <span class="px-2 py-1 bg-blue-600/20 text-blue-300 rounded font-mono">POST</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Pricing Estimation (Will be populated after generation) -->
-                <div id="pricingEstimation" class="mt-4 p-3 bg-slate-800/30 rounded-lg border border-slate-600/30">
-                    <div class="flex items-center space-x-2 mb-2">
-                        <span class="text-yellow-400">💰</span>
-                        <span class="text-sm font-medium text-slate-300">Estimated Pricing</span>
-                        <span class="text-xs text-slate-500">(Run test to see exact costs)</span>
-                    </div>
-                    <div class="text-xs text-slate-400">
-                        <div class="grid grid-cols-3 gap-2">
-                            <div class="text-center py-2 bg-slate-700/30 rounded">
-                                <div class="text-slate-500">Cost per call</div>
-                                <div class="text-green-400 font-mono">~$0.02</div>
-                            </div>
-                            <div class="text-center py-2 bg-slate-700/30 rounded">
-                                <div class="text-slate-500">Internal tokens</div>
-                                <div class="text-blue-400 font-mono">~20</div>
-                            </div>
-                            <div class="text-center py-2 bg-slate-700/30 rounded">
-                                <div class="text-slate-500">AI model</div>
-                                <div class="text-purple-400 font-mono">estimated</div>
-                            </div>
-                        </div>
-                        <p class="text-center mt-2 text-slate-500 text-xs">🔍 Test your API to see exact pricing based on actual usage</p>
-                    </div>
-                </div>
-                
-                <!-- Test Results Area -->
-                <div id="testResults" class="hidden mt-6 space-y-4 test-results-container">
-                    <!-- Response Status -->
-                    <div class="flex items-center justify-between response-info">
-                        <h5 class="font-medium text-white">Response</h5>
-                        <div class="flex items-center space-x-2">
-                            <span id="responseStatus" class="px-2 py-1 rounded text-xs font-mono"></span>
-                            <span id="responseTime" class="text-xs text-slate-400"></span>
-                        </div>
-                    </div>
-                    
-                    <!-- Response Body -->
-                    <div class="code-highlight rounded-lg p-4">
-                        <pre id="responseBody" class="text-sm text-slate-300 font-mono whitespace-pre-wrap overflow-x-auto"></pre>
-                    </div>
-                    
-                    <!-- Response Headers (Collapsible) -->
-                    <div>
-                        <button onclick="toggleResponseHeaders()" class="flex items-center space-x-2 text-sm text-slate-400 hover:text-slate-300 transition-colors headers-toggle-button">
-                            <svg id="headersChevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                            </svg>
-                            <span>Response Headers</span>
-                        </button>
-                        <div id="responseHeaders" class="hidden mt-2 code-highlight rounded-lg p-4 headers-content">
-                            <pre id="responseHeadersContent" class="text-xs text-slate-400 font-mono"></pre>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Deploy Button (Initially Hidden) -->
-                <div id="deploySection" class="hidden mt-6 pt-6 border-t border-slate-600/50 deploy-section">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h5 class="font-medium text-white mb-1">Ready to Deploy?</h5>
-                            <p class="text-sm text-slate-400">Your API is working! Deploy it to make it publicly available or modify it further.</p>
-                        </div>
-                        <div class="flex items-center space-x-3">
-                            <button onclick="modifyCurrentAPI()" 
-                                    class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                                </svg>
-                                <span>Modify API</span>
-                            </button>
-                            <button onclick="deployCurrentAPI()" 
-                                    class="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
-                                </svg>
-                                <span>Deploy API</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            
-            <!-- cURL Example Card (Initially Hidden) -->
-            <div id="curlSection" class="hidden glass-card rounded-xl p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h4 class="font-semibold text-white flex items-center space-x-2">
-                        <span class="text-purple-400">💻</span>
-                        <span>cURL Example</span>
-                    </h4>
-                    <button onclick="copyToClipboard(\`${result.curl_example.replace(/`/g, '\\`')}\`)" 
-                            class="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-lg transition-colors">
-                        Copy cURL
-                    </button>
-                </div>
-                <div class="code-highlight rounded-lg p-4">
-                    <pre class="text-sm text-slate-300 font-mono overflow-x-auto">${result.curl_example}</pre>
+                <div class="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                    <p class="text-blue-300 text-sm">
+                        <strong>💡 Next Steps:</strong> Use the API Preview panel to test your endpoint, copy code snippets for integration, or deploy it live!
+                    </p>
                 </div>
             </div>
         </div>
@@ -1631,6 +1462,620 @@ function adjustChatHeight() {
     
     const maxHeight = windowHeight - headerHeight - inputAreaHeight - paddingBuffer;
     chatMessages.style.maxHeight = `${Math.max(300, maxHeight)}px`; // Minimum 300px
+}
+
+// API Preview Panel Functions
+let currentAPISpec = null;
+
+function extractHTTPMethod(curlExample) {
+    if (!curlExample) return 'POST';
+    
+    // Extract method from curl command
+    const methodMatch = curlExample.match(/-X\s+(\w+)/i);
+    if (methodMatch) {
+        return methodMatch[1].toUpperCase();
+    }
+    
+    // Check for explicit method indicators
+    if (curlExample.includes('POST') || curlExample.includes('-d ')) {
+        return 'POST';
+    } else if (curlExample.includes('PUT')) {
+        return 'PUT';
+    } else if (curlExample.includes('DELETE')) {
+        return 'DELETE';
+    } else if (curlExample.includes('PATCH')) {
+        return 'PATCH';
+    } else {
+        return 'GET';
+    }
+}
+
+function getMethodColor(method) {
+    switch (method.toUpperCase()) {
+        case 'GET':
+            return 'bg-green-600/20 text-green-300';
+        case 'POST':
+            return 'bg-blue-600/20 text-blue-300';
+        case 'PUT':
+            return 'bg-yellow-600/20 text-yellow-300';
+        case 'PATCH':
+            return 'bg-orange-600/20 text-orange-300';
+        case 'DELETE':
+            return 'bg-red-600/20 text-red-300';
+        default:
+            return 'bg-gray-600/20 text-gray-300';
+    }
+}
+
+function updateAPIPreview(apiData) {
+    currentAPISpec = apiData;
+    
+    // Show the preview panel and hide empty state
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('apiPreviewPanel').classList.remove('hidden');
+    
+    // Extract HTTP method from curl example or default to POST
+    const method = extractHTTPMethod(apiData.curl_example) || 'POST';
+    
+    // Update endpoint info
+    document.getElementById('apiMethod').textContent = method;
+    document.getElementById('apiMethod').className = `px-2 py-1 rounded font-mono text-xs ${getMethodColor(method)}`;
+    document.getElementById('apiEndpoint').textContent = apiData.endpoint_url || '-';
+    document.getElementById('apiDescription').textContent = extractAPIDescription(apiData.documentation) || 'API endpoint for your custom functionality';
+    
+    // Update parameters table
+    updateParametersTable(apiData);
+    
+    // Update example response
+    updateExampleResponse(apiData);
+    
+    // Update test input with sample data
+    updateTestInput(apiData);
+}
+
+function extractAPIDescription(documentation) {
+    if (!documentation) return '';
+    
+    // Extract first line or first sentence as description
+    const lines = documentation.split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('*')) {
+            return trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed;
+        }
+    }
+    return '';
+}
+
+function updateParametersTable(apiData) {
+    const container = document.getElementById('parametersTable');
+    
+    // Try to extract parameters from documentation or create generic ones
+    const params = extractParametersFromDocumentation(apiData.documentation);
+    
+    if (params.length === 0) {
+        container.innerHTML = '<div class="text-slate-400 text-sm text-center py-8">No parameters defined</div>';
+        return;
+    }
+    
+    const tableHTML = `
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-600/50">
+                    <th class="text-left py-2 text-green-300 font-medium">Name</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Type</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Required</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${params.map(param => `
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 text-white font-mono">${param.name}</td>
+                        <td class="py-2 text-blue-300">${param.type}</td>
+                        <td class="py-2">
+                            <span class="px-2 py-1 rounded text-xs ${param.required ? 'bg-red-600/20 text-red-300' : 'bg-gray-600/20 text-gray-300'}">
+                                ${param.required ? 'Required' : 'Optional'}
+                            </span>
+                        </td>
+                        <td class="py-2 text-slate-300 font-mono">${param.example}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    container.innerHTML = tableHTML;
+}
+
+function extractParametersFromDocumentation(documentation) {
+    const params = [];
+    
+    if (!documentation) {
+        params.push({name: 'data', type: 'string', required: true, example: '"example input"'});
+        return params;
+    }
+    
+    // Enhanced parameter extraction from markdown documentation
+    const doc = documentation.toLowerCase();
+    
+    // Look for parameter sections in documentation
+    const paramSectionMatch = documentation.match(/parameters?[:\-\s]*\n(.*?)(?=\n\n|\n#|$)/is);
+    if (paramSectionMatch) {
+        const paramSection = paramSectionMatch[1];
+        
+        // Extract parameters from bulleted or listed format
+        const paramMatches = paramSection.match(/[-*•]\s*`?(\w+)`?\s*[-–:]\s*(.+?)(?=\n[-*•]|\n\n|$)/gim);
+        if (paramMatches) {
+            paramMatches.forEach(match => {
+                const paramMatch = match.match(/[-*•]\s*`?(\w+)`?\s*[-–:]\s*(.+)/i);
+                if (paramMatch) {
+                    const name = paramMatch[1];
+                    const description = paramMatch[2].trim();
+                    
+                    let type = 'string';
+                    let required = false;
+                    let example = `"example ${name}"`;
+                    
+                    // Determine type from description
+                    if (description.includes('number') || description.includes('integer') || description.includes('int')) {
+                        type = 'number';
+                        example = '123';
+                    } else if (description.includes('boolean') || description.includes('bool')) {
+                        type = 'boolean';
+                        example = 'true';
+                    } else if (description.includes('array') || description.includes('list')) {
+                        type = 'array';
+                        example = '["item1", "item2"]';
+                    } else if (description.includes('object') || description.includes('json')) {
+                        type = 'object';
+                        example = '{"key": "value"}';
+                    } else if (description.includes('file') || description.includes('upload')) {
+                        type = 'file';
+                        example = 'file.pdf';
+                    }
+                    
+                    // Determine if required
+                    if (description.includes('required') || description.includes('mandatory')) {
+                        required = true;
+                    }
+                    
+                    params.push({name, type, required, example});
+                }
+            });
+        }
+    }
+    
+    // Fallback: Look for common patterns if no formal parameter section
+    if (params.length === 0) {
+        // Common API patterns
+        if (doc.includes('text') && !doc.includes('no parameters')) {
+            params.push({name: 'text', type: 'string', required: true, example: '"Sample text for processing"'});
+        }
+        if (doc.includes('file') || doc.includes('upload')) {
+            params.push({name: 'file', type: 'file', required: true, example: 'document.pdf'});
+        }
+        if (doc.includes('url') || doc.includes('link')) {
+            params.push({name: 'url', type: 'string', required: true, example: '"https://example.com"'});
+        }
+        if (doc.includes('image') || doc.includes('photo')) {
+            params.push({name: 'image', type: 'file', required: true, example: 'image.jpg'});
+        }
+        if (doc.includes('json') || doc.includes('data')) {
+            params.push({name: 'data', type: 'object', required: true, example: '{"key": "value"}'});
+        }
+        
+        // If still no parameters found, add a default
+        if (params.length === 0) {
+            params.push({name: 'input', type: 'string', required: true, example: '"example input"'});
+        }
+    }
+    
+    return params;
+}
+
+function updateExampleResponse(apiData) {
+    const container = document.getElementById('exampleResponse');
+    
+    // Create a sample response based on the API type
+    const exampleResponse = generateExampleResponse(apiData);
+    container.textContent = JSON.stringify(exampleResponse, null, 2);
+}
+
+function generateExampleResponse(apiData) {
+    // Generate example based on API documentation or type
+    const doc = (apiData.documentation || '').toLowerCase();
+    
+    // Try to extract actual response format from documentation
+    const responseMatch = apiData.documentation && apiData.documentation.match(/response[:\-\s]*\n```json\s*(.*?)\s*```/is);
+    if (responseMatch) {
+        try {
+            return JSON.parse(responseMatch[1]);
+        } catch (e) {
+            // Fall through to pattern-based generation
+        }
+    }
+    
+    // Pattern-based response generation
+    if (doc.includes('sentiment') || doc.includes('emotion')) {
+        return {
+            sentiment: "positive",
+            confidence: 0.95,
+            score: 0.8,
+            timestamp: new Date().toISOString()
+        };
+    } else if (doc.includes('summarize') || doc.includes('summary')) {
+        return {
+            summary: "This is a concise summary of the provided text.",
+            word_count: 156,
+            summary_ratio: 0.3,
+            success: true
+        };
+    } else if (doc.includes('translate') || doc.includes('translation')) {
+        return {
+            translated_text: "Hola, ¿cómo estás?",
+            source_language: "en",
+            target_language: "es",
+            confidence: 0.98
+        };
+    } else if (doc.includes('extract') && doc.includes('email')) {
+        return {
+            emails: ["john@example.com", "support@company.com"],
+            count: 2,
+            success: true
+        };
+    } else if (doc.includes('extract') && doc.includes('name')) {
+        return {
+            names: ["John Smith", "Mary Johnson"],
+            count: 2,
+            success: true
+        };
+    } else if (doc.includes('text') || doc.includes('process')) {
+        return {
+            processed_text: "Sample processed text result",
+            word_count: 42,
+            character_count: 254,
+            success: true,
+            processed_at: new Date().toISOString()
+        };
+    } else if (doc.includes('image') || doc.includes('resize') || doc.includes('photo')) {
+        return {
+            image_url: "https://api.example.com/processed/image.jpg",
+            original_size: {width: 1200, height: 800},
+            new_size: {width: 600, height: 400},
+            size_reduction: "45%",
+            format: "jpeg"
+        };
+    } else if (doc.includes('classify') || doc.includes('classification') || doc.includes('category')) {
+        return {
+            classification: "positive",
+            categories: ["Technology", "AI", "Software"],
+            confidence: 0.92,
+            top_category: "Technology"
+        };
+    } else if (doc.includes('analyze') || doc.includes('analysis')) {
+        return {
+            analysis_result: "Detailed analysis complete",
+            metrics: {
+                complexity: "medium",
+                sentiment: "positive",
+                readability: 8.5
+            },
+            success: true
+        };
+    } else if (doc.includes('generate') || doc.includes('create')) {
+        return {
+            generated_content: "This is generated content based on your input",
+            length: 156,
+            format: "text",
+            success: true
+        };
+    } else if (doc.includes('convert') || doc.includes('transform')) {
+        return {
+            converted_data: "Converted output data",
+            original_format: "input_format",
+            target_format: "output_format",
+            success: true
+        };
+    } else {
+        // Generic response
+        return {
+            result: "API response data",
+            success: true,
+            message: "Request processed successfully",
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+function extractSampleTestDataFromDocumentation(documentation) {
+    if (!documentation) return null;
+    
+    // Look for Sample Test Data section in documentation
+    const sampleTestDataMatch = documentation.match(/### Sample Test Data\s*\n```json\s*(.*?)\s*```/is);
+    if (sampleTestDataMatch) {
+        try {
+            return JSON.parse(sampleTestDataMatch[1]);
+        } catch (e) {
+            console.log('Failed to parse sample test data from documentation:', e);
+            return null;
+        }
+    }
+    return null;
+}
+
+function updateTestInput(apiData) {
+    const testInput = document.getElementById('previewTestInput');
+    
+    // First try to use AI-generated sample test data
+    const aiSampleData = extractSampleTestDataFromDocumentation(apiData.documentation);
+    if (aiSampleData) {
+        testInput.value = JSON.stringify(aiSampleData, null, 2);
+        
+        // Store the sample data for easy reloading
+        testInput.setAttribute('data-sample-json', JSON.stringify(aiSampleData, null, 2));
+        
+        // Add a visual indicator that this is AI-generated sample data
+        const sampleDataIndicator = testInput.parentElement.querySelector('.sample-data-indicator');
+        if (!sampleDataIndicator) {
+            const indicator = document.createElement('div');
+            indicator.className = 'sample-data-indicator text-xs text-green-400 mb-2 flex items-center space-x-2';
+            indicator.innerHTML = `
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
+                <span>AI-generated sample test data loaded</span>
+                <button onclick="loadSampleTestData()" class="text-green-300 hover:text-green-200 underline">Reload</button>
+            `;
+            testInput.parentElement.insertBefore(indicator, testInput);
+        }
+        return;
+    }
+    
+    // Fallback to parameter-based generation
+    const params = extractParametersFromDocumentation(apiData.documentation);
+    
+    if (params.length > 0) {
+        const testData = {};
+        params.forEach(param => {
+            // Generate appropriate test values based on parameter type and name
+            if (param.type === 'number') {
+                testData[param.name] = 123;
+            } else if (param.type === 'boolean') {
+                testData[param.name] = true;
+            } else if (param.type === 'array') {
+                if (param.name.includes('email')) {
+                    testData[param.name] = ["test@example.com", "user@demo.com"];
+                } else if (param.name.includes('name')) {
+                    testData[param.name] = ["John Doe", "Jane Smith"];
+                } else {
+                    testData[param.name] = ["item1", "item2"];
+                }
+            } else if (param.type === 'object') {
+                testData[param.name] = {"key": "value", "example": "data"};
+            } else if (param.type === 'file') {
+                testData[param.name] = param.name.includes('image') ? "image.jpg" : "document.pdf";
+            } else {
+                // String type - generate contextual examples
+                if (param.name === 'text') {
+                    testData[param.name] = "This is sample text for processing by the API.";
+                } else if (param.name === 'url' || param.name === 'link') {
+                    testData[param.name] = "https://example.com";
+                } else if (param.name.includes('email')) {
+                    testData[param.name] = "user@example.com";
+                } else if (param.name.includes('name')) {
+                    testData[param.name] = "John Doe";
+                } else if (param.name.includes('title')) {
+                    testData[param.name] = "Example Title";
+                } else if (param.name.includes('content') || param.name.includes('message')) {
+                    testData[param.name] = "Sample content for processing";
+                } else if (param.name.includes('language') || param.name.includes('lang')) {
+                    testData[param.name] = "en";
+                } else if (param.name.includes('format')) {
+                    testData[param.name] = "json";
+                } else {
+                    testData[param.name] = `example ${param.name}`;
+                }
+            }
+        });
+        testInput.value = JSON.stringify(testData, null, 2);
+    } else {
+        testInput.value = '{\n  "data": "example input"\n}';
+    }
+}
+
+// Sample Test Data Functions
+function loadSampleTestData() {
+    const testInput = document.getElementById('previewTestInput');
+    const sampleData = testInput.getAttribute('data-sample-json');
+    
+    if (sampleData) {
+        testInput.value = sampleData;
+        
+        // Show feedback
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-xl shadow-xl z-50 notification-slide-up';
+        notification.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>Sample test data reloaded</span>
+            </div>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 2000);
+    }
+}
+
+// Copy Functions
+function copyApiEndpoint() {
+    if (!currentAPISpec) return;
+    
+    const endpointUrl = window.location.origin + currentAPISpec.endpoint_url;
+    copyToClipboard(endpointUrl);
+}
+
+function copyExampleResponse() {
+    const responseText = document.getElementById('exampleResponse').textContent;
+    copyToClipboard(responseText);
+}
+
+function copyCodeSnippet(language) {
+    if (!currentAPISpec) return;
+    
+    const endpointUrl = window.location.origin + currentAPISpec.endpoint_url;
+    let snippet = '';
+    
+    switch (language) {
+        case 'curl':
+            snippet = `curl -X POST "${endpointUrl}" \\
+  -H "Content-Type: application/json" \\
+  -d '${document.getElementById('previewTestInput').value || '{"data": "example"}'}'`;
+            break;
+            
+        case 'python':
+            snippet = `import requests
+import json
+
+url = "${endpointUrl}"
+data = ${document.getElementById('previewTestInput').value || '{"data": "example"}'}
+
+response = requests.post(url, json=data)
+result = response.json()
+print(result)`;
+            break;
+            
+        case 'javascript':
+            snippet = `const response = await fetch('${endpointUrl}', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(${document.getElementById('previewTestInput').value || '{"data": "example"}'})
+});
+
+const result = await response.json();
+console.log(result);`;
+            break;
+    }
+    
+    copyToClipboard(snippet);
+}
+
+// Preview Test Functions
+async function runPreviewTest() {
+    if (!currentAPISpec) return;
+    
+    const testInput = document.getElementById('previewTestInput');
+    const runBtn = document.getElementById('previewRunTestBtn');
+    const status = document.getElementById('previewTestStatus');
+    const statusText = document.getElementById('previewTestStatusText');
+    const results = document.getElementById('previewTestResults');
+    const responseStatus = document.getElementById('previewResponseStatus');
+    const responseBody = document.getElementById('previewResponseBody');
+    
+    // Update UI to show testing
+    runBtn.disabled = true;
+    runBtn.innerHTML = `
+        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        <span>Testing...</span>
+    `;
+    status.className = 'w-3 h-3 bg-yellow-500 rounded-full animate-pulse';
+    statusText.textContent = 'Running...';
+    statusText.className = 'text-sm text-yellow-400';
+    
+    try {
+        // Parse the endpoint URL to get user_id and api_slug
+        const urlPath = currentAPISpec.endpoint_url;
+        const urlParts = urlPath.split('/').filter(part => part);
+        
+        if (urlParts.length < 3 || urlParts[0] !== 'api') {
+            throw new Error('Invalid endpoint URL format');
+        }
+        
+        const user_id = urlParts[1];
+        const api_slug = urlParts[2];
+        
+        // Prepare test data
+        const testData = {
+            user_id: user_id,
+            api_slug: api_slug,
+            test_type: 'preview'
+        };
+        
+        // Add test input if provided
+        const testInputValue = testInput.value.trim();
+        if (testInputValue) {
+            try {
+                const parsedData = JSON.parse(testInputValue);
+                testData.test_data = parsedData;
+            } catch (jsonError) {
+                throw new Error('Invalid JSON format in test input');
+            }
+        }
+        
+        // Call the backend test endpoint
+        const response = await fetch('/test-api', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(testData)
+        });
+        
+        const testResult = await response.json();
+        
+        // Show results
+        results.classList.remove('hidden');
+        
+        // Update status
+        if (testResult.success) {
+            status.className = 'w-3 h-3 bg-green-500 rounded-full';
+            statusText.textContent = 'Success';
+            statusText.className = 'text-sm text-green-400';
+            
+            responseStatus.textContent = '200 OK';
+            responseStatus.className = 'px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono';
+            
+            responseBody.textContent = JSON.stringify(testResult.response_data || testResult, null, 2);
+        } else {
+            status.className = 'w-3 h-3 bg-red-500 rounded-full';
+            statusText.textContent = 'Failed';
+            statusText.className = 'text-sm text-red-400';
+            
+            responseStatus.textContent = 'Error';
+            responseStatus.className = 'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
+            
+            responseBody.textContent = JSON.stringify({error: testResult.error || 'Test failed'}, null, 2);
+        }
+        
+    } catch (error) {
+        results.classList.remove('hidden');
+        
+        status.className = 'w-3 h-3 bg-red-500 rounded-full';
+        statusText.textContent = 'Error';
+        statusText.className = 'text-sm text-red-400';
+        
+        responseStatus.textContent = 'Error';
+        responseStatus.className = 'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
+        
+        responseBody.textContent = `Error: ${error.message}`;
+    } finally {
+        // Reset button
+        runBtn.disabled = false;
+        runBtn.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
+            </svg>
+            <span>Run Test</span>
+        `;
+    }
 }
 
 // Initialize
