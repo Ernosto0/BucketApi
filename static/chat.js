@@ -434,157 +434,19 @@ function escapeHtml(text) {
 }
 
 function addProposalMessage(analysis, originalPrompt, userId) {
-    const proposal = analysis.proposal;
+    // Update the API preview panel with the proposal
+    updateAPIProposal(analysis, originalPrompt, userId);
     
-    // Create endpoints HTML
-    const endpointsHtml = proposal.endpoints ? 
-        proposal.endpoints.map(endpoint => 
-            `<div class="flex items-center space-x-2 text-sm">
-                <span class="px-2 py-1 bg-${endpoint.method === 'GET' ? 'green' : endpoint.method === 'POST' ? 'blue' : endpoint.method === 'PUT' ? 'yellow' : 'red'}-600/20 text-${endpoint.method === 'GET' ? 'green' : endpoint.method === 'POST' ? 'blue' : endpoint.method === 'PUT' ? 'yellow' : 'red'}-300 rounded font-mono text-xs">${endpoint.method}</span>
-                <span class="font-mono text-slate-300">${endpoint.path}</span>
-                <span class="text-slate-400">- ${endpoint.description}</span>
-            </div>`
-        ).join('') : 
-        '<div class="text-sm text-slate-400">Standard REST API endpoints</div>';
-
-    // Create functionality HTML
-    const functionalityHtml = proposal.functionality ? 
-        proposal.functionality.map(func => `<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">${func}</span></li>`).join('') : 
-        '<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">Custom API functionality</span></li>';
-
-
-
+    // Show brief confirmation in chat
     const content = `
-        <div class="space-y-6">
+        <div class="space-y-4">
             <div class="flex items-center space-x-2">
                 <span class="status-badge bg-blue-900/50 text-blue-400 border-blue-500/30">Proposal Ready</span>
-                <h3 class="font-semibold text-white">Here's what I propose to build for you:</h3>
+                <h3 class="font-semibold text-white">Draft API spec generated — check the Preview panel.</h3>
             </div>
-            
-            <!-- API Name and Description -->
-            <div class="glass-card rounded-xl p-6 border-blue-500/30">
-                <h4 class="font-bold text-xl text-white mb-2">${escapeHtml(proposal.api_name || 'Custom API')}</h4>
-                <p class="text-slate-300 mb-3">${escapeHtml(proposal.description || 'A custom API based on your requirements')}</p>
-                ${analysis.original_prompt ? `
-                <div class="mt-4 p-3 bg-slate-800/30 border border-slate-600/30 rounded-lg">
-                    <h6 class="text-xs font-medium text-slate-400 mb-1">Based on your request:</h6>
-                    <p class="text-sm text-slate-300 italic">"${escapeHtml(analysis.original_prompt)}"</p>
-                </div>
-                ` : ''}
-                ${analysis.confirmation_needed ? `
-                <div class="mt-3 flex items-center space-x-2">
-                    <div class="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
-                    <span class="text-xs text-orange-400">Confirmation Required</span>
-                </div>
-                ` : ''}
-            </div>
-            
-
-            <!-- Functionality -->
-            <div class="glass-card rounded-xl p-6">
-                <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
-                    <span class="text-blue-400">⚡</span>
-                    <span>Key Features</span>
-                </h4>
-                <ul class="space-y-2">
-                    ${functionalityHtml}
-                </ul>
-            </div>
-
-            <!-- Input/Output Format -->
-            ${proposal.input_format || proposal.output_format ? `
-            <div class="grid md:grid-cols-2 gap-4">
-                ${proposal.input_format ? `
-                <div class="glass-card rounded-xl p-4">
-                    <h5 class="font-semibold text-green-400 mb-2">📥 Input Format</h5>
-                    <p class="text-sm text-slate-300 mb-2">${proposal.input_format.type || 'JSON'}</p>
-                    ${proposal.input_format.fields ? `
-                    <div class="mb-3">
-                        <h6 class="text-xs font-medium text-green-300 mb-1">Required Fields:</h6>
-                        <div class="flex flex-wrap gap-1">
-                            ${proposal.input_format.fields.map(field => `<span class="px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono">${field}</span>`).join('')}
-                        </div>
-                    </div>
-                    ` : ''}
-                    ${proposal.input_format.example ? `
-                    <div class="code-highlight rounded p-3">
-                        <h6 class="text-xs font-medium text-green-300 mb-2">Example:</h6>
-                        <pre class="text-xs text-slate-300 font-mono">${typeof proposal.input_format.example === 'object' ? JSON.stringify(proposal.input_format.example, null, 2) : proposal.input_format.example}</pre>
-                    </div>
-                    ` : ''}
-                </div>
-                ` : ''}
-                ${proposal.output_format ? `
-                <div class="glass-card rounded-xl p-4">
-                    <h5 class="font-semibold text-purple-400 mb-2">📤 Output Format</h5>
-                    <p class="text-sm text-slate-300 mb-2">${proposal.output_format.type || 'JSON'}</p>
-                    ${proposal.output_format.fields ? `
-                    <div class="mb-3">
-                        <h6 class="text-xs font-medium text-purple-300 mb-1">Response Fields:</h6>
-                        <div class="flex flex-wrap gap-1">
-                            ${proposal.output_format.fields.map(field => `<span class="px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs font-mono">${field}</span>`).join('')}
-                        </div>
-                    </div>
-                    ` : ''}
-                    ${proposal.output_format.example ? `
-                    <div class="code-highlight rounded p-3">
-                        <h6 class="text-xs font-medium text-purple-300 mb-2">Example:</h6>
-                        <pre class="text-xs text-slate-300 font-mono">${typeof proposal.output_format.example === 'object' ? JSON.stringify(proposal.output_format.example, null, 2) : proposal.output_format.example}</pre>
-                    </div>
-                    ` : ''}
-                </div>
-                ` : ''}
-            </div>
-            ` : ''}
-
-            <!-- Endpoints -->
-            <div class="glass-card rounded-xl p-6">
-                <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
-                    <span class="text-yellow-400">🔗</span>
-                    <span>API Endpoints</span>
-                </h4>
-                <div class="space-y-2">
-                    ${endpointsHtml}
-                </div>
-            </div>
-
-            <!-- Next Steps (if available) -->
-            ${analysis.next_steps && analysis.next_steps.length > 0 ? `
-            <div class="glass-card rounded-xl p-6">
-                <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
-                    <span class="text-blue-400">📋</span>
-                    <span>Next Steps</span>
-                </h4>
-                <ul class="space-y-2">
-                    ${analysis.next_steps.map(step => `<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">${step}</span></li>`).join('')}
-                </ul>
-            </div>
-            ` : ''}
-
-            
-
-            <!-- Confirmation Buttons -->
-            <div class="glass-card rounded-xl p-6 border-green-500/30">
-                <h4 class="font-semibold text-white mb-4 flex items-center space-x-2">
-                    <span class="text-green-400">✅</span>
-                    <span>Ready to build this API?</span>
-                </h4>
-                <div class="flex flex-wrap gap-3">
-                    <button onclick="confirmBuildAPI('${originalPrompt}', '${userId}')" 
-                            class="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
-                        🚀 Yes, Build It!
-                    </button>
-                    <button onclick="requestModifications('${originalPrompt}', '${userId}')" 
-                            class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
-                        ✏️ Modify Proposal
-                    </button>
-                    <button onclick="cancelAPIBuild()" 
-                            class="px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-xl font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
-                        ❌ Cancel
-                    </button>
-                </div>
-                <p class="text-sm text-slate-400 mt-4">
-                    💡 Review the proposal carefully. You can request modifications or proceed with building the API.
+            <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+                <p class="text-blue-300 text-sm">
+                    📋 I've created a detailed API proposal based on your requirements. Review the specifications in the <strong>API Preview panel</strong> on the right, then let me know if you'd like to build it or make any changes.
                 </p>
             </div>
         </div>
@@ -637,7 +499,7 @@ function requestModifications(originalPrompt, userId) {
             </div>
             <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
                 <p class="text-blue-300 text-sm mb-3">
-                    Please describe the changes you'd like to make to the API proposal:
+                    Please describe the changes you'd like to make to the API proposal shown in the Preview panel:
                 </p>
                 <ul class="text-sm text-blue-200 space-y-2">
                     <li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span>Add or remove features</span></li>
@@ -657,6 +519,9 @@ function requestModifications(originalPrompt, userId) {
 
 function cancelAPIBuild() {
     addMessage('user', '❌ Cancel - Don\'t build this API');
+    
+    // Reset preview panel to empty state
+    resetPreviewPanel();
     
     // Show chat input back since user cancelled and might want to start over
     showChatInput();
@@ -678,6 +543,26 @@ function cancelAPIBuild() {
     `;
     
     addMessage('assistant', content);
+}
+
+function resetPreviewPanel() {
+    // Reset state variables
+    currentAPISpec = null;
+    currentProposal = null;
+    previewMode = 'empty';
+    
+    // Hide preview panel and show empty state
+    document.getElementById('apiPreviewPanel').classList.add('hidden');
+    document.getElementById('emptyState').classList.remove('hidden');
+    
+    // Remove proposal section if it exists
+    const proposalSection = document.getElementById('proposalSection');
+    if (proposalSection) {
+        proposalSection.remove();
+    }
+    
+    // Reset header
+    updatePreviewHeader('🔧 API Preview', 'Live preview of your API as it\'s being built');
 }
 
 function addAPIResultMessage(result) {
@@ -1405,10 +1290,12 @@ async function processModificationRequest(modificationPrompt, userId) {
         hideTypingIndicator();
 
         if (result.success) {
-            // Update current API data
+            // Check if this is a final API or a modified proposal
+            if (result.endpoint_url) {
+                // This is a final API
             currentApiData = result;
             addAPIResultMessage(result);
-            addMessage('system', '✅ API modified successfully! The updated version is now available above.');
+                addMessage('system', '✅ API modified successfully! The updated version is now available in the Preview panel.');
             
             // Reset placeholder
             const chatInput = document.getElementById('chatInput');
@@ -1419,8 +1306,16 @@ async function processModificationRequest(modificationPrompt, userId) {
             // Hide chat input again since modification is complete
             hideChatInput();
         } else {
-            // Handle different types of unsuccessful responses
-            if (result.status === 'needs_clarification') {
+                // This might be a modified proposal
+                currentApiData = result;
+                addMessage('system', '✅ Proposal updated successfully! Review the changes in the Preview panel.');
+            }
+        } else {
+            // Handle different types of responses
+            if (result.status === 'proposal_ready') {
+                // Show updated proposal
+                addProposalMessage(result, modificationPrompt, userId);
+            } else if (result.status === 'needs_clarification') {
                 addClarificationMessage(result);
             } else if (result.status === 'modify_request') {
                 addModifyRequestMessage(result);
@@ -1466,6 +1361,8 @@ function adjustChatHeight() {
 
 // API Preview Panel Functions
 let currentAPISpec = null;
+let currentProposal = null;
+let previewMode = 'empty'; // 'empty', 'proposal', 'api'
 
 function extractHTTPMethod(curlExample) {
     if (!curlExample) return 'POST';
@@ -1509,10 +1406,16 @@ function getMethodColor(method) {
 
 function updateAPIPreview(apiData) {
     currentAPISpec = apiData;
+    currentProposal = null;
+    previewMode = 'api';
     
     // Show the preview panel and hide empty state
     document.getElementById('emptyState').classList.add('hidden');
     document.getElementById('apiPreviewPanel').classList.remove('hidden');
+    
+    // Hide proposal elements and show API elements
+    hideProposalElements();
+    showAPIElements();
     
     // Extract HTTP method from curl example or default to POST
     const method = extractHTTPMethod(apiData.curl_example) || 'POST';
@@ -1531,6 +1434,30 @@ function updateAPIPreview(apiData) {
     
     // Update test input with sample data
     updateTestInput(apiData);
+}
+
+function updateAPIProposal(analysis, originalPrompt, userId) {
+    const proposal = analysis.proposal;
+    console.log('updateAPIProposal - analysis:', analysis);
+    console.log('updateAPIProposal - proposal:', proposal);
+    
+    currentProposal = { analysis, originalPrompt, userId };
+    currentAPISpec = null;
+    previewMode = 'proposal';
+    
+    // Show the preview panel and hide empty state
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('apiPreviewPanel').classList.remove('hidden');
+    
+    // Hide API elements and show proposal elements
+    hideAPIElements();
+    showProposalElements();
+    
+    // Update header to show it's a proposal
+    updatePreviewHeader('🔧 API Proposal', 'Review and approve your API specification');
+    
+    // Populate proposal content
+    populateProposalContent(analysis, originalPrompt, userId);
 }
 
 function extractAPIDescription(documentation) {
@@ -2076,6 +2003,347 @@ async function runPreviewTest() {
             <span>Run Test</span>
         `;
     }
+}
+
+// Preview Panel Helper Functions
+function updatePreviewHeader(title, subtitle) {
+    const headerTitle = document.querySelector('#apiPreviewContent .p-6 h3');
+    const headerSubtitle = document.querySelector('#apiPreviewContent .p-6 p');
+    
+    if (headerTitle) {
+        headerTitle.innerHTML = title;
+    }
+    if (headerSubtitle) {
+        headerSubtitle.textContent = subtitle;
+    }
+}
+
+function hideAPIElements() {
+    // Hide API-specific elements (parameters, response, test playground, code snippets, deploy/modify buttons)
+    const apiElements = [
+        'previewTestResults', 
+        'previewDeployBtn', 
+        'previewModifyBtn',
+        'testPlaygroundSection',
+        'codeSnippetsSection',
+        'parametersSection',
+        'exampleResponseSection'
+    ];
+    apiElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.classList.add('hidden');
+    });
+}
+
+function showAPIElements() {
+    // Show API-specific elements (parameters, response, test playground, code snippets, deploy/modify buttons)
+    const apiElements = [
+        'previewDeployBtn', 
+        'previewModifyBtn',
+        'testPlaygroundSection',
+        'codeSnippetsSection',
+        'parametersSection',
+        'exampleResponseSection'
+    ];
+    apiElements.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) element.classList.remove('hidden');
+    });
+}
+
+function hideProposalElements() {
+    // Hide proposal-specific elements
+    const proposalSection = document.getElementById('proposalSection');
+    if (proposalSection) proposalSection.classList.add('hidden');
+}
+
+function showProposalElements() {
+    // Show proposal-specific elements  
+    const proposalSection = document.getElementById('proposalSection');
+    if (proposalSection) proposalSection.classList.remove('hidden');
+}
+
+function populateProposalContent(analysis, originalPrompt, userId) {
+    const proposal = analysis.proposal;
+    
+    // Update API name and description in the endpoint section
+    document.getElementById('apiMethod').textContent = 'DRAFT';
+    document.getElementById('apiMethod').className = 'px-2 py-1 bg-blue-600/20 text-blue-300 rounded font-mono text-xs';
+    document.getElementById('apiEndpoint').textContent = `${proposal.api_name || 'Custom API'}`;
+    document.getElementById('apiDescription').textContent = proposal.description || 'A custom API based on your requirements';
+    
+    // Create proposal content in the preview panel
+    createProposalContentInPreview(analysis, originalPrompt, userId);
+    
+    // Note: Parameters table, example response, test playground, and code snippets 
+    // are hidden during proposal mode. They will be populated when the API is actually built.
+}
+
+function createProposalContentInPreview(analysis, originalPrompt, userId) {
+    const proposal = analysis.proposal;
+    
+    // Create or update proposal section in the preview panel
+    let proposalSection = document.getElementById('proposalSection');
+    if (!proposalSection) {
+        proposalSection = document.createElement('div');
+        proposalSection.id = 'proposalSection';
+        proposalSection.className = 'space-y-6 p-6';
+        
+        // Insert after the API endpoint section
+        const apiInfoSection = document.querySelector('#apiPreviewPanel .bg-blue-900\\/20');
+        if (apiInfoSection) {
+            apiInfoSection.parentNode.insertBefore(proposalSection, apiInfoSection.nextSibling);
+        }
+    }
+    
+    // Create functionality HTML
+    const functionalityHtml = proposal.functionality ? 
+        proposal.functionality.map(func => `<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">${func}</span></li>`).join('') : 
+        '<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">Custom API functionality</span></li>';
+    
+    proposalSection.innerHTML = `
+        <!-- Key Features -->
+        <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+            <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
+                <span class="text-blue-400">⚡</span>
+                <span>Key Features</span>
+            </h4>
+            <ul class="space-y-2">
+                ${functionalityHtml}
+            </ul>
+        </div>
+
+        <!-- Input/Output Format -->
+        ${proposal.input_format || proposal.output_format ? `
+        <div class="grid md:grid-cols-2 gap-4">
+            ${proposal.input_format ? `
+            <div class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+                <h5 class="font-semibold text-green-400 mb-2">📥 Input Format</h5>
+                <p class="text-sm text-slate-300 mb-2">${proposal.input_format.type || 'JSON'}</p>
+                ${proposal.input_format.fields ? `
+                <div class="mb-3">
+                    <h6 class="text-xs font-medium text-green-300 mb-1">Required Fields:</h6>
+                    <div class="flex flex-wrap gap-1">
+                        ${proposal.input_format.fields.map(field => `<span class="px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono">${field}</span>`).join('')}
+                    </div>
+                </div>
+                ` : ''}
+                ${proposal.input_format.example ? `
+                <div class="bg-slate-800/50 rounded-lg p-3">
+                    <h6 class="text-xs font-medium text-green-300 mb-2">Example:</h6>
+                    <pre class="text-xs text-slate-300 font-mono">${typeof proposal.input_format.example === 'object' ? JSON.stringify(proposal.input_format.example, null, 2) : proposal.input_format.example}</pre>
+                </div>
+                ` : ''}
+            </div>
+            ` : ''}
+            ${proposal.output_format ? `
+            <div class="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+                <h5 class="font-semibold text-purple-400 mb-2">📤 Output Format</h5>
+                <p class="text-sm text-slate-300 mb-2">${proposal.output_format.type || 'JSON'}</p>
+                ${proposal.output_format.fields ? `
+                <div class="mb-3">
+                    <h6 class="text-xs font-medium text-purple-300 mb-1">Response Fields:</h6>
+                    <div class="flex flex-wrap gap-1">
+                        ${proposal.output_format.fields.map(field => `<span class="px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs font-mono">${field}</span>`).join('')}
+                    </div>
+                </div>
+                ` : ''}
+                ${proposal.output_format.example ? `
+                <div class="bg-slate-800/50 rounded-lg p-3">
+                    <h6 class="text-xs font-medium text-purple-300 mb-2">Example:</h6>
+                    <pre class="text-xs text-slate-300 font-mono">${typeof proposal.output_format.example === 'object' ? JSON.stringify(proposal.output_format.example, null, 2) : proposal.output_format.example}</pre>
+                </div>
+                ` : ''}
+            </div>
+            ` : ''}
+        </div>
+        ` : ''}
+
+        <!-- Confirmation Buttons -->
+        <div class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+            <h4 class="font-semibold text-white mb-4 flex items-center space-x-2">
+                <span class="text-green-400">✅</span>
+                <span>Ready to build this API?</span>
+            </h4>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="confirmBuildAPI('${originalPrompt.replace(/'/g, "\\'")}', '${userId}')" 
+                        class="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                    🚀 Build It!
+                </button>
+                <button onclick="requestModifications('${originalPrompt.replace(/'/g, "\\'")}', '${userId}')" 
+                        class="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                    ✏️ Modify
+                </button>
+                <button onclick="cancelAPIBuild()" 
+                        class="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                    ❌ Cancel
+                </button>
+            </div>
+            <p class="text-sm text-slate-400 mt-3">
+                💡 Review the proposal carefully. You can request modifications or proceed with building the API.
+            </p>
+        </div>
+    `;
+}
+
+function updateParametersTableFromProposal(proposal) {
+    const container = document.getElementById('parametersTable');
+    
+    // Debug: Log the proposal data to understand what we're working with
+    console.log('updateParametersTableFromProposal - proposal:', proposal);
+    
+    // Extract parameters from proposal input format with better type detection
+    let params = [];
+    if (proposal.input_format && proposal.input_format.fields) {
+        params = proposal.input_format.fields.map(field => {
+            // Determine type and example based on field name and proposal context
+            let type = 'string';
+            let example = `"example ${field}"`;
+            
+            if (field.toLowerCase().includes('number') || field.toLowerCase().includes('count') || field.toLowerCase().includes('id')) {
+                type = 'number';
+                example = '123';
+            } else if (field.toLowerCase().includes('boolean') || field.toLowerCase().includes('flag')) {
+                type = 'boolean';
+                example = 'true';
+            } else if (field.toLowerCase().includes('array') || field.toLowerCase().includes('list')) {
+                type = 'array';
+                example = '["item1", "item2"]';
+            } else if (field.toLowerCase().includes('object') || field.toLowerCase().includes('data')) {
+                type = 'object';
+                example = '{"key": "value"}';
+            }
+            
+            return {
+                name: field,
+                type: type,
+                required: true,
+                example: example
+            };
+        });
+    } else if (proposal.input_format && proposal.input_format.example) {
+        // Extract parameters from example object
+        try {
+            const exampleObj = typeof proposal.input_format.example === 'object' 
+                ? proposal.input_format.example 
+                : JSON.parse(proposal.input_format.example);
+            
+            params = Object.keys(exampleObj).map(key => ({
+                name: key,
+                type: typeof exampleObj[key] === 'number' ? 'number' : 
+                      typeof exampleObj[key] === 'boolean' ? 'boolean' :
+                      Array.isArray(exampleObj[key]) ? 'array' :
+                      typeof exampleObj[key] === 'object' ? 'object' : 'string',
+                required: true,
+                example: JSON.stringify(exampleObj[key])
+            }));
+        } catch (e) {
+            params = [{name: 'data', type: 'string', required: true, example: '"example input"'}];
+        }
+    } else {
+        // If no proper proposal format, create a basic structure for proposal mode
+        console.log('No proper input_format found in proposal, using generic structure');
+        params = [{name: 'input', type: 'string', required: true, example: '"your input data here"'}];
+    }
+    
+    if (params.length === 0) {
+        container.innerHTML = '<div class="text-slate-400 text-sm text-center py-8">No parameters defined</div>';
+        return;
+    }
+    
+    const tableHTML = `
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-600/50">
+                    <th class="text-left py-2 text-green-300 font-medium">Name</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Type</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Required</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${params.map(param => `
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 text-white font-mono">${param.name}</td>
+                        <td class="py-2 text-blue-300">${param.type}</td>
+                        <td class="py-2">
+                            <span class="px-2 py-1 rounded text-xs ${param.required ? 'bg-red-600/20 text-red-300' : 'bg-gray-600/20 text-gray-300'}">
+                                ${param.required ? 'Required' : 'Optional'}
+                            </span>
+                        </td>
+                        <td class="py-2 text-slate-300 font-mono">${param.example}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    container.innerHTML = tableHTML;
+}
+
+function updateExampleResponseFromProposal(proposal) {
+    const container = document.getElementById('exampleResponse');
+    
+    // Use proposal output format example if available
+    let exampleResponse;
+    if (proposal.output_format && proposal.output_format.example) {
+        try {
+            exampleResponse = typeof proposal.output_format.example === 'object' 
+                ? proposal.output_format.example 
+                : JSON.parse(proposal.output_format.example);
+        } catch (e) {
+            exampleResponse = proposal.output_format.example;
+        }
+    } else {
+        // Generate a contextual example based on the proposal's API name and description
+        const apiName = (proposal.api_name || '').toLowerCase();
+        const description = (proposal.description || '').toLowerCase();
+        
+        if (apiName.includes('sentiment') || description.includes('sentiment')) {
+            exampleResponse = {
+                sentiment: "positive",
+                confidence: 0.95,
+                timestamp: new Date().toISOString()
+            };
+        } else if (apiName.includes('extract') || description.includes('extract')) {
+            if (description.includes('name')) {
+                exampleResponse = {
+                    extracted_names: ["John Doe", "Jane Smith"],
+                    count: 2,
+                    success: true
+                };
+            } else if (description.includes('email')) {
+                exampleResponse = {
+                    extracted_emails: ["user@example.com", "contact@company.com"],
+                    count: 2,
+                    success: true
+                };
+            } else {
+                exampleResponse = {
+                    extracted_data: ["item1", "item2"],
+                    count: 2,
+                    success: true
+                };
+            }
+        } else if (apiName.includes('process') || description.includes('process')) {
+            exampleResponse = {
+                processed_result: "Successfully processed the input data",
+                success: true,
+                timestamp: new Date().toISOString()
+            };
+        } else {
+            // Generic response based on proposal
+            exampleResponse = {
+                result: "Sample response based on your API proposal",
+                success: true,
+                message: "Request processed successfully",
+                timestamp: new Date().toISOString(),
+                note: "This is from proposal mode"
+            };
+        }
+    }
+    
+    container.textContent = JSON.stringify(exampleResponse, null, 2);
 }
 
 // Initialize
