@@ -29,7 +29,9 @@ from .models import (
     # Logging models
     LogsRequest, LogsResponse, HTTPLogsRequest, HTTPLogsResponse,
     LLMLogsRequest, LLMLogsResponse, ChatLogsRequest, ChatLogsResponse,
-    LogStatisticsResponse
+    LogStatisticsResponse,
+    # Multi-step generation models
+    MultiStepGenerationRequest, PipelineInfoResponse
 )
 from .services.openai_service import openai_service
 from .services.claude_service import claude_service
@@ -46,6 +48,8 @@ from .services.database import init_database
 from .services.test_service import test_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
 from .services.exceptions import create_secure_error, SecureHTTPException
+from .services.multi_step_generation_service import multi_step_generation_service
+from .code_generation_config.multi_step_config import GenerationMode
 from .middleware.logging_middleware import LoggingMiddleware, RequestContextMiddleware
 from .config import settings
 
@@ -658,7 +662,7 @@ async def analyze_chat_prompt(request: ChatAnalysisRequest, http_request: Reques
                 content=analysis_result,
                 session_id=session_id,
                 conversation_id=conversation_id,
-                ai_model_used="gpt-3.5-turbo",  # Default model used by PromptService
+                ai_model_used="gpt-4o-mini",  # Default model used by PromptService
                 response_time_ms=duration_ms,
                 metadata={
                     "endpoint": "/chat/analyze", 
@@ -839,17 +843,54 @@ async def generate_api(
                 detail="Claude API key not configured"
             )
         
-        # Generate API code using Claude
-        logger.info("Calling Claude service to generate code...")
-        raw_code = await claude_service.generate_api_code(
-            prompt=request.prompt,
-            sample_input=request.sample_input,
-            expected_output=request.expected_output,
-            user_id=request.user_id,
-            api_key_id=api_key_id
-        )
-        logger.info("Code generation completed successfully")
-        logger.debug(f"Generated code preview: {raw_code[:300]}...")
+        # Use multi-step generation by default, single-step only if explicitly disabled
+        if not request.use_multi_step == False:  # Default to multi-step
+            logger.info(f"Using multi-step generation for user {request.user_id}")
+            
+            # Multi-step generation in normal mode
+            session_id = await multi_step_generation_service.start_generation(
+                prompt=request.prompt,
+                user_id=request.user_id,
+                sample_input=request.sample_input,
+                expected_output=request.expected_output,
+                api_key_id=api_key_id,
+                pipeline_name=request.pipeline_name or "full_pipeline",
+                mode=GenerationMode("normal")
+            )
+            
+            # Execute all steps and get final result
+            result = await multi_step_generation_service.generate_normal_mode(session_id)
+            multi_step_generation_service.cleanup_session(session_id)
+            
+            if result["success"]:
+                raw_code = result.get("final_code")
+                if not raw_code:
+                    logger.error("Multi-step generation succeeded but returned no code")
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Multi-step generation completed but no code was generated"
+                    )
+                logger.info("Multi-step code generation completed successfully")
+                logger.debug(f"Generated code preview: {raw_code[:300]}...")
+            else:
+                logger.error(f"Multi-step generation failed: {result.get('error', 'Unknown error')}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Multi-step generation failed: {result.get('error', 'Unknown error')}"
+                )
+        
+        else:
+            # Legacy single-step generation (only when explicitly disabled)
+            logger.info("Using legacy single-step generation...")
+            raw_code = await claude_service.generate_api_code(
+                prompt=request.prompt,
+                sample_input=request.sample_input,
+                expected_output=request.expected_output,
+                user_id=request.user_id,
+                api_key_id=api_key_id
+            )
+            logger.info("Code generation completed successfully")
+            logger.debug(f"Generated code preview: {raw_code[:300]}...")
         
         # Debug and fix the generated code
         logger.info("Analyzing and fixing generated code...")
@@ -903,6 +944,7 @@ async def generate_api(
         if "your-endpoint-url" in curl_example:
             curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
         
+        # TODO Change this basic logic for testing
         # Save API metadata for pricing (detect AI model from generated code)
         try:
             # Analyze the generated code to detect which AI service it uses
@@ -915,7 +957,7 @@ async def generate_api(
                     ai_model_used = "gpt-4"
                     estimated_tokens = 800  # GPT-4 typically uses more tokens
                 else:
-                    ai_model_used = "gpt-3.5-turbo"
+                    ai_model_used = "gpt-4o-mini"
                     estimated_tokens = 400  # GPT-3.5 is more efficient
             # Check if it uses Claude API directly
             elif "anthropic" in code.lower() or "claude" in code.lower():
@@ -1175,6 +1217,23 @@ async def modify_api(
             status_code=500,
             detail=f"Failed to modify API: {str(e)}"
         )
+
+# Multi-Step Generation Endpoints
+
+# Removed streaming endpoints - using normal mode multi-step generation instead
+
+@app.get("/generation-pipelines", response_model=PipelineInfoResponse)
+async def get_available_pipelines():
+    """
+    Get information about available generation pipelines.
+    """
+    logger.info("Getting available generation pipelines")
+    
+    pipeline_info = multi_step_generation_service.get_available_pipelines()
+    return PipelineInfoResponse(
+        success=True,
+        **pipeline_info
+    )
 
 @app.post("/save-api", response_model=SaveAPIResponse)
 async def save_api(request: SaveAPIRequest):

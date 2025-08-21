@@ -1,8 +1,8 @@
 {
-  "system_prompt": "You are an expert Python developer specializing in creating clean function stubs and interfaces. Your task is to generate well-documented function signatures, class definitions, and interface stubs based on the designed architecture.\n\nYour stubs should:\n- Include comprehensive docstrings\n- Define clear function signatures with type hints\n- Include placeholder implementations with TODO comments\n- Follow Python PEP 8 standards\n- Use appropriate async/await patterns for FastAPI compatibility\n- Include error handling placeholders\n- Define data classes or models as needed\n\nGenerate code that serves as a clear blueprint for the final implementation.",
-  "user_prompt_template": "Based on the code structure design below, generate function stubs and interfaces:\n\nCode Structure Design:\n{structure_design}\n\nRequirements Analysis:\n{requirements_analysis}\n\nOriginal User Request:\n{original_prompt}\n\nGenerate Python code stubs including:\n\n1. **Main async function** (required):\n   ```python\n   async def run(file_bytes=None, input_data=None):\n       \"\"\"Main API function - implement the core logic here\"\"\"\n       # TODO: Implement main logic\n       pass\n   ```\n\n2. **Helper functions** with full signatures and docstrings\n3. **Data classes/models** if needed\n4. **Import statements** for all required libraries\n5. **Constants and configuration** variables\n6. **Error handling classes** if custom exceptions are needed\n\nEnsure all functions have:\n- Complete docstrings with Args, Returns, Raises sections\n- Type hints for all parameters and return values\n- Placeholder implementations with descriptive TODO comments\n- Proper async/await patterns where needed\n\nGenerate ONLY the Python code stubs, no explanations.",
+  "system_prompt": "You are an expert Python developer specializing in AI-powered APIs using FastAPI. Your task is to generate well-documented function signatures, class definitions, and interface stubs based on the designed architecture.\n\nMANDATORY REQUIREMENTS FOR STUBS:\n1. ALWAYS include the main async function: `async def run(file_bytes=None, input_data=None)`\n2. The run function MUST accept either file_bytes (bytes) or input_data (dict)\n3. ALWAYS return JSON-serializable results in format: {\"result\": your_data, \"message\": \"success\"}\n4. Use proper async/await patterns for FastAPI compatibility\n5. Include imports for safe libraries: json, re, datetime, math, base64, hashlib, requests, openai, os (only for os.getenv)\n6. Never import dangerous modules: subprocess, eval, exec, os.system\n7. Include proper error handling placeholders with try-catch blocks\n8. For AI-powered functionality, include OpenAI modern client patterns\n9. Use environment variables for API keys: os.getenv('OPENAI_API_KEY')\n10. Include file processing patterns with io.BytesIO when needed\n\nYour stubs should:\n- Include comprehensive docstrings with Args, Returns, Raises sections\n- Define clear function signatures with type hints\n- Include meaningful TODO comments for implementation guidance\n- Follow Python PEP 8 standards\n- Be compatible with FastAPI execution environment\n- Include proper input validation placeholders\n- Define data classes or models as needed for structured responses\n\nGenerate code that serves as a clear blueprint for production-ready implementation.OUTPUT FORMAT: You MUST respond with ONLY raw Python code. Do NOT include explanations, markdown code blocks, or any text before or after the code. Your response should start immediately with import statements or the async def run() function.",
+  "user_prompt_template": "Based on the code structure design below, generate function stubs and interfaces:\n\nCode Structure Design:\n{structure_design}\n\nRequirements Analysis:\n{requirements_analysis}\n\nOriginal User Request:\n{original_prompt}\n\nGenerate Python code stubs including:\n\n1. **Main async function** (required):\n   ```python\n   async def run(file_bytes=None, input_data=None):\n       \"\"\"Main API function - implement the core logic here\"\"\"\n       # TODO: Implement main logic\n       pass\n   ```\n\n2. **Helper functions** with full signatures and docstrings\n3. **Data classes/models** if needed\n4. **Import statements** for all required libraries\n5. **Constants and configuration** variables\n6. **Error handling classes** if custom exceptions are needed\n\nEnsure all functions have:\n- Complete docstrings with Args, Returns, Raises sections\n- Type hints for all parameters and return values\n- Placeholder implementations with descriptive TODO comments\n- Proper async/await patterns where needed\n\nCRITICAL OUTPUT REQUIREMENT: Return ONLY the raw Python code stubs. Do NOT include any explanations, comments outside the code, markdown formatting, or descriptive text. Start your response directly with the import statements or async def run() function. No text before or after the code.",
   "description": "Step 3: Generate function stubs and interfaces based on the designed structure",
-  "model": "claude-3-5-sonnet-20240620",
+  "model": "claude-3-5-haiku-20241022",
   "temperature": 0.2,
   "max_tokens": 1500,
   "operation_type": "stub_generation",
@@ -11,7 +11,16 @@
     "required_function": "async def run",
     "must_contain_docstrings": true,
     "must_contain_type_hints": true,
-    "forbidden_patterns": ["def run(", "print("]
+    "forbidden_patterns": [
+      "def run(",
+      "print(",
+      "openai.Completion.create()",
+      "openai.ChatCompletion.create()",
+      "openai.api_key =",
+      "subprocess",
+      "eval(",
+      "exec("
+    ]
   },
   "expected_format": {
     "type": "code",

@@ -913,8 +913,44 @@ class ClaudeService:
         else:
             code = response.strip()
         
+        # Additional cleanup: Remove explanatory text that might precede the code
+        code = self._remove_explanatory_text(code)
+        
         # Post-process to fix common syntax issues
         code = self._fix_syntax_issues(code)
+        
+        return code
+    
+    def _remove_explanatory_text(self, code: str) -> str:
+        """Remove explanatory text that might precede the actual code."""
+        lines = code.split('\n')
+        code_start_idx = 0
+        
+        # Find the first line that looks like Python code
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            
+            # Skip empty lines and comments
+            if not stripped or stripped.startswith('#'):
+                continue
+                
+            # Look for import statements, function definitions, class definitions, or other Python code
+            if (stripped.startswith(('import ', 'from ', 'async def ', 'def ', 'class ', '@'))
+                or stripped.startswith(('import\t', 'from\t', 'async\tdef', 'def\t', 'class\t'))
+                or any(python_keyword in stripped for python_keyword in ['import', 'def ', 'class ', 'async def', 'try:', 'if ', 'for ', 'while ', 'with '])):
+                code_start_idx = i
+                break
+                
+            # Check if this looks like explanatory text (contains non-code phrases)
+            if any(phrase in stripped.lower() for phrase in [
+                'here is', 'here\'s', 'this is', 'this code', 'the code', 'complete code',
+                'following code', 'python code', 'api code', 'implementation'
+            ]):
+                continue
+        
+        # Return the code starting from the first actual code line
+        if code_start_idx > 0:
+            return '\n'.join(lines[code_start_idx:])
         
         return code
     

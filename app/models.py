@@ -58,6 +58,8 @@ class APIGenerationRequest(BaseModel):
     user_id: str = Field(..., description="Unique user identifier")
     api_name: Optional[str] = Field(None, description="Optional API name (will be auto-generated if not provided)")
     skip_analysis: Optional[bool] = Field(False, description="Skip analysis step if already done")
+    use_multi_step: Optional[bool] = Field(True, description="Use multi-step generation process (default: True, returns final code)")
+    pipeline_name: Optional[str] = Field("full_pipeline", description="Pipeline to use for multi-step generation")
 
 class APIGenerationResponse(BaseModel):
     success: bool
@@ -736,4 +738,25 @@ class RetryStatsResponse(BaseModel):
     retries_by_operation: Dict[str, int]
     retries_by_error_type: Dict[str, int]
     statistics: Dict[str, Any]
+
+# Multi-Step Generation Models
+class MultiStepGenerationRequest(BaseModel):
+    user_id: str = Field(..., description="User ID")
+    prompt: str = Field(..., description="API description prompt")
+    api_name: Optional[str] = Field(None, description="Optional API name")
+    sample_input: Optional[str] = Field(None, description="Sample input data")
+    expected_output: Optional[str] = Field(None, description="Expected output format")
+    pipeline_name: str = Field("full_pipeline", description="Pipeline to use (full_pipeline, simple, analysis_implementation)")
+    skip_analysis: bool = Field(False, description="Skip the analysis step")
+
+# MultiStepGenerationResponse removed - multi-step always returns SSE stream
+
+# Removed MultiStepSessionStatusRequest/Response - not needed since streaming is handled directly
+
+class PipelineInfoResponse(BaseModel):
+    success: bool
+    available_pipelines: Dict[str, Any]
+    default_pipeline: str
+    step_types: List[str]
+    generation_modes: List[str]
    
