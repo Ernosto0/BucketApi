@@ -1,0 +1,18 @@
+{
+  "system_prompt": "You are an expert requirements analyst specializing in API development. Your task is to carefully analyze user requests and extract clear, actionable requirements for API development.\n\nYour analysis should be thorough, practical, and focused on what can be realistically implemented. Always consider:\n- Functional requirements (what the API should do)\n- Technical requirements (technologies, constraints, performance)\n- Input/output specifications\n- Edge cases and error handling\n- Security considerations\n- Integration requirements\n\nProvide your analysis in a structured JSON format that will guide the subsequent development steps.",
+  "user_prompt_template": "Analyze the following API request and extract detailed requirements:\n\nUser Request: {prompt}\n\n{sample_input_section}{expected_output_section}\n\nProvide a comprehensive analysis in the following JSON structure:\n{{\n  \"summary\": \"Brief description of what the API should do\",\n  \"functional_requirements\": [\n    \"List of specific functionalities required\"\n  ],\n  \"technical_requirements\": {{\n    \"input_format\": \"Expected input format and structure\",\n    \"output_format\": \"Expected output format and structure\", \n    \"technologies\": [\"List of technologies/libraries needed\"],\n    \"performance_requirements\": \"Performance expectations\",\n    \"constraints\": [\"Any limitations or constraints\"]\n  }},\n  \"api_specifications\": {{\n    \"endpoint_name\": \"Suggested endpoint name\",\n    \"http_method\": \"Suggested HTTP method\",\n    \"parameters\": {{\n      \"required\": [\"List of required parameters\"],\n      \"optional\": [\"List of optional parameters\"]\n    }}\n  }},\n  \"error_handling\": [\n    \"List of potential errors and how to handle them\"\n  ],\n  \"security_considerations\": [\n    \"Security aspects to consider\"\n  ],\n  \"complexity_assessment\": {{\n    \"level\": \"simple|medium|complex\",\n    \"reasoning\": \"Why this complexity level\",\n    \"estimated_implementation_time\": \"Time estimate\"\n  }},\n  \"validation_criteria\": [\n    \"How to validate the final implementation\"\n  ]\n}}",
+  "description": "Step 1: Analyze user prompt and extract detailed requirements for API development",
+  "model": "claude-3-5-sonnet-20240620",
+  "temperature": 0.3,
+  "max_tokens": 1000,
+  "operation_type": "requirements_analysis",
+  "validation_rules": {
+    "min_response_length": 200,
+    "must_be_json": true,
+    "required_fields": ["summary", "functional_requirements", "technical_requirements", "complexity_assessment"]
+  },
+  "expected_format": {
+    "type": "json",
+    "structure": "requirements_analysis"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "system_prompt": "You are an expert software architect specializing in Python API development. Your task is to design clean, maintainable code structures based on requirements analysis.\n\nYou should focus on:\n- Creating logical code organization\n- Identifying key components and their relationships\n- Selecting appropriate design patterns\n- Planning data flow and processing pipeline\n- Considering scalability and maintainability\n- Following Python and FastAPI best practices\n\nYour design should be practical, implementable, and follow SOLID principles.",
+  "user_prompt_template": "Based on the requirements analysis below, design the code structure and architecture:\n\nRequirements Analysis:\n{requirements_analysis}\n\nOriginal User Request:\n{original_prompt}\n\n{sample_input_section}{expected_output_section}\n\nProvide a detailed code structure design including:\n\n## Architecture Overview\n- High-level description of the solution approach\n- Key components and their responsibilities\n- Data flow diagram (in text format)\n\n## Code Organization\n- Main function structure\n- Helper functions needed\n- Data structures and classes (if any)\n- External dependencies and imports\n\n## Implementation Strategy\n- Step-by-step implementation approach\n- Key algorithms or processing logic\n- Error handling strategy\n- Input validation approach\n- Output formatting strategy\n\n## Design Decisions\n- Technology choices and rationale\n- Design patterns to use\n- Performance optimizations\n- Security considerations\n\n## File Structure\n```\n# Outline the code file organization\n```\n\n## Dependencies\n- List of required Python packages\n- API keys or external services needed\n- Configuration requirements",
+  "description": "Step 2: Design code structure and architecture based on requirements",
+  "model": "claude-3-5-sonnet-20240620",
+  "temperature": 0.4,
+  "max_tokens": 1200,
+  "operation_type": "architecture_design",
+  "validation_rules": {
+    "min_response_length": 300,
+    "required_sections": ["Architecture Overview", "Code Organization", "Implementation Strategy"],
+    "must_contain_code_structure": true
+  },
+  "expected_format": {
+    "type": "structured_text",
+    "sections": ["architecture", "organization", "strategy", "decisions", "dependencies"]
+  }
+}

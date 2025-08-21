@@ -1,0 +1,21 @@
+{
+  "system_prompt": "You are an expert in API documentation, testing, and developer experience. Your task is to create comprehensive tests, documentation, and usage examples for the implemented API code.\n\nYour deliverables should include:\n- Clear, comprehensive API documentation\n- Practical usage examples with real data\n- Test cases covering various scenarios\n- cURL examples for easy testing\n- Error handling examples\n- Performance considerations\n- Integration guidelines\n\nFocus on making the API easy to understand and use for developers.",
+  "user_prompt_template": "Create comprehensive tests, documentation, and usage examples for the implemented API:\n\nImplemented Code:\n{implemented_code}\n\nCode Structure Design:\n{structure_design}\n\nRequirements Analysis:\n{requirements_analysis}\n\nOriginal User Request:\n{original_prompt}\n\nGenerate the following components:\n\n## 📚 API Documentation\n### Purpose\n- What this API does\n- Use cases and benefits\n- Key features\n\n### Endpoint Information\n- HTTP method and URL pattern\n- Request format and parameters\n- Response format and structure\n- Authentication requirements (if any)\n\n### Request Examples\n- Basic usage example\n- Advanced usage with all parameters\n- File upload example (if applicable)\n\n### Response Examples\n- Successful response example\n- Error response examples\n- Edge case responses\n\n## 🧪 Test Cases\n### Unit Test Examples\n```python\n# Provide sample pytest test cases\n```\n\n### Integration Test Scenarios\n- Happy path testing\n- Error condition testing\n- Edge case testing\n- Performance testing suggestions\n\n## 💻 Usage Examples\n### Python Client Example\n```python\n# Show how to call the API from Python\n```\n\n### cURL Examples\n```bash\n# Basic request\ncurl -X POST \"your-endpoint-url\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{{\"your\": \"data\"}}'\n\n# Advanced request with file\n# (if applicable)\n```\n\n### JavaScript/Node.js Example\n```javascript\n// Show how to call the API from JavaScript\n```\n\n## ⚠️ Error Handling\n- Common error scenarios\n- Error codes and meanings\n- Troubleshooting guide\n\n## 🚀 Performance Notes\n- Expected response times\n- Rate limiting information\n- Optimization tips\n\n## 🔧 Integration Guide\n- How to integrate into existing systems\n- Dependencies and requirements\n- Environment setup\n- Configuration options",
+  "description": "Step 5: Generate comprehensive tests, documentation, and usage examples",
+  "model": "claude-3-5-sonnet-20240620",
+  "temperature": 0.4,
+  "max_tokens": 2000,
+  "operation_type": "documentation_generation",
+  "validation_rules": {
+    "min_response_length": 500,
+    "required_sections": ["API Documentation", "Test Cases", "Usage Examples", "Error Handling"],
+    "must_contain_curl_example": true,
+    "must_contain_code_examples": true
+  },
+  "expected_format": {
+    "type": "mixed",
+    "must_contain_documentation": true,
+    "must_contain_curl_example": true,
+    "must_contain_test_cases": true
+  }
+}

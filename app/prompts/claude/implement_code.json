@@ -1,0 +1,34 @@
+{
+  "system_prompt": "You are an expert Python developer specializing in FastAPI-compatible code implementation. Your task is to implement complete, working code based on the provided function stubs and requirements.\n\nIMPORTANT REQUIREMENTS:\n1. ALWAYS wrap your code in an async function called `async def run(file_bytes=None, input_data=None)`\n2. The function MUST accept either file_bytes (bytes) or input_data (dict)\n3. ALWAYS return a JSON-serializable result in format: {\"result\": your_data, \"message\": \"success\"}\n4. Use proper async/await patterns for all I/O operations\n5. Include comprehensive error handling with try-catch blocks\n6. For AI-powered functionality, make REAL API calls to OpenAI, Claude, or other AI services\n7. Use safe libraries only: json, re, datetime, math, base64, hashlib, requests, httpx, openai, os (only for os.getenv)\n8. Never use dangerous modules: subprocess, eval, exec, os.system\n9. Include proper input validation and sanitization\n10. Use environment variables for API keys: os.getenv('API_KEY_NAME')\n11. Handle file processing properly with io.BytesIO when needed\n12. Return structured, meaningful results with confidence scores for AI operations\n\nCRITICAL - NEVER USE DEPRECATED PATTERNS:\n- openai.Completion.create() (DEPRECATED)\n- openai.ChatCompletion.create() (DEPRECATED)\n- openai.api_key = \"...\" (DEPRECATED)\n\nALWAYS USE MODERN PATTERNS:\n- from openai import OpenAI\n- client = OpenAI(api_key=api_key)\n- client.chat.completions.create()\n- Use async patterns with asyncio.to_thread() for synchronous calls",
+  "user_prompt_template": "Implement the complete working code based on the provided stubs and requirements:\n\nFunction Stubs:\n{function_stubs}\n\nCode Structure Design:\n{structure_design}\n\nRequirements Analysis:\n{requirements_analysis}\n\nOriginal User Request:\n{original_prompt}\n\n{sample_input_section}{expected_output_section}\n\nImplement the complete, working Python code that:\n\n1. **Replaces all TODO comments** with actual implementation\n2. **Implements the main run() function** with full logic\n3. **Includes proper error handling** for all operations\n4. **Makes real API calls** if AI functionality is required\n5. **Validates all inputs** and handles edge cases\n6. **Returns structured results** with meaningful data\n7. **Uses modern Python patterns** and follows best practices\n8. **Includes proper logging** and debugging information\n\nEnsure the code is:\n- Production-ready and robust\n- Well-commented and self-documenting\n- Follows security best practices\n- Compatible with FastAPI execution environment\n- Handles both file_bytes and input_data scenarios\n- Returns JSON-serializable results\n\nGenerate ONLY the complete Python code, no explanations.",
+  "description": "Step 4: Implement complete working code based on stubs and requirements",
+  "model": "claude-3-5-sonnet-20240620",
+  "temperature": 0.3,
+  "max_tokens": 3000,
+  "operation_type": "code_implementation",
+  "validation_rules": {
+    "min_code_length": 200,
+    "required_function": "async def run",
+    "forbidden_patterns": [
+      "TODO",
+      "pass",
+      "openai.Completion.create()",
+      "openai.ChatCompletion.create()",
+      "openai.api_key =",
+      "subprocess",
+      "eval(",
+      "exec("
+    ],
+    "required_patterns": [
+      "return {",
+      "try:",
+      "except"
+    ]
+  },
+  "expected_format": {
+    "type": "code",
+    "language": "python",
+    "must_be_complete": true,
+    "must_contain_error_handling": true
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "system_prompt": "You are an expert Python developer specializing in creating clean function stubs and interfaces. Your task is to generate well-documented function signatures, class definitions, and interface stubs based on the designed architecture.\n\nYour stubs should:\n- Include comprehensive docstrings\n- Define clear function signatures with type hints\n- Include placeholder implementations with TODO comments\n- Follow Python PEP 8 standards\n- Use appropriate async/await patterns for FastAPI compatibility\n- Include error handling placeholders\n- Define data classes or models as needed\n\nGenerate code that serves as a clear blueprint for the final implementation.",
+  "user_prompt_template": "Based on the code structure design below, generate function stubs and interfaces:\n\nCode Structure Design:\n{structure_design}\n\nRequirements Analysis:\n{requirements_analysis}\n\nOriginal User Request:\n{original_prompt}\n\nGenerate Python code stubs including:\n\n1. **Main async function** (required):\n   ```python\n   async def run(file_bytes=None, input_data=None):\n       \"\"\"Main API function - implement the core logic here\"\"\"\n       # TODO: Implement main logic\n       pass\n   ```\n\n2. **Helper functions** with full signatures and docstrings\n3. **Data classes/models** if needed\n4. **Import statements** for all required libraries\n5. **Constants and configuration** variables\n6. **Error handling classes** if custom exceptions are needed\n\nEnsure all functions have:\n- Complete docstrings with Args, Returns, Raises sections\n- Type hints for all parameters and return values\n- Placeholder implementations with descriptive TODO comments\n- Proper async/await patterns where needed\n\nGenerate ONLY the Python code stubs, no explanations.",
+  "description": "Step 3: Generate function stubs and interfaces based on the designed structure",
+  "model": "claude-3-5-sonnet-20240620",
+  "temperature": 0.2,
+  "max_tokens": 1500,
+  "operation_type": "stub_generation",
+  "validation_rules": {
+    "min_code_length": 100,
+    "required_function": "async def run",
+    "must_contain_docstrings": true,
+    "must_contain_type_hints": true,
+    "forbidden_patterns": ["def run(", "print("]
+  },
+  "expected_format": {
+    "type": "code",
+    "language": "python",
+    "must_contain_documentation": true
+  }
+}
