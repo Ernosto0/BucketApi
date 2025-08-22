@@ -49,6 +49,72 @@ class UsageLoggingError(LLMBaseError):
     pass
 
 
+# Multi-Step Generation Specific Exceptions
+
+class MultiStepGenerationError(LLMBaseError):
+    """Base exception for multi-step generation related errors."""
+    
+    def __init__(self, message: str, user_id: str, session_id: str = None, step_id: str = None, 
+                 request_id: str = None, api_slug: str = "multi_step_generation", 
+                 model_name: str = "claude", details: dict = None):
+        self.session_id = session_id
+        self.step_id = step_id
+        super().__init__(message, user_id, request_id, api_slug, model_name, details)
+    
+    def __str__(self):
+        base_str = super().__str__()
+        extra = []
+        
+        if self.session_id:
+            extra.append(f"Session ID: {self.session_id}")
+        if self.step_id:
+            extra.append(f"Step ID: {self.step_id}")
+            
+        if extra:
+            return f"{base_str}\n{'\n'.join(extra)}"
+        return base_str
+
+
+class SessionNotFoundError(MultiStepGenerationError):
+    """Raised when a generation session cannot be found."""
+    pass
+
+
+class SessionConfigurationError(MultiStepGenerationError):
+    """Raised when there's an error in session configuration."""
+    pass
+
+
+class PipelineValidationError(MultiStepGenerationError):
+    """Raised when pipeline validation fails."""
+    pass
+
+
+class StepExecutionError(MultiStepGenerationError):
+    """Raised when a generation step fails to execute."""
+    pass
+
+
+class StepTimeoutError(MultiStepGenerationError):
+    """Raised when a generation step times out."""
+    pass
+
+
+class TemplateProcessingError(MultiStepGenerationError):
+    """Raised when prompt template processing fails."""
+    pass
+
+
+class SessionCleanupError(MultiStepGenerationError):
+    """Raised when session cleanup fails."""
+    pass
+
+
+class GenerationModeError(MultiStepGenerationError):
+    """Raised when there's an error with the generation mode."""
+    pass
+
+
 class SecureHTTPException(Exception):
     """
     Secure HTTP exception that prevents information disclosure.
