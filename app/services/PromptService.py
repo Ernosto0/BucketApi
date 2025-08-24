@@ -47,18 +47,52 @@ class PromptServiceBuild:
         model = prompt_config.get("model", settings.OPENAI_MODEL)
         
         try:
+            # logger.info(f"Making OpenAI request with model: {model}")
+            # logger.info(f"System prompt length: {len(system_prompt)} characters")
+            # logger.info(f"User prompt length: {len(user_prompt)} characters")
+            # logger.info(f"Max completion tokens: {prompt_config.get('max_completion_tokens', 500)}")
+            # logger.info(f"System prompt preview: {system_prompt[:200]}...")
+            # logger.info(f"User prompt: {user_prompt}")
+            
             response = self.client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=prompt_config.get("temperature", 0.1),
-                max_tokens=prompt_config.get("max_tokens", 500)
+                max_completion_tokens=prompt_config.get("max_completion_tokens", 500)
             )
             
-            content = response.choices[0].message.content.strip()
+            # Log the full response structure for debugging
+            logger.info(f"OpenAI response object: {response}")
+            logger.info(f"Response choices length: {len(response.choices)}")
+            logger.info(f"Response usage: {response.usage}")
+            
+            # Check finish reason
+            finish_reason = response.choices[0].finish_reason if response.choices else None
+            logger.info(f"OpenAI finish reason: {finish_reason}")
+            
+            content = response.choices[0].message.content
+            if content is None:
+                logger.error("OpenAI returned None content")
+                logger.error(f"Message object: {response.choices[0].message}")
+                logger.error(f"Finish reason: {finish_reason}")
+                content = ""
+            else:
+                content = content.strip()
+            
+            # Handle length-limited responses
+            if finish_reason == "length" and len(content) == 0:
+                logger.error("OpenAI hit token limit but returned empty content - this is unusual")
+                raise Exception("OpenAI response was truncated due to token limit and returned empty content. Please try with a shorter prompt or increase token limits.")
+            
             duration_ms = int((time.time() - start_time) * 1000)
+            
+            logger.info(f"OpenAI response content length: {len(content)} characters")
+            if len(content) > 0:
+                logger.info(f"OpenAI response preview: {content[:200]}{'...' if len(content) > 200 else ''}")
+            else:
+                logger.error("Empty content received from OpenAI")
             
             # Log successful LLM call
             try:
@@ -89,7 +123,7 @@ class PromptServiceBuild:
                     request_id=request_id
                 )
             except Exception as log_error:
-                logger.error(f"Failed to log PromptService LLM call: {log_error}")
+                logger.error(f"Failed to log PromptService LLM call: {str(log_error)}")
             
             return content
             
@@ -112,7 +146,7 @@ class PromptServiceBuild:
                     request_id=request_id
                 )
             except Exception as log_error:
-                logger.error(f"Failed to log failed PromptService LLM call: {log_error}")
+                logger.error(f"Failed to log failed PromptService LLM call: {str(log_error)}")
             
             raise e
     
@@ -122,10 +156,17 @@ class PromptServiceBuild:
         pricing = {
             "gpt-4": {"input": 0.03, "output": 0.06},
             "gpt-4-turbo": {"input": 0.01, "output": 0.03},
-            "gpt-3.5-turbo": {"input": 0.0015, "output": 0.002},
-            "gpt-3.5-turbo-16k": {"input": 0.003, "output": 0.004}
+            "gpt-4o-mini": {"input": 0.0015, "output": 0.002},
+            "gpt-3.5-turbo": {"input": 0.003, "output": 0.004},
+            "gpt-3.5-turbo-16k": {"input": 0.003, "output": 0.004},
+            # GPT-5 models (based on your pricing table)
+            "gpt-5": {"input": 1.25, "output": 10.00},
+            "gpt-5-mini": {"input": 0.25, "output": 2.00},
+            "gpt-5-nano": {"input": 0.05, "output": 0.40},
+            "gpt-5-chat-latest": {"input": 1.25, "output": 10.00}
         }
         
+        # Default to gpt-3.5-turbo pricing if model not found
         model_pricing = pricing.get(model, pricing["gpt-3.5-turbo"])
         input_cost = (input_tokens / 1000) * model_pricing["input"]
         output_cost = (output_tokens / 1000) * model_pricing["output"]
@@ -167,8 +208,10 @@ class PromptServiceBuild:
                 else:
                     return await self.ICantBuildThis(user_id, prompt, analysis)
                     
-            except json.JSONDecodeError:
-                logger.error(f"Failed to parse analysis result: {analysis_result}")
+            except json.JSONDecodeError as parse_error:
+                logger.error(f"Failed to parse analysis result as JSON: {str(parse_error)}")
+                logger.error(f"Raw analysis result content: {repr(analysis_result)}")
+                logger.error(f"Analysis result length: {len(analysis_result)} characters")
                 return await self.ICantBuildThis(user_id, prompt, None)
                 
         except Exception as e:
@@ -178,6 +221,190 @@ class PromptServiceBuild:
     async def CanIBuildThis(self, user_id: str, prompt: str) -> str:
         """Main entry point for prompt analysis"""
         return await self.analyze_user_prompt(user_id, prompt)
+    
+    async def CanIModifyProposal(self, user_id: str, original_prompt: str, modification_request: str) -> str:
+        """
+        Analyze a request to modify an existing proposal.
+        This is specifically for proposal-stage modifications, not code modifications.
+        """
+        try:
+            logger.info(f"Analyzing proposal modification for user {user_id}: {modification_request[:100]}...")
+            
+            # Load prompt configuration from JSON file
+            prompt_config = load_prompt("analyze_proposal_modification")
+            system_prompt = prompt_config["system_prompt"]
+            
+            user_prompt = f"""Original API proposal: {original_prompt}
+
+Modification request: {modification_request}
+
+Analyze what the user wants to change about their original proposal."""
+            
+            analysis_result = await self._make_openai_request_with_logging(
+                system_prompt, user_prompt, prompt_config, user_id, "proposal_modification_analysis"
+            )
+            logger.info(f"Proposal modification analysis result: {analysis_result}")
+            
+            # Check for empty response
+            if not analysis_result or analysis_result.strip() == "":
+                logger.error("Empty response received from OpenAI for proposal modification analysis")
+                return json.dumps({
+                    "status": "error",
+                    "message": "Failed to analyze the modification request due to empty response. Please try again.",
+                    "original_prompt": original_prompt,
+                    "modification_request": modification_request
+                }, indent=2)
+            
+            # Parse the JSON response and convert to our expected format
+            try:
+                analysis = json.loads(analysis_result)
+                decision = analysis.get("status", "INVALID_MODIFICATION")
+                
+                # Convert the response to match our ProposalModificationResponse format
+                if decision == "VALID_MODIFICATION":
+                    # Generate a proper proposal using the modified requirements
+                    modified_requirements = analysis.get("modified_requirements", "")
+                    
+                    try:
+                        # Call the existing proposal generation method with the modified requirements
+                        proposal_response = await self.PropeseTheBuild(user_id, modified_requirements)
+                        proposal_data = json.loads(proposal_response)
+                        proposal_object = proposal_data.get("proposal", {})
+                        
+                        # If proposal generation failed, create a minimal fallback
+                        if not proposal_object:
+                            proposal_object = {
+                                "api_name": "Modified API",
+                                "description": modified_requirements,
+                                "functionality": ["Process modified requirements"]
+                            }
+                    except Exception as proposal_error:
+                        logger.error(f"Failed to generate proposal for modification: {str(proposal_error)}")
+                        # Fallback proposal if generation fails
+                        proposal_object = {
+                            "api_name": "Modified API", 
+                            "description": modified_requirements,
+                            "functionality": ["Process modified requirements"]
+                        }
+                    
+                    return json.dumps({
+                        "status": "buildable",
+                        "message": f"I can modify your proposal: {analysis.get('reasoning', 'Modification is valid')}",
+                        "modification_type": analysis.get("modification_type"),
+                        "specific_changes": analysis.get("specific_changes", []),
+                        "modified_requirements": modified_requirements,
+                        "original_prompt": original_prompt,
+                        "modification_request": modification_request,
+                        "proposal": proposal_object
+                    }, indent=2)
+                elif decision == "NEEDS_CLARIFICATION":
+                    return json.dumps({
+                        "status": "needs_clarification",
+                        "message": f"I need more details about your modification: {analysis.get('reasoning', 'Please clarify your request')}",
+                        "questions": analysis.get("questions", []),
+                        "original_prompt": original_prompt,
+                        "modification_request": modification_request
+                    }, indent=2)
+                else:  # INVALID_MODIFICATION
+                    return json.dumps({
+                        "status": "not_buildable",
+                        "message": f"I cannot make this modification: {analysis.get('reasoning', 'Invalid modification request')}",
+                        "reasons": [analysis.get("reasoning", "Invalid modification request")],
+                        "original_prompt": original_prompt,
+                        "modification_request": modification_request
+                    }, indent=2)
+                    
+            except json.JSONDecodeError as parse_error:
+                logger.error(f"Failed to parse proposal modification analysis result as JSON: {str(parse_error)}")
+                logger.error(f"Raw analysis result content: {repr(analysis_result)}")
+                return json.dumps({
+                    "status": "error",
+                    "message": "Failed to analyze the modification request. Please try again.",
+                    "original_prompt": original_prompt,
+                    "modification_request": modification_request
+                }, indent=2)
+                
+        except Exception as e:
+            logger.error(f"Error analyzing proposal modification: {str(e)}")
+            
+            # Try a fallback with simpler approach
+            try:
+                logger.info("Attempting fallback analysis with simplified prompt...")
+                fallback_result = await self._fallback_proposal_analysis(original_prompt, modification_request, user_id)
+                return fallback_result
+            except Exception as fallback_error:
+                logger.error(f"Fallback analysis also failed: {str(fallback_error)}")
+                
+            return json.dumps({
+                "status": "error",
+                "message": f"Failed to analyze modification request: {str(e)}",
+                "original_prompt": original_prompt,
+                "modification_request": modification_request
+            }, indent=2)
+    
+    async def _fallback_proposal_analysis(self, original_prompt: str, modification_request: str, user_id: str) -> str:
+        """Fallback method for proposal analysis with simpler prompt."""
+        system_prompt = """Analyze this API modification request and respond with valid JSON only.
+        
+        Determine if this is:
+        - VALID_MODIFICATION: Clear, specific change request
+        - NEEDS_CLARIFICATION: Vague or unclear
+        - INVALID_MODIFICATION: Impossible or inappropriate
+        
+        Respond with exactly this JSON format:
+        {"status": "VALID_MODIFICATION", "reasoning": "brief explanation", "modification_type": "scope_reduction", "specific_changes": ["change description"], "modified_requirements": "I need an API that..."}"""
+        
+        user_prompt = f"Original: {original_prompt}\nModification: {modification_request}\nAnalyze this modification request."
+        
+        # Use a more conservative config for fallback
+        fallback_config = {
+            "model": "gpt-5-mini",
+            "max_completion_tokens": 300
+        }
+        
+        
+        try:
+            response = await self._make_openai_request_with_logging(
+                system_prompt, user_prompt, fallback_config, user_id, "fallback_proposal_analysis"
+            )
+            
+            if response and response.strip():
+                # Try to parse as JSON
+                analysis = json.loads(response)
+                status = analysis.get("status", "VALID_MODIFICATION")
+                
+                if status == "VALID_MODIFICATION":
+                    # Use simple fallback proposal (this is already a fallback path)
+                    fallback_proposal = {
+                        "api_name": "Modified API",
+                        "description": analysis.get("modified_requirements", f"Modified version of: {modification_request}"),
+                        "functionality": ["Process requests with modified specifications"]
+                    }
+                    
+                    return json.dumps({
+                        "status": "buildable",
+                        "message": f"I can modify your proposal: {analysis.get('reasoning', 'Modification is valid')}",
+                        "modification_type": analysis.get("modification_type", "general_change"),
+                        "specific_changes": analysis.get("specific_changes", []),
+                        "modified_requirements": analysis.get("modified_requirements", f"Modified version of: {modification_request}"),
+                        "original_prompt": original_prompt,
+                        "modification_request": modification_request,
+                        "proposal": fallback_proposal
+                    }, indent=2)
+                else:
+                    return json.dumps({
+                        "status": "needs_clarification",
+                        "message": "Could you be more specific about what you want to modify?",
+                        "questions": ["What specific part of the API do you want to change?", "What should the new behavior be?"],
+                        "original_prompt": original_prompt,
+                        "modification_request": modification_request
+                    }, indent=2)
+            else:
+                raise Exception("Empty response from fallback")
+                
+        except Exception as e:
+            logger.error(f"Fallback analysis failed: {str(e)}")
+            raise e
     async def AskMoreQuestions(self, user_id: str, prompt: str, questions: List[str] = None) -> str:
         """Handle cases where more clarification is needed"""
         if not questions:
@@ -213,14 +440,12 @@ class PromptServiceBuild:
             user_prompt = f"Create a detailed API proposal for this request: {prompt}"
             
             response = self.client.chat.completions.create(
-                model=prompt_config.get("model", "gpt-3.5-turbo"),
+                model=prompt_config.get("model", "gpt-5-mini"),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
-                ],
-                temperature=prompt_config.get("temperature", 0.3),
-                max_tokens=prompt_config.get("max_tokens", 1000)
-            )
+                ]
+              )
             
             proposal_result = response.choices[0].message.content.strip()
             logger.info(f"Generated API proposal: {proposal_result[:200]}...")
@@ -309,24 +534,29 @@ class PromptServiceBuild:
         return json.dumps(response, indent=2)
 
     async def HandleModifyRequest(self, user_id: str, prompt: str) -> str:
-        """Handle modification requests for existing APIs"""
+        """
+        Handle modification requests. Since we can't reliably determine context from keywords,
+        we return a response that provides options for both proposal and code modifications.
+        The frontend should handle routing based on conversation state.
+        """
         response = {
             "status": "modify_request",
-            "message": "I understand you want to modify an existing API.",
+            "message": "I understand you want to make modifications.",
             "prompt": prompt,
             "instructions": [
-                "If you have a recently generated API in this chat, you can use the 'Modify' button",
-                "For saved APIs, please specify which API you want to modify",
-                "Describe what changes you want to make to the API"
+                "If you're modifying a proposal (before generating code), the system should use proposal modification",
+                "If you're modifying existing generated code, use the API modification tools",
+                "The frontend should route based on conversation context"
             ],
             "next_steps": [
-                "Click the 'Modify' button on your last generated API",
-                "Or tell me which saved API you want to modify",
-                "Specify exactly what changes you need"
-            ]
+                "For proposal modifications: Use /modify-proposal endpoint",
+                "For code modifications: Use /modify-api endpoint or Modify button",
+                "Frontend should determine which based on current conversation state"
+            ],
+            "context_note": "Frontend should track conversation state to route appropriately"
         }
         
-        logger.info(f"Detected modify request for user {user_id}")
+        logger.info(f"Detected modify request for user {user_id} - frontend should handle routing based on context")
         return json.dumps(response, indent=2)
     
 
@@ -358,9 +588,7 @@ class PromptServiceModify:
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
-                ],
-                temperature=prompt_config.get("temperature", 0.1),
-                max_tokens=prompt_config.get("max_tokens", 500)
+                ]
             )
             
             analysis_result = response.choices[0].message.content.strip()
@@ -468,10 +696,7 @@ class PromptServiceModify:
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
-                ],
-                temperature=prompt_config.get("temperature", 0.1),
-                max_tokens=prompt_config.get("max_tokens", 300)
-            )
+                ]            )
             
             return response.choices[0].message.content.strip()
             

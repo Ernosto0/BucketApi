@@ -16,6 +16,7 @@ from typing import Optional, Tuple
 import logging
 from .models import (
     User, UserCreate, UserLogin, UserProfile, Token, TokenData,
+    ProposalRequest, ProposalResponse, ProposalModificationRequest, ProposalModificationResponse,
     APIGenerationRequest, APIGenerationResponse, APIModificationRequest, APIModificationResponse,
     APIExecutionRequest, APIExecutionResponse, SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
     ChatAnalysisRequest, ChatAnalysisResponse, HealthResponse, ChatMessage,
@@ -734,6 +735,394 @@ async def analyze_chat_prompt(request: ChatAnalysisRequest, http_request: Reques
             "timestamp": datetime.now()
         }
 
+
+
+@app.post("/test-proposal")
+async def test_proposal():
+    """Test endpoint to verify proposal response structure"""
+    test_proposal = {
+        "api_name": "Test API",
+        "description": "A test API for debugging",
+        "functionality": ["Test functionality 1", "Test functionality 2"],
+        "input_format": {"type": "JSON", "fields": ["test_field"]},
+        "output_format": {"type": "JSON", "fields": ["test_response"]},
+        "endpoints": [{"method": "POST", "path": "/test", "description": "Test endpoint"}]
+    }
+    
+    response_data = {
+        "success": True,
+        "status": "buildable",
+        "message": "Test proposal generated",
+        "original_prompt": "test prompt",
+        "user_id": "test_user",
+        "timestamp": datetime.now(),
+        "conversation_state": "proposal",
+        "proposal_id": "test_id",
+        "proposal": test_proposal
+    }
+    
+    logger.info(f"Test response_data keys: {list(response_data.keys())}")
+    logger.info(f"Test response_data: {response_data}")
+    
+    return response_data
+
+@app.post("/generate-proposal", response_model=ProposalResponse)
+async def generate_proposal(
+    request: ProposalRequest,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
+):
+    """
+    Analyze a user prompt and generate a proposal with detailed analysis.
+    This endpoint determines if the request is buildable, needs clarification,
+    is a modification request, or is not buildable.
+    """
+    # Extract user and API key info
+    current_user, api_key_id = user_and_key
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    logger.info(f"Generating proposal for user {request.user_id} with prompt: {request.prompt[:100]}...")
+    
+    # Check usage limits before proceeding
+    try:
+        limits = await usage_service.check_usage_limits(
+            user_id=request.user_id,
+            api_key_id=api_key_id,
+            tokens_to_use=1000  # Estimated tokens for analysis
+        )
+        
+        if limits.is_over_limit:
+            logger.warning(f"Rate limit exceeded for user {request.user_id}: {limits.limit_exceeded_reason}")
+            raise HTTPException(
+                status_code=429,
+                detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Usage service unavailable: {e}")
+        # SECURITY FIX: Fail closed instead of open
+        raise HTTPException(
+            status_code=503,
+            detail="Usage tracking service temporarily unavailable. Please try again later."
+        )
+    
+    try:
+        # Analyze the prompt using PromptService
+        logger.info("Analyzing prompt with PromptServiceBuild...")
+        prompt_service = PromptServiceBuild()
+        analysis_result = await prompt_service.CanIBuildThis(request.user_id, request.prompt)
+        
+        # Parse the analysis result
+        import json
+        try:
+            analysis_data = json.loads(analysis_result)
+            status = analysis_data.get("status")
+            logger.info(f"Raw analysis result: {analysis_result}")
+            logger.info(f"Parsed analysis status: '{status}'")
+            logger.info(f"Analysis data keys: {list(analysis_data.keys())}")
+            if "proposal" in analysis_data:
+                logger.info(f"Proposal data: {analysis_data['proposal']}")
+            else:
+                logger.info("No 'proposal' key found in analysis_data")
+            
+            # Generate a unique proposal ID for this session
+            import uuid
+            proposal_id = str(uuid.uuid4())
+            
+            # Return appropriate response based on analysis status
+            response_data = {
+                "success": True,
+                "status": status,
+                "message": analysis_data.get("message", "Analysis completed."),
+                "original_prompt": request.prompt,
+                "user_id": request.user_id,
+                "timestamp": datetime.now(),
+                "conversation_state": "proposal",
+                "proposal_id": proposal_id
+            }
+            
+            # Add status-specific fields
+            if status == "needs_clarification":
+                response_data.update({
+                    "questions": analysis_data.get("questions", []),
+                    "suggestions": analysis_data.get("suggestions", [])
+                })
+                logger.info(f"Build needs clarification: {analysis_data.get('message')}")
+                
+            elif status == "modify_request":
+                response_data.update({
+                    "instructions": analysis_data.get("instructions", []),
+                    "next_steps": analysis_data.get("next_steps", [])
+                })
+                logger.info(f"Detected modify request")
+                
+            elif status == "not_buildable":
+                response_data.update({
+                    "reasons": analysis_data.get("reasons", []),
+                    "suggestions": analysis_data.get("suggestions", [])
+                })
+                logger.warning(f"API request not buildable")
+                
+            elif status == "buildable":
+                response_data.update({
+                    "confirmation_needed": analysis_data.get("confirmation_needed", True),
+                    "next_steps": analysis_data.get("next_steps", [])
+                })
+                logger.info(f"API request is buildable")
+                
+            elif status == "proposal_ready":
+                # Handle proposal ready status - convert to buildable for frontend
+                response_data["status"] = "buildable"  # Frontend expects "buildable"
+                response_data.update({
+                    "confirmation_needed": analysis_data.get("confirmation_needed", True),
+                    "next_steps": analysis_data.get("next_steps", [])
+                })
+                logger.info(f"Proposal is ready, converted to buildable status")
+                
+            else:
+                logger.warning(f"Unexpected analysis status: {status}")
+                response_data["status"] = "unknown"
+                response_data["message"] = f"Analysis returned unexpected status: {status}"
+            
+            # Always preserve proposal data if it exists (regardless of status) - DO THIS LAST
+            if "proposal" in analysis_data:
+                response_data["proposal"] = analysis_data.get("proposal", {})
+                logger.info(f"Preserved proposal data from analysis_data")
+            else:
+                logger.warning(f"No proposal data found in analysis_data")
+                
+            logger.info(f"Final response_data keys: {list(response_data.keys())}")
+            logger.info(f"Final response_data: {response_data}")
+            
+            # Create the response object
+            response_obj = ProposalResponse(**response_data)
+            logger.info(f"ProposalResponse object created successfully")
+            logger.info(f"Response object has proposal: {'proposal' in response_obj.__dict__}")
+            if hasattr(response_obj, 'proposal'):
+                logger.info(f"Response proposal data: {response_obj.proposal}")
+            
+            return response_obj
+            
+        except json.JSONDecodeError:
+            logger.error("Could not parse analysis result")
+            return ProposalResponse(
+                success=False,
+                status="error",
+                message="Failed to analyze the prompt. Please try again.",
+                original_prompt=request.prompt,
+                user_id=request.user_id,
+                timestamp=datetime.now()
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in generate_proposal: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate proposal: {str(e)}"
+        )
+
+
+@app.post("/modify-proposal", response_model=ProposalModificationResponse)
+async def modify_proposal(
+    request: ProposalModificationRequest,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
+):
+    """
+    Modify an existing proposal by combining the original prompt with modification request.
+    This endpoint is for when you're still in the proposal stage and want to refine
+    your requirements before generating code.
+    """
+    # Extract user and API key info
+    current_user, api_key_id = user_and_key
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    logger.info(f"Modifying proposal for user {request.user_id} - modification: {request.modification_request[:100]}...")
+    
+    # Check usage limits before proceeding
+    try:
+        limits = await usage_service.check_usage_limits(
+            user_id=request.user_id,
+            api_key_id=api_key_id,
+            tokens_to_use=1200  # Estimated tokens for proposal modification analysis
+        )
+        
+        if limits.is_over_limit:
+            logger.warning(f"Rate limit exceeded for user {request.user_id}: {limits.limit_exceeded_reason}")
+            raise HTTPException(
+                status_code=429,
+                detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Usage service unavailable: {e}")
+        # SECURITY FIX: Fail closed instead of open
+        raise HTTPException(
+            status_code=503,
+            detail="Usage tracking service temporarily unavailable. Please try again later."
+        )
+    
+    try:
+        # Create a modified prompt by combining original prompt with modification request
+        modified_prompt = f"{request.original_prompt}\n\nAdditional requirements: {request.modification_request}"
+        
+        # Analyze the modification request using specialized proposal modification analysis
+        logger.info("Analyzing proposal modification with PromptServiceBuild...")
+        prompt_service = PromptServiceBuild()
+        analysis_result = await prompt_service.CanIModifyProposal(
+            request.user_id, 
+            request.original_prompt, 
+            request.modification_request
+        )
+        
+        # Parse the analysis result
+        import json
+        try:
+            analysis_data = json.loads(analysis_result)
+            status = analysis_data.get("status")
+            
+            # Create modified prompt if the modification is valid
+            if status == "buildable":
+                # Use the analyzed modified requirements or fall back to combined prompt
+                modified_requirements = analysis_data.get("modified_requirements")
+                if modified_requirements:
+                    modified_prompt = modified_requirements
+                else:
+                    modified_prompt = f"{request.original_prompt}\n\nAdditional requirements: {request.modification_request}"
+                
+                # Generate a new proposal with the modified requirements
+                logger.info("Generating new proposal with modified requirements...")
+                logger.info(f"Modified prompt for new proposal: {modified_prompt}")
+                try:
+                    # Use PropeseTheBuild directly to generate a proposal instead of going through analysis
+                    new_proposal_result = await prompt_service.PropeseTheBuild(request.user_id, modified_prompt)
+                    
+                    try:
+                        new_proposal_data = json.loads(new_proposal_result)
+                        new_status = new_proposal_data.get("status")
+                        
+                        # If the new proposal is valid, use it
+                        if new_status in ["buildable", "proposal_ready"]:
+                            logger.info("Successfully generated new proposal with modifications")
+                            # Update the analysis data with the new proposal
+                            analysis_data = new_proposal_data
+                            status = "buildable"  # Always mark as buildable for frontend compatibility
+                            logger.info(f"New proposal data keys: {list(new_proposal_data.keys())}")
+                            if "proposal" in new_proposal_data:
+                                logger.info(f"New proposal contains proposal data: {new_proposal_data['proposal'].keys() if new_proposal_data['proposal'] else 'None'}")
+                        else:
+                            logger.warning(f"New proposal generation failed with status: {new_status}")
+                            # Fall back to original analysis but mark as buildable
+                            status = "buildable"
+                            
+                    except json.JSONDecodeError:
+                        logger.error("Failed to parse new proposal result")
+                        # Fall back to original analysis
+                        status = "buildable"
+                        
+                except Exception as e:
+                    logger.error(f"Error generating new proposal: {str(e)}")
+                    # Fall back to original analysis
+                    status = "buildable"
+            else:
+                modified_prompt = None
+            
+            # Return appropriate response based on analysis status
+            response_data = {
+                "success": True,
+                "message": analysis_data.get("message", "Proposal modification analysis completed."),
+                "modified_prompt": modified_prompt,
+                "original_prompt": request.original_prompt,
+                "modification_request": request.modification_request,
+                "user_id": request.user_id,
+                "timestamp": datetime.now(),
+                "conversation_state": "proposal",  # Still in proposal state after modification
+                "proposal_id": request.proposal_id  # Maintain the same proposal session
+            }
+            
+            # Add status-specific fields
+            if status == "needs_clarification":
+                response_data.update({
+                    "questions": analysis_data.get("questions", []),
+                    "suggestions": analysis_data.get("suggestions", [])
+                })
+                logger.info(f"Modified proposal needs clarification: {analysis_data.get('message')}")
+                
+            elif status == "not_buildable":
+                response_data.update({
+                        "reasons": analysis_data.get("reasons", []),
+                        "suggestions": analysis_data.get("suggestions", [])
+                })
+                logger.warning(f"Modified proposal not buildable")
+                
+            elif status == "buildable":
+                # Add modification-specific details
+                if analysis_data.get("modification_type"):
+                    response_data["instructions"] = [f"Modification type: {analysis_data.get('modification_type')}"]
+                if analysis_data.get("specific_changes"):
+                    response_data["next_steps"] = analysis_data.get("specific_changes")
+                logger.info(f"Modified proposal is buildable - {analysis_data.get('modification_type', 'general modification')}")
+                
+            elif status == "proposal_ready":
+                # Convert proposal_ready to buildable for frontend compatibility
+                response_data["status"] = "buildable"
+                status = "buildable"
+                # Use the next_steps from the proposal if available
+                if analysis_data.get("next_steps"):
+                    response_data["next_steps"] = analysis_data.get("next_steps")
+                logger.info(f"Modified proposal is ready (converted to buildable for frontend)")
+                
+            elif status == "error":
+                response_data["success"] = False
+                logger.error(f"Error in proposal modification analysis")
+                
+            else:
+                logger.warning(f"Unexpected analysis status: {status}")
+                response_data["message"] = f"Analysis returned unexpected status: {status}"
+                # Don't override status here - let it be set at the end
+            
+            # Always preserve proposal data if it exists (regardless of status) - DO THIS LAST
+            if "proposal" in analysis_data:
+                response_data["proposal"] = analysis_data.get("proposal", {})
+                logger.info(f"Preserved proposal data from modification analysis")
+            else:
+                logger.warning(f"No proposal data found in modification analysis")
+            
+            # Set the final status after all processing is complete
+            response_data["status"] = status
+                
+            logger.info(f"Final modification response_data keys: {list(response_data.keys())}")
+            logger.info(f"Final modification response_data: {response_data}")
+                
+            return ProposalModificationResponse(**response_data)
+            
+        except json.JSONDecodeError:
+            logger.error("Could not parse proposal modification analysis result")
+            return ProposalModificationResponse(
+                success=False,
+                status="error",
+                message="Failed to analyze the modified proposal. Please try again.",
+                modified_prompt=modified_prompt,
+                original_prompt=request.original_prompt,
+                modification_request=request.modification_request,
+                user_id=request.user_id,
+                timestamp=datetime.now()
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in modify_proposal: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to modify proposal: {str(e)}"
+        )
+
+
 @app.post("/generate-api", response_model=APIGenerationResponse)
 async def generate_api(
     request: APIGenerationRequest,
@@ -741,7 +1130,12 @@ async def generate_api(
 ):
     """
     Generate a new API based on user prompt.
-    Optionally analyzes the prompt first, then generates if buildable.
+    
+    NOTE: It's recommended to use the /generate-proposal endpoint first to analyze
+    the prompt and ensure it's buildable before calling this endpoint.
+    
+    This endpoint focuses on code generation and assumes the prompt has been
+    validated through the proposal process.
     """
     # Extract user and API key info
     current_user, api_key_id = user_and_key
@@ -776,64 +1170,12 @@ async def generate_api(
         )
     
     try:
-        # Initialize analysis_result
-        analysis_result = None
+        # Analysis is now handled by the separate /generate-proposal endpoint
+        # This endpoint assumes the proposal has already been approved and we're ready to build
+        logger.info("Starting API code generation (analysis should be done via /generate-proposal)")
         
-        # Only analyze if skip_analysis is False (default behavior for backward compatibility)
-        if not request.skip_analysis:
-            # First analyze the prompt using PromptService
-            logger.info("Analyzing prompt with PromptServiceBuild...")
-            prompt_service = PromptServiceBuild()
-            analysis_result = await prompt_service.CanIBuildThis(request.user_id, request.prompt)
-            
-            # Parse the analysis result to check if it's buildable
-            import json
-            try:
-                analysis_data = json.loads(analysis_result)
-                status = analysis_data.get("status")
-                
-                # If build needs clarification, return the questions to the frontend
-                if status == "needs_clarification":
-                    logger.info(f"Build needs clarification: {analysis_data.get('message')}")
-                    return {
-                        "success": False,
-                        "status": "needs_clarification",
-                        "message": analysis_data.get("message", "I need more information to build this API."),
-                        "questions": analysis_data.get("questions", []),
-                        "suggestions": analysis_data.get("suggestions", []),
-                        "original_prompt": request.prompt
-                    }
-                
-                # If it's a modify request, redirect to modify endpoint
-                if status == "modify_request":
-                    logger.info(f"Detected modify request, redirecting")
-                    return {
-                        "success": False,
-                        "status": "modify_request",
-                        "message": analysis_data.get("message", "This appears to be a modification request."),
-                        "instructions": analysis_data.get("instructions", []),
-                        "next_steps": analysis_data.get("next_steps", [])
-                    }
-                
-                # If not buildable, return appropriate message
-                if status == "not_buildable":
-                    logger.warning(f"API request not buildable")
-                    return {
-                        "success": False,
-                        "status": "not_buildable", 
-                        "message": analysis_data.get("message", "I'm sorry, but I can't build this API."),
-                        "reasons": analysis_data.get("reasons", []),
-                        "suggestions": analysis_data.get("suggestions", [])
-                    }
-                    
-                # If not buildable status, proceed with generation
-                if status != "buildable":
-                    logger.warning(f"Unexpected build status: {status}, proceeding anyway")
-                    
-            except json.JSONDecodeError:
-                logger.warning("Could not parse analysis result, proceeding with generation")
-        else:
-            logger.info("Skipping analysis step as requested")
+        # Initialize analysis_result for backward compatibility with debug info
+        analysis_result = "Analysis skipped - using dedicated proposal endpoint"
         
         # Validate Claude API key
         if not settings.CLAUDE_API_KEY:
@@ -1027,7 +1369,13 @@ async def modify_api(
     user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
 ):
     """
-    Modify an existing API based on user prompt.
+    Modify an existing API's code based on user prompt.
+    
+    This endpoint focuses on modifying the actual generated code of an existing API.
+    For proposal-level modifications, use the /modify-proposal endpoint instead.
+    
+    The endpoint assumes the modification request has been validated and is ready
+    to be applied to the existing code.
     """
     # Extract user and API key info
     current_user, api_key_id = user_and_key
@@ -1072,53 +1420,12 @@ async def modify_api(
         # Load existing code
         existing_code = file_service.load_api_code(request.user_id, request.api_slug)
         
-        # Analyze the prompt using PromptService to determine if it's Modifyable
-        logger.info("Analyzing prompt with PromptServiceModify for modification...")
-        prompt_service_modify = PromptServiceModify()
-        analysis_result = await prompt_service_modify.CanIModifyThis(request.user_id, request.prompt)
+        # Analysis is now handled by the separate /modify-proposal endpoint
+        # This endpoint focuses on applying validated modifications to existing code
+        logger.info("Starting API code modification (analysis should be done via /modify-proposal)")
         
-        # Parse the analysis result to check if it's Modifyable
-        import json
-        try:
-            analysis_data = json.loads(analysis_result)
-            status = analysis_data.get("status")
-            
-            # If modification needs clarification, return the questions to the frontend
-            if status == "needs_clarification":
-                logger.info(f"Modification needs clarification: {analysis_data.get('message')}")
-                return {
-                    "success": False,
-                    "status": "needs_clarification",
-                    "message": analysis_data.get("message", "I need more information to modify this API."),
-                    "questions": analysis_data.get("questions", []),
-                    "suggestions": analysis_data.get("suggestions", []),
-                    "original_prompt": request.prompt
-                }
-            
-            # If modification has questions even though it's ready, show them first
-            if status == "modification_ready" and analysis_data.get("questions"):
-                logger.info(f"Modification ready but has clarification questions")
-                return {
-                    "success": False,
-                    "status": "needs_clarification", 
-                    "message": "I can modify this API, but I have some questions to ensure I do it correctly:",
-                    "questions": analysis_data.get("questions", []),
-                    "modification_type": analysis_data.get("modification_type"),
-                    "complexity": analysis_data.get("complexity"),
-                    "planned_changes": analysis_data.get("planned_changes", []),
-                    "original_prompt": request.prompt
-                }
-                
-            # If modification is ready and no questions, proceed
-            if status != "modification_ready":
-                logger.warning(f"Unexpected modification status: {status}")
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Cannot proceed with modification. Analysis result: {analysis_result}"
-                )
-                
-        except json.JSONDecodeError:
-            logger.warning("Could not parse analysis result, proceeding with modification")
+        # Initialize analysis_result for backward compatibility with debug info
+        analysis_result = "Analysis skipped - using dedicated proposal modification endpoint"
         
         # Validate Claude API key
         if not settings.CLAUDE_API_KEY:
@@ -1993,6 +2300,46 @@ async def test_api(request: TestRequest):
             timestamp=datetime.now(),
             test_type=request.test_type or "manual",
             validation=None
+        )
+
+@app.get("/generate-test-data/{user_id}/{api_slug}")
+async def generate_test_data(user_id: str, api_slug: str):
+    """
+    Generate intelligent test data for an API using AI based on its documentation.
+    Uses a cheap model (gpt-4o-mini) to generate realistic test scenarios.
+    """
+    try:
+        logger.info(f"Generating test data for API {api_slug} of user {user_id}")
+        
+        # Check if API exists
+        if not file_service.api_exists(user_id, api_slug):
+            raise HTTPException(
+                status_code=404,
+                detail=f"API not found: {user_id}/{api_slug}"
+            )
+        
+        # Generate test data using the test service
+        test_scenarios = await test_service.generate_test_data(user_id, api_slug)
+        
+        logger.info(f"Generated {len(test_scenarios)} test scenarios for {api_slug}")
+        
+        return {
+            "success": True,
+            "api_slug": api_slug,
+            "user_id": user_id,
+            "test_scenarios": test_scenarios,
+            "count": len(test_scenarios),
+            "generated_at": datetime.now().isoformat(),
+            "model_used": "gpt-4o-mini"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate test data for {api_slug}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate test data: {str(e)}"
         )
 
 # API Execution Usage Endpoints

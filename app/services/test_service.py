@@ -27,6 +27,19 @@ def load_test_validator_prompt() -> Dict[str, str]:
         raise HTTPException(status_code=500, 
                           detail="Failed to load validation prompts")
 
+def load_test_data_generator_prompt() -> Dict[str, str]:
+    """Load the test data generator prompts from JSON file."""
+    try:
+        prompt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
+                                 'prompts', 'openai', 'generate_test_data.json')
+        with open(prompt_path, 'r') as f:
+            prompts = json.load(f)
+        return prompts
+    except Exception as e:
+        logger.error(f"Failed to load test data generator prompts: {str(e)}")
+        raise HTTPException(status_code=500, 
+                          detail="Failed to load test data generator prompts")
+
 class TestService:
     """Service for handling API testing functionality."""
     
@@ -391,30 +404,146 @@ class TestService:
         except Exception:
             return "Invalid response data"
     
-    async def generate_test_data(self, user_id: str, api_slug: str) -> Dict[str, Any]:
-        """Generate smart test data for an API based on its documentation."""
+    async def generate_test_data(self, user_id: str, api_slug: str) -> List[Dict[str, Any]]:
+        """Generate smart test data for an API using AI based on its documentation."""
         try:
+            logger.info(f"Generating AI-powered test data for API {api_slug}")
+            
             # Load API details if available
             api_details = await file_service.get_api_details(user_id, api_slug)
             
-            # Try to extract example data from documentation or curl example
+            # Extract information for the AI prompt
+            api_description = api_details.get('description', 'API for data processing')
+            api_functionality = api_details.get('functionality', api_description)
+            expected_output = api_details.get('expected_output', 'JSON response with processed data')
+            
+            # Try to extract sample input from curl example or documentation
+            sample_input = None
             if 'curl_example' in api_details:
                 curl_example = api_details['curl_example']
                 extracted_data = self._extract_data_from_curl(curl_example)
                 if extracted_data:
-                    return extracted_data
+                    sample_input = json.dumps(extracted_data, indent=2)
             
-            # Generate generic test data
-            return {
-                "message": "Test message",
-                "data": "sample test data",
-                "timestamp": datetime.now().isoformat(),
-                "test": True
-            }
+            # Determine expected fields and processing type from API details
+            expected_fields = "data, message"  # Default fields
+            input_type = "JSON object"
+            processing_type = "data processing"
+            api_purpose = api_description
+            
+            # If we have documentation or code, extract more details
+            if 'documentation' in api_details:
+                doc = api_details['documentation']
+                # Try to extract field information from documentation
+                if 'input' in doc.lower() or 'field' in doc.lower():
+                    # Basic extraction - could be enhanced further
+                    expected_fields = "Based on API documentation"
+            
+            # Load the test data generator prompt
+            prompt_config = load_test_data_generator_prompt()
+            system_prompt = prompt_config["system_prompt"]
+            
+            # Format the user prompt with API details
+            user_prompt = prompt_config["user_prompt_template"].format(
+                api_description=api_description,
+                api_functionality=api_functionality,
+                expected_fields=expected_fields,
+                sample_input=sample_input or "No sample input provided",
+                expected_output=expected_output,
+                api_purpose=api_purpose,
+                input_type=input_type,
+                processing_type=processing_type
+            )
+            
+            # Make request to OpenAI using the cheap model
+            logger.info(f"Making OpenAI request for test data generation using model: {prompt_config.get('model', 'gpt-4o-mini')}")
+            response = await openai_service.make_openai_request(
+                system_prompt=system_prompt, 
+                user_prompt=user_prompt, 
+                prompt_config=prompt_config, 
+                user_id=user_id, 
+                operation_type="test_data_generation", 
+                api_slug=api_slug
+            )
+            
+            # Parse the AI response
+            try:
+                test_scenarios = json.loads(response)
+                
+                # Validate the response format
+                if isinstance(test_scenarios, list) and len(test_scenarios) > 0:
+                    logger.info(f"Generated {len(test_scenarios)} test scenarios using AI")
+                    return test_scenarios
+                else:
+                    logger.warning("AI response was not in expected format, falling back to basic test data")
+                    return self._generate_fallback_test_data(api_details)
+                    
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse AI response as JSON: {e}, falling back to basic test data")
+                return self._generate_fallback_test_data(api_details)
             
         except Exception as e:
-            logger.error(f"Failed to generate test data: {str(e)}")
-            return {"test": "data"}
+            logger.error(f"Failed to generate AI test data: {str(e)}, falling back to basic test data")
+            return self._generate_fallback_test_data(api_details if 'api_details' in locals() else {})
+    
+    def _generate_fallback_test_data(self, api_details: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate basic fallback test data when AI generation fails."""
+        try:
+            # Try to extract example data from curl if available
+            if 'curl_example' in api_details:
+                curl_example = api_details['curl_example']
+                extracted_data = self._extract_data_from_curl(curl_example)
+                if extracted_data:
+                    return [
+                        {
+                            "scenario": "Basic test from API example",
+                            "data": extracted_data
+                        }
+                    ]
+            
+            # Generate basic test scenarios
+            basic_scenarios = [
+                {
+                    "scenario": "Normal input test",
+                    "data": {
+                        "message": "Test message",
+                        "data": "sample test data",
+                        "timestamp": datetime.now().isoformat(),
+                        "test": True
+                    }
+                },
+                {
+                    "scenario": "Minimal input test",
+                    "data": {
+                        "test": "minimal data"
+                    }
+                },
+                {
+                    "scenario": "Rich data test",
+                    "data": {
+                        "user": "John Doe",
+                        "email": "john.doe@example.com",
+                        "data": ["item1", "item2", "item3"],
+                        "count": 42,
+                        "active": True,
+                        "metadata": {
+                            "source": "test",
+                            "version": "1.0"
+                        }
+                    }
+                }
+            ]
+            
+            return basic_scenarios
+            
+        except Exception as e:
+            logger.error(f"Failed to generate fallback test data: {str(e)}")
+            return [
+                {
+                    "scenario": "Emergency fallback",
+                    "data": {"test": "data"}
+                }
+            ]
     
     def _extract_data_from_curl(self, curl_example: str) -> Optional[Dict[str, Any]]:
         """Extract JSON data from curl example."""
@@ -478,7 +607,14 @@ class TestService:
             )
 
             # Make request to OpenAI with test validator configuration
-            response = await openai_service.make_openai_request(system_prompt, user_prompt, prompts)
+            response = await openai_service.make_openai_request(
+                system_prompt=system_prompt, 
+                user_prompt=user_prompt, 
+                prompt_config=prompts,
+                user_id=test_request.user_id,
+                operation_type="test_validation",
+                api_slug=test_request.api_slug
+            )
             # Log the raw response for debugging
             logger.info(f"Raw OpenAI response for validation: {response[:500]}...")
             

@@ -56,7 +56,7 @@ class OpenAIService:
         - from openai import OpenAI
         - client = OpenAI(api_key=api_key)
         - client.chat.completions.create()
-        - model="gpt-3.5-turbo" or "gpt-4"
+        - model="gpt-4o-mini" or "gpt-4"
         
         IMPORTANT RULES:
         1. Always wrap your code in an ASYNC function called `run(file_bytes=None, input_data=None)`
@@ -85,7 +85,7 @@ class OpenAIService:
         # Make AI API call
         response = await asyncio.to_thread(
             client.chat.completions.create,
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Your system message"},
                 {"role": "user", "content": "Your user message"}
@@ -103,7 +103,7 @@ class OpenAIService:
         
         # Make AI API call for name and date extraction
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "Extract all person names and dates from the text. Return JSON with 'names' and 'dates' arrays."},
                 {"role": "user", "content": f"Extract names and dates from: {text[:2000]}"}
@@ -122,7 +122,7 @@ class OpenAIService:
         
         result = {
             "extracted_data": extracted_data,
-            "ai_model": "gpt-3.5-turbo",
+            "ai_model": "gpt-4o-mini",
             "text_length": len(text),
             "confidence": 0.9,
             "timestamp": datetime.now().isoformat()
@@ -361,6 +361,7 @@ class OpenAIService:
         
         # Run the synchronous OpenAI call in a thread pool
         def make_request():
+            # First try with the specified model
             try:
                 logger.info(f"Making OpenAI request with model: {model}")
                 response = self.client.chat.completions.create(
@@ -369,13 +370,39 @@ class OpenAIService:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    temperature=prompt_config.get("temperature", 0.3),
-                    max_tokens=prompt_config.get("max_tokens", 2000)
+                    max_completion_tokens=prompt_config.get("max_completion_tokens", 2000),
+                    temperature=prompt_config.get("temperature", 0.7)
                 )
                 
                 content = response.choices[0].message.content
-                if content is None:
-                    logger.error("OpenAI returned None content")
+                if content is None or content.strip() == "":
+                    logger.warning(f"OpenAI returned empty/None content with model {model}")
+                    logger.warning(f"Response details - Choice count: {len(response.choices) if response.choices else 0}")
+                    if hasattr(response.choices[0], 'finish_reason'):
+                        logger.warning(f"Finish reason: {response.choices[0].finish_reason}")
+                    
+                    # Try with fallback model if the primary model returns empty content
+                    fallback_model = "gpt-4o-mini"
+                    if model != fallback_model:
+                        logger.info(f"Trying fallback model: {fallback_model}")
+                        fallback_response = self.client.chat.completions.create(
+                            model=fallback_model,
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            max_completion_tokens=prompt_config.get("max_completion_tokens", 2000),
+                            temperature=prompt_config.get("temperature", 0.7)
+                        )
+                        
+                        fallback_content = fallback_response.choices[0].message.content
+                        if fallback_content and fallback_content.strip():
+                            logger.info(f"Fallback model {fallback_model} succeeded, length: {len(fallback_content)}")
+                            return fallback_content, fallback_response
+                        else:
+                            logger.error(f"Fallback model {fallback_model} also returned empty content")
+                    
+                    # If fallback fails or same model, return empty with original response
                     return "", response
                 
                 logger.info(f"OpenAI response received, length: {len(content)}")
@@ -457,12 +484,18 @@ class OpenAIService:
         pricing = {
             "gpt-4": {"input": 0.03, "output": 0.06},  # per 1K tokens
             "gpt-4-turbo": {"input": 0.01, "output": 0.03},
-            "gpt-3.5-turbo": {"input": 0.0015, "output": 0.002},
-            "gpt-3.5-turbo-16k": {"input": 0.003, "output": 0.004}
+            "gpt-4o-mini": {"input": 0.0015, "output": 0.002},
+            "gpt-3.5-turbo": {"input": 0.003, "output": 0.004},
+            "gpt-3.5-turbo-16k": {"input": 0.003, "output": 0.004},
+            # GPT-5 models (based on your pricing table)
+            "gpt-5": {"input": 1.25, "output": 10.00},
+            "gpt-5-mini": {"input": 0.25, "output": 2.00},
+            "gpt-5-nano": {"input": 0.05, "output": 0.40},
+            "gpt-5-chat-latest": {"input": 1.25, "output": 10.00}
         }
         
         # Default to gpt-3.5-turbo pricing if model not found
-        model_pricing = pricing.get(model, pricing["gpt-3.5-turbo"])
+        model_pricing = pricing.get(model, pricing["gpt-5-mini"])
         
         input_cost = (input_tokens / 1000) * model_pricing["input"]
         output_cost = (output_tokens / 1000) * model_pricing["output"]

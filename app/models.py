@@ -51,15 +51,67 @@ class UserProfile(BaseModel):
     recent_activity: List[Dict[str, Any]]
 
 # API Generation Models
+class ProposalRequest(BaseModel):
+    prompt: str = Field(..., description="Description of the API functionality you want")
+    user_id: str = Field(..., description="Unique user identifier")
+    sample_input: Optional[str] = Field(None, description="Example input data for the API")
+    expected_output: Optional[str] = Field(None, description="Expected output format")
+
+class ProposalResponse(BaseModel):
+    success: bool
+    status: str  # "buildable", "needs_clarification", "modify_request", "not_buildable"
+    message: str
+    questions: Optional[List[str]] = None
+    suggestions: Optional[List[str]] = None
+    instructions: Optional[List[str]] = None
+    next_steps: Optional[List[str]] = None
+    reasons: Optional[List[str]] = None
+    original_prompt: Optional[str] = None
+    user_id: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    # Proposal data
+    proposal: Optional[Dict[str, Any]] = Field(None, description="The API proposal details including api_name, description, functionality, etc.")
+    # Conversation state tracking
+    conversation_state: Optional[str] = Field(default="proposal", description="Current conversation state: proposal, code_generated, etc.")
+    proposal_id: Optional[str] = Field(None, description="Unique identifier for this proposal session")
+
+class ProposalModificationRequest(BaseModel):
+    original_prompt: str = Field(..., description="The original prompt that was analyzed")
+    modification_request: str = Field(..., description="What you want to modify about the proposal")
+    user_id: str = Field(..., description="Unique user identifier")
+    previous_analysis: Optional[str] = Field(None, description="Previous analysis result for context")
+    proposal_id: Optional[str] = Field(None, description="Unique identifier for the proposal session being modified")
+
+class ProposalModificationResponse(BaseModel):
+    success: bool
+    status: str  # "buildable", "needs_clarification", "modify_request", "not_buildable"
+    message: str
+    modified_prompt: Optional[str] = None
+    questions: Optional[List[str]] = None
+    suggestions: Optional[List[str]] = None
+    instructions: Optional[List[str]] = None
+    next_steps: Optional[List[str]] = None
+    reasons: Optional[List[str]] = None
+    original_prompt: Optional[str] = None
+    modification_request: Optional[str] = None
+    user_id: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    # Proposal data (updated proposal after modification)
+    proposal: Optional[Dict[str, Any]] = Field(None, description="The updated API proposal details including api_name, description, functionality, etc.")
+    # Conversation state tracking
+    conversation_state: Optional[str] = Field(default="proposal", description="Current conversation state after modification")
+    proposal_id: Optional[str] = Field(None, description="Unique identifier for this proposal session")
+
 class APIGenerationRequest(BaseModel):
     prompt: str = Field(..., description="Description of the API functionality you want")
     sample_input: Optional[str] = Field(None, description="Example input data for the API")
     expected_output: Optional[str] = Field(None, description="Expected output format")
     user_id: str = Field(..., description="Unique user identifier")
     api_name: Optional[str] = Field(None, description="Optional API name (will be auto-generated if not provided)")
-    skip_analysis: Optional[bool] = Field(False, description="Skip analysis step if already done")
+    skip_analysis: Optional[bool] = Field(True, description="Skip analysis step (should be done via /generate-proposal endpoint first)")
     use_multi_step: Optional[bool] = Field(True, description="Use multi-step generation process (default: True, returns final code)")
     pipeline_name: Optional[str] = Field("full_pipeline", description="Pipeline to use for multi-step generation")
+    proposal_id: Optional[str] = Field(None, description="Proposal ID from which this generation request originates")
 
 class APIGenerationResponse(BaseModel):
     success: bool
@@ -71,10 +123,13 @@ class APIGenerationResponse(BaseModel):
     user_id: Optional[str] = None
     generated_at: Optional[datetime] = None
     debug_info: Optional[Dict[str, Any]] = None
+    # Conversation state tracking
+    conversation_state: Optional[str] = Field(default="code_generated", description="Conversation state after API generation")
+    proposal_id: Optional[str] = Field(None, description="Original proposal ID that led to this generation")
 
 # API Modification Models
 class APIModificationRequest(BaseModel):
-    prompt: str = Field(..., description="Description of what you want to modify in the API")
+    prompt: str = Field(..., description="Description of what you want to modify in the API (should be validated via /modify-proposal first)")
     api_slug: str = Field(..., description="Slug of the existing API to modify")
     user_id: str = Field(..., description="Unique user identifier")
     sample_input: Optional[str] = Field(None, description="Example input data for the modified API")

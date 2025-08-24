@@ -1007,11 +1007,11 @@ class MultiStepGenerationService:
                 elif step_id == "step2_implementation":
                     template_vars["analysis_design"] = previous_outputs.get("step1_analysis_design",
                         f"Basic requirements analysis and design based on: {session.prompt}")
-                elif step_id == "step3_testing":
-                    template_vars["implemented_code"] = previous_outputs.get("step2_implementation",
-                        "async def run(file_bytes=None, input_data=None):\n    return {'result': 'API implementation', 'message': 'success'}")
-                    template_vars["analysis_design"] = previous_outputs.get("step1_analysis_design",
-                        f"Basic requirements analysis and design based on: {session.prompt}")
+                # elif step_id == "step3_testing":
+                #     template_vars["implemented_code"] = previous_outputs.get("step2_implementation",
+                #         "async def run(file_bytes=None, input_data=None):\n    return {'result': 'API implementation', 'message': 'success'}")
+                #     template_vars["analysis_design"] = previous_outputs.get("step1_analysis_design",
+                #         f"Basic requirements analysis and design based on: {session.prompt}")
                         
             except Exception as e:
                 raise TemplateProcessingError(

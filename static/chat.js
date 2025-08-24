@@ -5,6 +5,89 @@ let isModificationMode = false;
 let generationMode = 'multi-step'; // Default to multi-step
 let selectedPipeline = 'full_pipeline'; // Default pipeline
 
+// Conversation state tracking
+let conversationState = null; // "proposal", "code_generated", null
+let currentProposalId = null; // Unique identifier for current proposal session
+let currentProposal = null; // Store current proposal data
+
+// Proposal modification handling
+async function handleProposalModification(modificationRequest, userId) {
+    try {
+        showTypingIndicator("Analyzing your proposal modification...");
+        
+        const modifyResponse = await fetch('/modify-proposal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+            },
+            body: JSON.stringify({
+                original_prompt: currentProposal.original_prompt,
+                modification_request: modificationRequest,
+                user_id: userId,
+                proposal_id: currentProposalId
+            })
+        });
+
+        const modifyResult = await modifyResponse.json();
+        console.log('Proposal Modification Response:', modifyResult);
+        console.log('Modification Result Keys:', Object.keys(modifyResult));
+        console.log('Modification Proposal field exists:', 'proposal' in modifyResult);
+        console.log('Modification Proposal field value:', modifyResult.proposal);
+        
+        if (modifyResult.success) {
+            // Update conversation state
+            conversationState = modifyResult.conversation_state;
+            currentProposalId = modifyResult.proposal_id;
+            
+            // Update current proposal with modified version
+            if (modifyResult.modified_prompt) {
+                currentProposal = {
+                    ...currentProposal,
+                    original_prompt: modifyResult.modified_prompt,
+                    modified_prompt: modifyResult.modified_prompt,
+                    status: modifyResult.status
+                };
+            }
+            
+            // If the modification response contains updated proposal data, update the current proposal
+            if (modifyResult.proposal) {
+                currentProposal = {
+                    ...currentProposal,
+                    proposal: modifyResult.proposal
+                };
+                console.log('Updated currentProposal with modified proposal data');
+            }
+            
+            // Also update with modified requirements if available
+            if (modifyResult.modified_requirements) {
+                currentProposal = {
+                    ...currentProposal,
+                    modified_requirements: modifyResult.modified_requirements
+                };
+                console.log('Updated currentProposal with modified requirements');
+            }
+            
+            // Handle the modification response
+            if (modifyResult.status === 'buildable') {
+                addProposalMessage(modifyResult, modifyResult.modified_prompt || modificationRequest, userId);
+            } else if (modifyResult.status === 'needs_clarification') {
+                addClarificationMessage(modifyResult);
+            } else if (modifyResult.status === 'not_buildable') {
+                addRejectionMessage(modifyResult);
+            }
+        } else {
+            addMessage('assistant', `❌ Failed to process proposal modification: ${modifyResult.detail || 'Unknown error'}`);
+        }
+        
+    } catch (error) {
+        console.error('Error handling proposal modification:', error);
+        addMessage('assistant', `❌ Network error: ${error.message}`);
+    } finally {
+        hideTypingIndicator();
+    }
+}
+
 // Chat functionality
 function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -185,6 +268,10 @@ function clearChat() {
     currentConversation = [];
     currentApiData = null;
     isModificationMode = false; // Reset modification mode
+    // Reset conversation state tracking
+    conversationState = null;
+    currentProposalId = null;
+    currentProposal = null;
     showChatInput(); // Show chat input when clearing chat for new conversation
 }
 
@@ -229,8 +316,8 @@ async function sendMessage() {
         // Get user ID (from auth or generate temp one)
         const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
         
-        // First, analyze the prompt using ChatService
-        const analysisResponse = await fetch('/chat/analyze', {
+        // First, generate a proposal for the prompt
+        const proposalResponse = await fetch('/generate-proposal', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -242,33 +329,55 @@ async function sendMessage() {
             })
         });
 
-        const analysisResult = await analysisResponse.json();
-        console.log('Analysis Response:', analysisResult);
+        const proposalResult = await proposalResponse.json();
+        console.log('Proposal Response:', proposalResult);
+        console.log('Proposal Status:', proposalResult.status);
+        console.log('Proposal Success:', proposalResult.success);
+        console.log('Proposal Result Keys:', Object.keys(proposalResult));
+        console.log('Proposal field exists:', 'proposal' in proposalResult);
+        console.log('Proposal field value:', proposalResult.proposal);
         
-        if (analysisResult.success) {
-            const analysis = JSON.parse(analysisResult.analysis_result);
-            console.log('Parsed Analysis:', analysis);
-            // Handle different response types
-            if (analysis.status === 'buildable') {
-                // Show positive response and proceed to generate API
-                addChatAnalysisMessage(analysis);
-                await generateAPI(message, userId, true);
-            } else if (analysis.status === 'proposal_ready') {
+        if (proposalResult.success) {
+            // Store conversation state from proposal response
+            conversationState = proposalResult.conversation_state;
+            currentProposalId = proposalResult.proposal_id;
+            currentProposal = proposalResult;
+            
+            console.log('Proposal State:', { conversationState, currentProposalId });
+            
+            // Handle different proposal response types
+            if (proposalResult.status === 'buildable' || proposalResult.status === 'proposal_ready') {
+                console.log('Calling addProposalMessage with status:', proposalResult.status);
                 // Show detailed API proposal and ask for confirmation
-                addProposalMessage(analysis, message, userId);
-            } else if (analysis.status === 'needs_clarification') {
+                addProposalMessage(proposalResult, message, userId);
+            } else if (proposalResult.status === 'needs_clarification') {
                 // Show clarification questions
-                addClarificationMessage(analysis);
-            } else if (analysis.status === 'modify_request') {
-                // Show modify request message
-                addModifyRequestMessage(analysis);
-            } else if (analysis.status === 'not_buildable') {
+                addClarificationMessage(proposalResult);
+            } else if (proposalResult.status === 'modify_request') {
+                // Check if we're in proposal state - if so, handle as proposal modification
+                if (conversationState === 'proposal') {
+                    console.log('Handling as proposal modification request');
+                    await handleProposalModification(message, userId);
+                } else {
+                    // Show generic modify request message
+                    addModifyRequestMessage(proposalResult);
+                }
+            } else if (proposalResult.status === 'not_buildable') {
                 // Show rejection with suggestions
-                addRejectionMessage(analysis);
+                addRejectionMessage(proposalResult);
+            } else {
+                console.log('UNEXPECTED STATUS:', proposalResult.status);
+                console.log('Full proposal result:', proposalResult);
+                addMessage('assistant', `⚠️ Unexpected proposal status: ${proposalResult.status}`);
             }
+            
+            // Hide typing indicator after processing proposal response
+            hideTypingIndicator();
         } else {
+            console.log('Proposal request failed:', proposalResult);
             // Fallback: proceed with API generation if analysis fails
-            await generateAPI(message, userId, false);
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Proposal generation failed: ${proposalResult.detail || 'Unknown error'}`);
         }
         
     } catch (error) {
@@ -283,6 +392,7 @@ async function sendMessage() {
 async function generateAPI(message, userId, skipAnalysis = true) {
     try {
         console.log(`Generating API - Skip Analysis: ${skipAnalysis}, Mode: ${generationMode}, Pipeline: ${selectedPipeline}`);
+        console.log('generateAPI called with message:', message);
         
         // Update generation progress text if it exists
         const progressText = document.getElementById('generationProgressText');
@@ -304,7 +414,11 @@ async function generateAPI(message, userId, skipAnalysis = true) {
                 user_id: userId,
                 skip_analysis: skipAnalysis,
                 use_multi_step: generationMode === 'multi-step',
-                pipeline_name: selectedPipeline
+                pipeline_name: selectedPipeline,
+                proposal_id: currentProposalId,
+                // Extract sample input/output from proposal if available
+                sample_input: currentProposal?.proposal?.input_format?.example || null,
+                expected_output: currentProposal?.proposal?.output_format?.example || null
             })
         });
 
@@ -313,9 +427,14 @@ async function generateAPI(message, userId, skipAnalysis = true) {
         hideTypingIndicator();
 
         if (result.success) {
+            // Update conversation state to indicate code has been generated
+            conversationState = result.conversation_state || 'code_generated';
+            
             currentApiData = result;
             addAPIResultMessage(result);
             addMessage('system', '🎉 API generated successfully! You can now test and deploy your API using the interface above.');
+            
+            console.log('Updated conversation state to:', conversationState);
         } else {
             // Handle different types of unsuccessful responses
             if (result.status === 'needs_clarification') {
@@ -555,8 +674,47 @@ async function confirmBuildAPI(originalPrompt, userId) {
         showTypingIndicator("Building your API...");
         
         hideProposalMessage();
+        
+        // Create a comprehensive prompt that includes proposal details if available
+        let promptToUse;
+        
+        if (currentProposal?.proposal) {
+            // If we have detailed proposal data, create a comprehensive prompt
+            const proposal = currentProposal.proposal;
+            promptToUse = `Build an API with these specifications:
+
+API Name: ${proposal.api_name || 'API'}
+Description: ${proposal.description || 'No description provided'}
+
+Functionality:
+${proposal.functionality ? proposal.functionality.map(f => `- ${f}`).join('\n') : '- Basic functionality'}
+
+Input Format:
+${proposal.input_format ? JSON.stringify(proposal.input_format, null, 2) : 'Standard input format'}
+
+Output Format:
+${proposal.output_format ? JSON.stringify(proposal.output_format, null, 2) : 'Standard output format'}
+
+Endpoints:
+${proposal.endpoints ? proposal.endpoints.map(e => `- ${e.method || 'POST'} ${e.path || '/api'}: ${e.description || 'Main endpoint'}`).join('\n') : '- POST /api: Main endpoint'}
+
+Original User Request: ${currentProposal?.modified_prompt || currentProposal?.original_prompt || originalPrompt}`;
+        } else {
+            // Fall back to the modified requirements, modified prompt, or original prompt
+            promptToUse = currentProposal?.modified_requirements || currentProposal?.modified_prompt || currentProposal?.original_prompt || originalPrompt;
+        }
+        
+        console.log('=== BUILD API DEBUG INFO ===');
+        console.log('Building API with comprehensive prompt:', promptToUse);
+        console.log('Original prompt was:', originalPrompt);
+        console.log('Current proposal data:', currentProposal?.proposal);
+        console.log('Current proposal structure:', currentProposal);
+        console.log('Modified requirements:', currentProposal?.modified_requirements);
+        console.log('Modified prompt:', currentProposal?.modified_prompt);
+        console.log('================================');
+        
         // Generate the API with skip_analysis = true since we already analyzed
-        await generateAPI(originalPrompt, userId, true);
+        await generateAPI(promptToUse, userId, true);
         
     } catch (error) {
         hideTypingIndicator();
@@ -1440,7 +1598,6 @@ function adjustChatHeight() {
 
 // API Preview Panel Functions
 let currentAPISpec = null;
-let currentProposal = null;
 let previewMode = 'empty'; // 'empty', 'proposal', 'api'
 
 function extractHTTPMethod(curlExample) {
@@ -1516,11 +1673,25 @@ function updateAPIPreview(apiData) {
 }
 
 function updateAPIProposal(analysis, originalPrompt, userId) {
-    const proposal = analysis.proposal;
+    const proposal = analysis.proposal || {};
     console.log('updateAPIProposal - analysis:', analysis);
     console.log('updateAPIProposal - proposal:', proposal);
     
-    currentProposal = { analysis, originalPrompt, userId };
+    // Safety check for proposal object
+    if (!analysis.proposal) {
+        console.warn('No proposal object found in analysis response');
+        console.log('Available keys in analysis:', Object.keys(analysis));
+    }
+    
+    // FIX: Store proposal data in the correct structure for confirmBuildAPI
+    currentProposal = { 
+        analysis, 
+        originalPrompt, 
+        userId,
+        proposal: analysis.proposal,  // Make proposal accessible at top level
+        original_prompt: originalPrompt,
+        modified_prompt: analysis.modified_requirements || originalPrompt
+    };
     currentAPISpec = null;
     previewMode = 'proposal';
     
@@ -1810,10 +1981,75 @@ function extractSampleTestDataFromDocumentation(documentation) {
     return null;
 }
 
-function updateTestInput(apiData) {
+async function updateTestInput(apiData) {
     const testInput = document.getElementById('previewTestInput');
     
-    // First try to use AI-generated sample test data
+    // Try to generate smart test data using our AI endpoint
+    if (apiData.api_slug && apiData.user_id) {
+        try {
+            console.log('Generating smart test data for API:', apiData.api_slug);
+            
+            // Show loading indicator
+            const existingIndicator = testInput.parentElement.querySelector('.sample-data-indicator');
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
+            
+            const loadingIndicator = document.createElement('div');
+            loadingIndicator.className = 'sample-data-indicator text-xs text-blue-400 mb-2 flex items-center space-x-2';
+            loadingIndicator.innerHTML = `
+                <svg class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span>Generating smart test data...</span>
+            `;
+            testInput.parentElement.insertBefore(loadingIndicator, testInput);
+            
+            // Call our AI test data generation endpoint
+            const response = await fetch(`/generate-test-data/${apiData.user_id}/${apiData.api_slug}`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.success && data.test_scenarios && data.test_scenarios.length > 0) {
+                    // Use the first scenario's data as the default test input
+                    const firstScenario = data.test_scenarios[0];
+                    testInput.value = JSON.stringify(firstScenario.data, null, 2);
+                    
+                    // Store all scenarios for potential future use
+                    testInput.setAttribute('data-ai-scenarios', JSON.stringify(data.test_scenarios));
+                    testInput.setAttribute('data-sample-json', JSON.stringify(firstScenario.data, null, 2));
+                    
+                    // Update indicator to show success
+                    loadingIndicator.className = 'sample-data-indicator text-xs text-green-400 mb-2 flex items-center space-x-2';
+                    loadingIndicator.innerHTML = `
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                        </svg>
+                        <span>AI-generated test data loaded (${data.test_scenarios.length} scenarios available)</span>
+                        <button onclick="loadSampleTestData()" class="text-green-300 hover:text-green-200 underline">Reload</button>
+                    `;
+                    
+                    console.log('Smart test data generated successfully:', data.test_scenarios.length, 'scenarios');
+                    return;
+                } else {
+                    console.warn('AI test data generation returned no scenarios, falling back to documentation extraction');
+                }
+            } else {
+                console.warn('AI test data generation failed, falling back to documentation extraction');
+            }
+        } catch (error) {
+            console.error('Error generating smart test data:', error);
+        }
+        
+        // Remove loading indicator if AI generation failed
+        const loadingIndicator = testInput.parentElement.querySelector('.sample-data-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.remove();
+        }
+    }
+    
+    // Fallback: First try to use AI-generated sample test data from documentation
     const aiSampleData = extractSampleTestDataFromDocumentation(apiData.documentation);
     if (aiSampleData) {
         testInput.value = JSON.stringify(aiSampleData, null, 2);
@@ -1821,17 +2057,17 @@ function updateTestInput(apiData) {
         // Store the sample data for easy reloading
         testInput.setAttribute('data-sample-json', JSON.stringify(aiSampleData, null, 2));
         
-        // Add a visual indicator that this is AI-generated sample data
+        // Add a visual indicator that this is AI-generated sample data from documentation
         const sampleDataIndicator = testInput.parentElement.querySelector('.sample-data-indicator');
         if (!sampleDataIndicator) {
             const indicator = document.createElement('div');
-            indicator.className = 'sample-data-indicator text-xs text-green-400 mb-2 flex items-center space-x-2';
+            indicator.className = 'sample-data-indicator text-xs text-yellow-400 mb-2 flex items-center space-x-2';
             indicator.innerHTML = `
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
                 </svg>
-                <span>AI-generated sample test data loaded</span>
-                <button onclick="loadSampleTestData()" class="text-green-300 hover:text-green-200 underline">Reload</button>
+                <span>Test data extracted from documentation</span>
+                <button onclick="loadSampleTestData()" class="text-yellow-300 hover:text-yellow-200 underline">Reload</button>
             `;
             testInput.parentElement.insertBefore(indicator, testInput);
         }
@@ -2143,13 +2379,19 @@ function showProposalElements() {
 }
 
 function populateProposalContent(analysis, originalPrompt, userId) {
-    const proposal = analysis.proposal;
+    const proposal = analysis.proposal || {};
+    
+    // Safety check for proposal object
+    if (!analysis.proposal) {
+        console.warn('No proposal object found in populateProposalContent');
+        console.log('Available keys in analysis:', Object.keys(analysis));
+    }
     
     // Update API name and description in the endpoint section
     document.getElementById('apiMethod').textContent = 'DRAFT';
     document.getElementById('apiMethod').className = 'px-2 py-1 bg-blue-600/20 text-blue-300 rounded font-mono text-xs';
-    document.getElementById('apiEndpoint').textContent = `${proposal.api_name || 'Custom API'}`;
-    document.getElementById('apiDescription').textContent = proposal.description || 'A custom API based on your requirements';
+    document.getElementById('apiEndpoint').textContent = `${(proposal && proposal.api_name) || 'Custom API'}`;
+    document.getElementById('apiDescription').textContent = (proposal && proposal.description) || 'A custom API based on your requirements';
     
     // Create proposal content in the preview panel
     createProposalContentInPreview(analysis, originalPrompt, userId);
@@ -2159,7 +2401,13 @@ function populateProposalContent(analysis, originalPrompt, userId) {
 }
 
 function createProposalContentInPreview(analysis, originalPrompt, userId) {
-    const proposal = analysis.proposal;
+    const proposal = analysis.proposal || {};
+    
+    // Safety check for proposal object
+    if (!analysis.proposal) {
+        console.warn('No proposal object found in createProposalContentInPreview');
+        console.log('Available keys in analysis:', Object.keys(analysis));
+    }
     
     // Create or update proposal section in the preview panel
     let proposalSection = document.getElementById('proposalSection');
@@ -2210,7 +2458,7 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
                 ${proposal.input_format.example ? `
                 <div class="bg-slate-800/50 rounded-lg p-3">
                     <h6 class="text-xs font-medium text-green-300 mb-2">Example:</h6>
-                    <pre class="text-xs text-slate-300 font-mono">${typeof proposal.input_format.example === 'object' ? JSON.stringify(proposal.input_format.example, null, 2) : proposal.input_format.example}</pre>
+                    <pre class="text-xs text-slate-300 font-mono whitespace-pre-wrap break-all">${typeof proposal.input_format.example === 'object' ? JSON.stringify(proposal.input_format.example, null, 2) : proposal.input_format.example}</pre>
                 </div>
                 ` : ''}
             </div>
@@ -2230,7 +2478,7 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
                 ${proposal.output_format.example ? `
                 <div class="bg-slate-800/50 rounded-lg p-3">
                     <h6 class="text-xs font-medium text-purple-300 mb-2">Example:</h6>
-                    <pre class="text-xs text-slate-300 font-mono">${typeof proposal.output_format.example === 'object' ? JSON.stringify(proposal.output_format.example, null, 2) : proposal.output_format.example}</pre>
+                    <pre class="text-xs text-slate-300 font-mono whitespace-pre-wrap break-all">${typeof proposal.output_format.example === 'object' ? JSON.stringify(proposal.output_format.example, null, 2) : proposal.output_format.example}</pre>
                 </div>
                 ` : ''}
             </div>
@@ -2375,8 +2623,8 @@ function updateExampleResponseFromProposal(proposal) {
         }
     } else {
         // Generate a contextual example based on the proposal's API name and description
-        const apiName = (proposal.api_name || '').toLowerCase();
-        const description = (proposal.description || '').toLowerCase();
+        const apiName = ((proposal && proposal.api_name) || '').toLowerCase();
+        const description = ((proposal && proposal.description) || '').toLowerCase();
         
         if (apiName.includes('sentiment') || description.includes('sentiment')) {
             exampleResponse = {

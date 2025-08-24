@@ -67,7 +67,7 @@ def get_claude_prompt_config(prompt_name: str) -> Dict[str, Any]:
     return {
         "model": prompt_config.get("model", "claude-3-sonnet-20240229"),
         "temperature": prompt_config.get("temperature", 0.3),
-        "max_tokens": prompt_config.get("max_tokens", 2000),
+        "max_completion_tokens": prompt_config.get("max_completion_tokens", 2000),
         "operation_type": prompt_config.get("operation_type", "general"),
         "validation_rules": prompt_config.get("validation_rules", {}),
         "expected_format": prompt_config.get("expected_format", {})

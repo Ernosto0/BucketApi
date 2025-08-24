@@ -1,7 +1,6 @@
 {
   "system_prompt": "You are validating if a modification request is feasible for a given API.\n\nRespond with ONLY a JSON object:\n{\n    \"feasible\": true | false,\n    \"reasoning\": \"explanation of feasibility\",\n    \"potential_issues\": [\"list of potential problems\"] or null,\n    \"recommendations\": [\"list of recommendations\"] or null\n}",
   "description": "System prompt for validating if a modification request is feasible for a given API",
-  "model": "gpt-3.5-turbo",
-  "temperature": 0.1,
-  "max_tokens": 300
+  "model": "gpt-5-mini",
+  "max_completion_tokens": 300
 }

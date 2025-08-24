@@ -32,9 +32,15 @@ class APIPricingService:
         
         # AI model base costs (per 1k tokens) in cents
         self.AI_MODEL_BASE_COSTS = {
-            'gpt-3.5-turbo': 0.15,      # $0.0015 per 1k tokens
+            'gpt-4o-mini': 0.15,      # $0.0015 per 1k tokens
             'gpt-4': 3.0,               # $0.03 per 1k tokens
             'gpt-4-turbo': 1.0,         # $0.01 per 1k tokens
+            'gpt-3.5-turbo': 0.3,       # $0.003 per 1k tokens
+            # GPT-5 models (based on your pricing table)
+            'gpt-5': 125.0,             # $1.25 per 1k tokens
+            'gpt-5-mini': 25.0,         # $0.25 per 1k tokens  
+            'gpt-5-nano': 5.0,          # $0.05 per 1k tokens
+            'gpt-5-chat-latest': 125.0, # $1.25 per 1k tokens
             'claude-3-haiku': 0.25,     # $0.0025 per 1k tokens
             'claude-3-sonnet': 3.0,     # $0.03 per 1k tokens (fixed from 30.0)
             'claude-3-opus': 15.0,      # $0.15 per 1k tokens (fixed from 150.0)
@@ -433,7 +439,7 @@ class APIPricingService:
             if prompt_length < 100:
                 complexity = 'simple'
                 estimated_tokens = 500
-                ai_model = 'gpt-3.5-turbo'
+                ai_model = 'gpt-4o-mini'
             elif prompt_length < 500:
                 complexity = 'medium'
                 estimated_tokens = 1500

@@ -275,9 +275,7 @@
                                     <span id="apiMethod" class="px-2 py-1 bg-green-600/20 text-green-300 rounded font-mono text-xs">POST</span>
                                     <code id="apiEndpoint" class="text-blue-300 font-mono text-sm bg-slate-700/50 px-2 py-1 rounded">-</code>
                                 </div>
-                                <button onclick="copyApiEndpoint()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors">
-                                    Copy URL
-                                </button>
+                               
                             </div>
                             <p id="apiDescription" class="text-slate-300 text-sm">-</p>
                         </div>
@@ -423,12 +421,16 @@
 
 {% block extra_scripts %}
     <script>
+        // Global variables for authentication
+        let authToken = null;
+        let currentUser = null;
+        
         // Check authentication before loading the app
         document.addEventListener('DOMContentLoaded', function() {
-            const authToken = localStorage.getItem('authToken');
-            const currentUser = localStorage.getItem('currentUser');
+            authToken = localStorage.getItem('authToken');
+            const currentUserStr = localStorage.getItem('currentUser');
             
-            if (!authToken || !currentUser) {
+            if (!authToken || !currentUserStr) {
                 // User is not authenticated, redirect to landing page
                 console.log('User not authenticated, redirecting to landing page');
                 window.location.href = '/landing';

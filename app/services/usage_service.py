@@ -37,7 +37,7 @@ class UsageService:
             'claude-4-sonnet': {'input': 0.0003, 'output': 0.0015},     # $3/$15 per MTok
             
             # OpenAI pricing (keeping existing for compatibility)
-            'gpt-3.5-turbo': {'input': 0.00015, 'output': 0.0002},
+            'gpt-4o-mini': {'input': 0.00015, 'output': 0.0002},
             'gpt-4': {'input': 0.003, 'output': 0.006},
             'gpt-4-turbo': {'input': 0.001, 'output': 0.002},
         }
@@ -236,7 +236,7 @@ class UsageService:
                 
                 # Estimate cost for the new tokens
                 estimated_new_cost_cents = self._calculate_cost_cents(
-                    "gpt-3.5-turbo",  # Use default model for estimation
+                    "gpt-4o-mini",  # Use default model for estimation
                     tokens_to_use // 2,  # Rough split between input/output
                     tokens_to_use // 2
                 )
