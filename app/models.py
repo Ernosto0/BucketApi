@@ -81,6 +81,7 @@ class ProposalModificationRequest(BaseModel):
     user_id: str = Field(..., description="Unique user identifier")
     previous_analysis: Optional[str] = Field(None, description="Previous analysis result for context")
     proposal_id: Optional[str] = Field(None, description="Unique identifier for the proposal session being modified")
+    current_proposal: Optional[Dict[str, Any]] = Field(None, description="The current proposal data to be modified")
 
 class ProposalModificationResponse(BaseModel):
     success: bool
@@ -240,6 +241,15 @@ class ChatAnalysisResponse(BaseModel):
     analysis_result: str
     timestamp: datetime 
 
+class MessageIntentRequest(BaseModel):
+    message: str = Field(..., description="The message to classify")
+    context: str = Field(default="general", description="Context for classification (e.g., 'user_has_api_proposal')")
+
+class MessageIntentResponse(BaseModel):
+    success: bool
+    intent: str  # "modification", "conversational", "unclear"
+    confidence: float = Field(default=0.0, description="Confidence score from 0.0 to 1.0")
+    reasoning: Optional[str] = Field(None, description="Brief explanation of the classification")
 
 # API Key Models
 class APIKey(BaseModel):

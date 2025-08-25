@@ -19,7 +19,7 @@ def load_test_validator_prompt() -> Dict[str, str]:
     try:
         prompt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
                                  'prompts', 'openai', 'test_validator.json')
-        with open(prompt_path, 'r') as f:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
             prompts = json.load(f)
         return prompts
     except Exception as e:
@@ -32,7 +32,7 @@ def load_test_data_generator_prompt() -> Dict[str, str]:
     try:
         prompt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
                                  'prompts', 'openai', 'generate_test_data.json')
-        with open(prompt_path, 'r') as f:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
             prompts = json.load(f)
         return prompts
     except Exception as e:

@@ -25,7 +25,7 @@ class OpenAIService:
         try:
             prompt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
                                     'prompts', 'openai', 'documentation_generator.json')
-            with open(prompt_path, 'r') as f:
+            with open(prompt_path, 'r', encoding='utf-8') as f:
                 prompts = json.load(f)
             return prompts
         except Exception as e:
@@ -255,7 +255,9 @@ class OpenAIService:
         # Format the user prompt template with actual values
         user_prompt = prompts["user_prompt_template"].format(
             prompt=prompt,
-            code=code
+            code=code,
+            user_id=user_id or "USER_ID",
+            api_slug=api_slug or "API_SLUG"
         )
         
         # Track usage
@@ -370,8 +372,7 @@ class OpenAIService:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    max_completion_tokens=prompt_config.get("max_completion_tokens", 2000),
-                    temperature=prompt_config.get("temperature", 0.7)
+                    max_completion_tokens=prompt_config.get("max_completion_tokens", 5000),
                 )
                 
                 content = response.choices[0].message.content
@@ -382,7 +383,7 @@ class OpenAIService:
                         logger.warning(f"Finish reason: {response.choices[0].finish_reason}")
                     
                     # Try with fallback model if the primary model returns empty content
-                    fallback_model = "gpt-4o-mini"
+                    fallback_model = "gpt-5-mini"
                     if model != fallback_model:
                         logger.info(f"Trying fallback model: {fallback_model}")
                         fallback_response = self.client.chat.completions.create(
@@ -392,7 +393,6 @@ class OpenAIService:
                                 {"role": "user", "content": user_prompt}
                             ],
                             max_completion_tokens=prompt_config.get("max_completion_tokens", 2000),
-                            temperature=prompt_config.get("temperature", 0.7)
                         )
                         
                         fallback_content = fallback_response.choices[0].message.content

@@ -222,125 +222,8 @@ class PromptServiceBuild:
         """Main entry point for prompt analysis"""
         return await self.analyze_user_prompt(user_id, prompt)
     
-    async def CanIModifyProposal(self, user_id: str, original_prompt: str, modification_request: str) -> str:
-        """
-        Analyze a request to modify an existing proposal.
-        This is specifically for proposal-stage modifications, not code modifications.
-        """
-        try:
-            logger.info(f"Analyzing proposal modification for user {user_id}: {modification_request[:100]}...")
-            
-            # Load prompt configuration from JSON file
-            prompt_config = load_prompt("analyze_proposal_modification")
-            system_prompt = prompt_config["system_prompt"]
-            
-            user_prompt = f"""Original API proposal: {original_prompt}
-
-Modification request: {modification_request}
-
-Analyze what the user wants to change about their original proposal."""
-            
-            analysis_result = await self._make_openai_request_with_logging(
-                system_prompt, user_prompt, prompt_config, user_id, "proposal_modification_analysis"
-            )
-            logger.info(f"Proposal modification analysis result: {analysis_result}")
-            
-            # Check for empty response
-            if not analysis_result or analysis_result.strip() == "":
-                logger.error("Empty response received from OpenAI for proposal modification analysis")
-                return json.dumps({
-                    "status": "error",
-                    "message": "Failed to analyze the modification request due to empty response. Please try again.",
-                    "original_prompt": original_prompt,
-                    "modification_request": modification_request
-                }, indent=2)
-            
-            # Parse the JSON response and convert to our expected format
-            try:
-                analysis = json.loads(analysis_result)
-                decision = analysis.get("status", "INVALID_MODIFICATION")
-                
-                # Convert the response to match our ProposalModificationResponse format
-                if decision == "VALID_MODIFICATION":
-                    # Generate a proper proposal using the modified requirements
-                    modified_requirements = analysis.get("modified_requirements", "")
-                    
-                    try:
-                        # Call the existing proposal generation method with the modified requirements
-                        proposal_response = await self.PropeseTheBuild(user_id, modified_requirements)
-                        proposal_data = json.loads(proposal_response)
-                        proposal_object = proposal_data.get("proposal", {})
-                        
-                        # If proposal generation failed, create a minimal fallback
-                        if not proposal_object:
-                            proposal_object = {
-                                "api_name": "Modified API",
-                                "description": modified_requirements,
-                                "functionality": ["Process modified requirements"]
-                            }
-                    except Exception as proposal_error:
-                        logger.error(f"Failed to generate proposal for modification: {str(proposal_error)}")
-                        # Fallback proposal if generation fails
-                        proposal_object = {
-                            "api_name": "Modified API", 
-                            "description": modified_requirements,
-                            "functionality": ["Process modified requirements"]
-                        }
-                    
-                    return json.dumps({
-                        "status": "buildable",
-                        "message": f"I can modify your proposal: {analysis.get('reasoning', 'Modification is valid')}",
-                        "modification_type": analysis.get("modification_type"),
-                        "specific_changes": analysis.get("specific_changes", []),
-                        "modified_requirements": modified_requirements,
-                        "original_prompt": original_prompt,
-                        "modification_request": modification_request,
-                        "proposal": proposal_object
-                    }, indent=2)
-                elif decision == "NEEDS_CLARIFICATION":
-                    return json.dumps({
-                        "status": "needs_clarification",
-                        "message": f"I need more details about your modification: {analysis.get('reasoning', 'Please clarify your request')}",
-                        "questions": analysis.get("questions", []),
-                        "original_prompt": original_prompt,
-                        "modification_request": modification_request
-                    }, indent=2)
-                else:  # INVALID_MODIFICATION
-                    return json.dumps({
-                        "status": "not_buildable",
-                        "message": f"I cannot make this modification: {analysis.get('reasoning', 'Invalid modification request')}",
-                        "reasons": [analysis.get("reasoning", "Invalid modification request")],
-                        "original_prompt": original_prompt,
-                        "modification_request": modification_request
-                    }, indent=2)
-                    
-            except json.JSONDecodeError as parse_error:
-                logger.error(f"Failed to parse proposal modification analysis result as JSON: {str(parse_error)}")
-                logger.error(f"Raw analysis result content: {repr(analysis_result)}")
-                return json.dumps({
-                    "status": "error",
-                    "message": "Failed to analyze the modification request. Please try again.",
-                    "original_prompt": original_prompt,
-                    "modification_request": modification_request
-                }, indent=2)
-                
-        except Exception as e:
-            logger.error(f"Error analyzing proposal modification: {str(e)}")
-            
-            # Try a fallback with simpler approach
-            try:
-                logger.info("Attempting fallback analysis with simplified prompt...")
-                fallback_result = await self._fallback_proposal_analysis(original_prompt, modification_request, user_id)
-                return fallback_result
-            except Exception as fallback_error:
-                logger.error(f"Fallback analysis also failed: {str(fallback_error)}")
-                
-            return json.dumps({
-                "status": "error",
-                "message": f"Failed to analyze modification request: {str(e)}",
-                "original_prompt": original_prompt,
-                "modification_request": modification_request
-            }, indent=2)
+    # NOTE: Removed CanIModifyProposal method - we now go directly to ModifyExistingProposal
+    # This eliminates unnecessary analysis steps and reduces token usage
     
     async def _fallback_proposal_analysis(self, original_prompt: str, modification_request: str, user_id: str) -> str:
         """Fallback method for proposal analysis with simpler prompt."""
@@ -425,6 +308,186 @@ Analyze what the user wants to change about their original proposal."""
         logger.info(f"Asking for clarification for user {user_id}")
         return json.dumps(response, indent=2)
 
+    async def ModifyExistingProposal(self, user_id: str, original_proposal: dict, modification_request: str, original_prompt: str) -> str:
+        """
+        Modify an existing proposal by applying specific changes while preserving the original context.
+        This maintains the relationship to the original request instead of generating a completely new proposal.
+        """
+        try:
+            logger.info(f"Modifying existing proposal for user {user_id}: {modification_request[:100]}...")
+            
+            # Load the proper prompt configuration from JSON file
+            prompt_config = load_prompt("analyze_proposal_modification")
+            
+            # Create a specialized prompt for proposal modification
+            system_prompt = """You are an AI assistant that modifies existing API proposals based on user feedback.
+
+Your task is to:
+1. Take the existing proposal and apply the requested modifications
+2. Preserve all unrelated aspects of the original proposal
+3. Generate a natural conversational message about the modifications made
+4. Maintain the relationship to the original request
+
+Guidelines:
+- Only change what the user specifically requested
+- Keep the same API name unless explicitly asked to change it
+- Preserve functionality that wasn't mentioned in the modification
+- Generate a conversational message that acknowledges the specific changes made
+- Maintain professional tone while being specific about what was modified
+
+Respond with ONLY this JSON object:
+{
+    "conversational_message": "A natural message that acknowledges the specific modifications made (e.g., 'I've updated the API to remove the id and context_chars fields as requested, while keeping all other functionality intact.')",
+    "api_name": "Keep the same unless user requested change",
+    "description": "Updated description if relevant to changes",
+    "functionality": ["Updated functionality list with changes applied"],
+    "input_format": {
+        "type": "Updated input format with changes",
+        "fields": ["Updated field list with requested changes"],
+        "example": "Updated example reflecting the changes"
+    },
+    "output_format": {
+        "type": "Updated output format with changes",
+        "fields": ["Updated field list with requested changes"],
+        "example": "Updated example reflecting the changes"
+    },
+    "endpoints": [
+        {"method": "...", "path": "...", "description": "Updated if relevant to changes"}
+    ]
+}"""
+
+            user_prompt = f"""Original API Proposal:
+{json.dumps(original_proposal, indent=2)}
+
+Original User Request: {original_prompt}
+
+Modification Request: {modification_request}
+
+Please modify the proposal by applying only the requested changes while preserving everything else."""
+
+            # Use the class's OpenAI request method with proper config from JSON
+            modified_proposal_result = await self._make_openai_request_with_logging(
+                system_prompt, 
+                user_prompt, 
+                prompt_config,  # Use the loaded config instead of hardcoded values
+                user_id, 
+                "proposal_modification"
+            )
+            
+            if not modified_proposal_result:
+                raise Exception("Failed to generate modified proposal")
+            logger.info(f"Generated modified proposal: {modified_proposal_result[:200]}...")
+            
+            # Parse the JSON response
+            try:
+                modified_proposal = json.loads(modified_proposal_result)
+                
+                # Extract the conversational message
+                conversational_message = modified_proposal.get("conversational_message", "I've updated the API proposal based on your feedback!")
+                
+                # Create response with the modified proposal
+                response_data = {
+                    "status": "proposal_ready",
+                    "message": conversational_message,
+                    "original_prompt": original_prompt,
+                    "proposal": modified_proposal,
+                    "confirmation_needed": True,
+                    "next_steps": [
+                        "Review the updated API proposal",
+                        "Click 'Build It' if you're satisfied",
+                        "Or ask for additional modifications if needed"
+                    ]
+                }
+                
+                logger.info(f"Created modified proposal for user {user_id}")
+                return json.dumps(response_data, indent=2)
+                
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse modified proposal result: {modified_proposal_result}")
+                # Fallback to original proposal with error message
+                response_data = {
+                    "status": "error",
+                    "message": "I had trouble applying your modifications. Let me try a different approach.",
+                    "original_prompt": original_prompt,
+                    "proposal": original_proposal,
+                    "confirmation_needed": True
+                }
+                return json.dumps(response_data, indent=2)
+                
+        except Exception as e:
+            logger.error(f"Error modifying proposal: {str(e)}")
+            
+            # Try a simplified fallback approach if the main request failed
+            if "token limit" in str(e).lower() or "truncated" in str(e).lower():
+                logger.warning("Token limit hit, trying fallback approach with shorter prompt")
+                try:
+                    return await self._fallback_proposal_modification(user_id, original_proposal, modification_request, original_prompt)
+                except Exception as fallback_error:
+                    logger.error(f"Fallback modification also failed: {str(fallback_error)}")
+            
+            # Final fallback response
+            response_data = {
+                "status": "error",
+                "message": f"I encountered an issue while modifying the proposal: {str(e)}",
+                "original_prompt": original_prompt,
+                "proposal": original_proposal,
+                "confirmation_needed": True
+            }
+            return json.dumps(response_data, indent=2)
+
+    async def _fallback_proposal_modification(self, user_id: str, original_proposal: dict, modification_request: str, original_prompt: str) -> str:
+        """Fallback method for proposal modification with simpler prompt and conservative token limits."""
+        system_prompt = """Modify this API proposal based on user feedback. Respond with valid JSON only.
+
+Apply the requested changes while preserving everything else. 
+
+JSON format:
+{
+    "conversational_message": "Brief acknowledgment of changes made",
+    "api_name": "Keep same unless requested to change",
+    "description": "Updated if relevant",
+    "functionality": ["Updated list with changes"],
+    "input_format": {"type": "...", "fields": [...], "example": "..."},
+    "output_format": {"type": "...", "fields": [...], "example": "..."},
+    "endpoints": [{"method": "...", "path": "...", "description": "..."}]
+}"""
+        
+        # Simplified user prompt
+        user_prompt = f"Original: {json.dumps(original_proposal, indent=1)}\nChange: {modification_request}\nApply changes."
+        
+        # Use very conservative token limits for fallback
+        fallback_config = {
+            "model": "gpt-5-mini",
+            "max_completion_tokens": 800  # Much smaller limit for fallback
+        }
+        
+        try:
+            response = await self._make_openai_request_with_logging(
+                system_prompt, user_prompt, fallback_config, user_id, "fallback_proposal_modification"
+            )
+            
+            if response and response.strip():
+                # Try to parse as JSON
+                modified_proposal = json.loads(response)
+                
+                # Create response with the modified proposal
+                response_data = {
+                    "status": "proposal_ready",
+                    "message": modified_proposal.get("conversational_message", "I've updated the API proposal based on your feedback!"),
+                    "original_prompt": original_prompt,
+                    "proposal": modified_proposal,
+                    "confirmation_needed": True
+                }
+                
+                logger.info(f"Fallback modification successful for user {user_id}")
+                return json.dumps(response_data, indent=2)
+            else:
+                raise Exception("Empty response from fallback")
+                
+        except Exception as e:
+            logger.error(f"Fallback modification failed: {str(e)}")
+            raise e
+
     async def PropeseTheBuild(self, user_id: str, prompt: str) -> str:
         """
         Create a detailed explanation of what the API will do and ask for user confirmation.
@@ -439,25 +502,30 @@ Analyze what the user wants to change about their original proposal."""
             
             user_prompt = f"Create a detailed API proposal for this request: {prompt}"
             
-            response = self.client.chat.completions.create(
-                model=prompt_config.get("model", "gpt-5-mini"),
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ]
-              )
+            # Use the class's OpenAI request method
+            proposal_result = await self._make_openai_request_with_logging(
+                system_prompt, 
+                user_prompt, 
+                prompt_config, 
+                user_id, 
+                "api_proposal"
+            )
             
-            proposal_result = response.choices[0].message.content.strip()
+            if not proposal_result:
+                raise Exception("Failed to generate API proposal")
             logger.info(f"Generated API proposal: {proposal_result[:200]}...")
             
             # Parse the JSON response
             try:
                 proposal = json.loads(proposal_result)
                 
+                # Extract the conversational message from the proposal
+                conversational_message = proposal.get("conversational_message", "I've created a detailed API proposal based on your requirements!")
+                
                 # Create user-friendly response with the proposal
                 response_data = {
                     "status": "proposal_ready",
-                    "message": "Here's what I propose to build for you:",
+                    "message": conversational_message,
                     "original_prompt": prompt,
                     "proposal": proposal,
                     "confirmation_needed": True,
@@ -583,15 +651,17 @@ class PromptServiceModify:
             if existing_api_code:
                 user_prompt += f"\n\nExisting API code:\n{existing_api_code[:1000]}..."
             
-            response = self.client.chat.completions.create(
-                model=prompt_config.get("model", settings.OPENAI_MODEL),
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ]
+            # Use the class's OpenAI request method
+            analysis_result = await self._make_openai_request_with_logging(
+                system_prompt, 
+                user_prompt, 
+                prompt_config, 
+                user_id, 
+                "modify_analysis"
             )
             
-            analysis_result = response.choices[0].message.content.strip()
+            if not analysis_result:
+                raise Exception("Failed to analyze modification request")
             logger.info(f"Modify analysis result: {analysis_result}")
             
             # Parse the JSON response
@@ -691,14 +761,19 @@ class PromptServiceModify:
             Is this modification feasible?
             """
             
-            response = self.client.chat.completions.create(
-                model=prompt_config.get("model", settings.OPENAI_MODEL),
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ]            )
+            # Use the class's OpenAI request method
+            validation_result = await self._make_openai_request_with_logging(
+                system_prompt, 
+                user_prompt, 
+                prompt_config, 
+                user_id, 
+                "validation"
+            )
             
-            return response.choices[0].message.content.strip()
+            if not validation_result:
+                raise Exception("Failed to validate modification request")
+                
+            return validation_result
             
         except Exception as e:
             logger.error(f"Error validating modification request: {str(e)}")

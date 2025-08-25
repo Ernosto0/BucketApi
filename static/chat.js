@@ -10,9 +10,192 @@ let conversationState = null; // "proposal", "code_generated", null
 let currentProposalId = null; // Unique identifier for current proposal session
 let currentProposal = null; // Store current proposal data
 
-// Proposal modification handling
+// Helper function to detect if a message is a modification request using cheap LLM classification
+async function isModificationRequest(message) {
+    try {
+        // Quick local checks for very obvious cases to save API calls
+        const lowerMessage = message.toLowerCase().trim();
+        
+        console.log('isModificationRequest called with:', {
+            originalMessage: message,
+            lowerMessage: lowerMessage
+        });
+        
+        // Very obvious conversational patterns - no need for LLM
+        if (/^(thanks?|thank you|ty|thx|good|great|perfect|ok|okay|yes|no)$/i.test(lowerMessage)) {
+            console.log('Matched conversational pattern - returning false');
+            return false;
+        }
+        
+        // Very obvious modification patterns - no need for LLM  
+        if (/^(add|remove|change|delete|modify|update)\s/i.test(lowerMessage)) {
+            console.log('Matched obvious modification pattern - returning true');
+            return true;
+        }
+        
+        // Additional obvious modification patterns
+        if (/(but i|i only|i don't need|i want|i need|without|exclude|only extract|just|remove|add|change|delete|modify|update|can you)/i.test(lowerMessage)) {
+            console.log('Matched additional modification pattern - returning true');
+            return true;
+        }
+        
+        // For everything else, use cheap LLM classification
+        console.log('No local pattern matched, calling LLM classification...');
+        
+        const response = await fetch('/classify-message-intent', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+            },
+            body: JSON.stringify({
+                message: message,
+                context: 'user_has_api_proposal'
+            })
+        });
+        
+        const result = await response.json();
+        console.log('LLM classification result:', result);
+        
+        if (result.success) {
+            const isModification = result.intent === 'modification';
+            console.log('LLM classification: returning', isModification);
+            return isModification;
+        } else {
+            console.warn('Intent classification failed, falling back to conservative approach');
+            // Fallback: assume it's conversational unless it clearly looks like modification
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('Error classifying message intent:', error);
+        // Fallback: assume conversational to be safe
+        return false;
+    }
+}
+
+// Helper function to handle conversational messages
+function handleConversationalMessage(message) {
+    const lowerMessage = message.toLowerCase().trim();
+    
+    // Generate appropriate responses for different types of conversational messages
+    let response = '';
+    
+    if (/^(thanks?|thank you|ty|thx)/.test(lowerMessage)) {
+        response = "You're welcome! 😊 When you're ready to proceed, you can click 'Build It!' to generate your API, or let me know if you'd like to make any changes to the proposal.";
+    } else if (/(good|great|perfect|excellent|awesome|nice|cool)/.test(lowerMessage)) {
+        response = "Great to hear! 🎉 Your API proposal is ready. You can click 'Build It!' to generate the code, or feel free to request any modifications you'd like.";
+    } else if (/(looks? good|that('?s| is) good)/.test(lowerMessage)) {
+        response = "Perfect! 👍 Your API proposal meets your needs. Ready to build it? Just click 'Build It!' or let me know if you want to adjust anything.";
+    } else if (/^(hi|hello|hey)/.test(lowerMessage)) {
+        response = "Hello! 👋 I see you have an API proposal ready. You can review it in the preview panel and click 'Build It!' when you're ready, or ask me to make any changes.";
+    } else if (/^(ok|okay|alright|sounds? good)/.test(lowerMessage)) {
+        response = "Excellent! ✅ Your API proposal is all set. You can proceed with building it or request any modifications you need.";
+    } else {
+        // Generic response for other conversational messages
+        response = "I'm here to help with your API! 🤖 Your current proposal is ready for review. You can build it as-is or ask me to make any changes you'd like.";
+    }
+    
+    addMessage('assistant', response);
+}
+
+// Proposal modification handling with explicit context
+async function handleProposalModificationWithContext(modificationRequest, userId, proposalContext) {
+    try {
+        console.log('handleProposalModificationWithContext called with:', {
+            modificationRequest,
+            userId,
+            proposalContext,
+            hasProposalData: !!proposalContext?.proposal
+        });
+        
+        showTypingIndicator("Analyzing your proposal modification...");
+        
+        const modifyResponse = await fetch('/modify-proposal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+            },
+            body: JSON.stringify({
+                original_prompt: proposalContext.original_prompt,
+                modification_request: modificationRequest,
+                user_id: userId,
+                proposal_id: proposalContext.proposal_id || currentProposalId,
+                current_proposal: proposalContext.proposal
+            })
+        });
+
+        const modifyResult = await modifyResponse.json();
+        console.log('Proposal Modification Response:', modifyResult);
+        console.log('Modification Result Keys:', Object.keys(modifyResult));
+        console.log('Modification Proposal field exists:', 'proposal' in modifyResult);
+        console.log('Modification Proposal field value:', modifyResult.proposal);
+        
+        if (modifyResult.success) {
+            // Update conversation state
+            conversationState = modifyResult.conversation_state;
+            currentProposalId = modifyResult.proposal_id;
+            
+            // Update current proposal with modified version
+            if (modifyResult.modified_prompt) {
+                currentProposal = {
+                    ...currentProposal,
+                    original_prompt: modifyResult.modified_prompt,
+                    modified_prompt: modifyResult.modified_prompt,
+                    status: modifyResult.status
+                };
+            }
+            
+            // If the modification response contains updated proposal data, update the current proposal
+            if (modifyResult.proposal) {
+                currentProposal = {
+                    ...currentProposal,
+                    proposal: modifyResult.proposal
+                };
+                console.log('Updated currentProposal with modified proposal data');
+            }
+            
+            // Also update with modified requirements if available
+            if (modifyResult.modified_requirements) {
+                currentProposal = {
+                    ...currentProposal,
+                    modified_requirements: modifyResult.modified_requirements
+                };
+                console.log('Updated currentProposal with modified requirements');
+            }
+            
+            // Handle the modification response
+            if (modifyResult.status === 'buildable') {
+                addProposalMessage(modifyResult, modifyResult.modified_prompt || modificationRequest, userId);
+            } else if (modifyResult.status === 'needs_clarification') {
+                addClarificationMessage(modifyResult);
+            } else if (modifyResult.status === 'not_buildable') {
+                addRejectionMessage(modifyResult);
+            }
+        } else {
+            addMessage('assistant', `❌ Failed to process proposal modification: ${modifyResult.message || 'Unknown error'}`);
+        }
+        
+        hideTypingIndicator();
+    } catch (error) {
+        console.error('Error handling proposal modification:', error);
+        addMessage('assistant', '❌ Failed to process proposal modification: Network error');
+        hideTypingIndicator();
+    }
+}
+
+// Legacy proposal modification handling (for modify_request status)
 async function handleProposalModification(modificationRequest, userId) {
     try {
+        console.log('handleProposalModification called with:', {
+            modificationRequest,
+            userId,
+            currentProposal,
+            currentProposalId,
+            hasProposalData: !!currentProposal?.proposal
+        });
+        
         showTypingIndicator("Analyzing your proposal modification...");
         
         const modifyResponse = await fetch('/modify-proposal', {
@@ -25,7 +208,8 @@ async function handleProposalModification(modificationRequest, userId) {
                 original_prompt: currentProposal.original_prompt,
                 modification_request: modificationRequest,
                 user_id: userId,
-                proposal_id: currentProposalId
+                proposal_id: currentProposalId,
+                current_proposal: currentProposal.proposal
             })
         });
 
@@ -304,6 +488,37 @@ async function sendMessage() {
         return;
     }
 
+    // Check if we're already in proposal state - if so, check if it's a modification request
+    if (conversationState === 'proposal' && currentProposal && currentProposal.proposal) {
+        console.log('Already in proposal state - checking if message is a modification request', {
+            conversationState,
+            hasCurrentProposal: !!currentProposal,
+            hasProposalData: !!currentProposal?.proposal,
+            message: message
+        });
+        
+        // Check if the message looks like a modification request
+        const isModification = await isModificationRequest(message);
+        console.log('isModificationRequest returned:', isModification);
+        
+        if (isModification) {
+            console.log('Message detected as modification request - bypassing analysis');
+            
+            // Get user ID (from auth or generate temp one)
+            const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
+            
+            // Go directly to modification without analysis
+            await handleProposalModificationWithContext(message, userId, currentProposal);
+            return;
+        } else {
+            console.log('Message does not appear to be a modification request - handling as conversational');
+            
+            // Handle conversational messages (thanks, looks good, etc.)
+            handleConversationalMessage(message);
+            return;
+        }
+    }
+
             // Show typing indicator with generation mode info
         const modeText = generationMode === 'multi-step' ? 
             `Analyzing your request... (Multi-step: ${selectedPipeline})` : 
@@ -338,16 +553,25 @@ async function sendMessage() {
         console.log('Proposal field value:', proposalResult.proposal);
         
         if (proposalResult.success) {
+            // Store the previous conversation state before updating
+            const previousConversationState = conversationState;
+            const previousProposal = currentProposal;
+            
             // Store conversation state from proposal response
             conversationState = proposalResult.conversation_state;
             currentProposalId = proposalResult.proposal_id;
             currentProposal = proposalResult;
             
-            console.log('Proposal State:', { conversationState, currentProposalId });
+            console.log('Proposal State:', { 
+                previousState: previousConversationState, 
+                newState: conversationState, 
+                currentProposalId,
+                hasPreviousProposal: !!previousProposal?.proposal
+            });
             
             // Handle different proposal response types
             if (proposalResult.status === 'buildable' || proposalResult.status === 'proposal_ready') {
-                console.log('Calling addProposalMessage with status:', proposalResult.status);
+                console.log('Creating new proposal - calling addProposalMessage');
                 // Show detailed API proposal and ask for confirmation
                 addProposalMessage(proposalResult, message, userId);
             } else if (proposalResult.status === 'needs_clarification') {
@@ -635,16 +859,23 @@ function addProposalMessage(analysis, originalPrompt, userId) {
     // Update the API preview panel with the proposal
     updateAPIProposal(analysis, originalPrompt, userId);
     
-    // Show brief confirmation in chat
+    // Get the conversational message from the analysis
+    // First try to get it from the proposal object, then fallback to the main message
+    const conversationalMessage = analysis.proposal?.conversational_message || analysis.message || "I've created a detailed API proposal based on your requirements!";
+    
+    // Show organic conversational response in chat
     const content = `
         <div class="space-y-4">
             <div class="flex items-center space-x-2">
                 <span class="status-badge bg-blue-900/50 text-blue-400 border-blue-500/30">Proposal Ready</span>
-                <h3 class="font-semibold text-white">Draft API spec generated — check the Preview panel.</h3>
+                <h3 class="font-semibold text-white">API Proposal Generated</h3>
             </div>
             <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
-                <p class="text-blue-300 text-sm">
-                    📋 I've created a detailed API proposal based on your requirements. Review the specifications in the <strong>API Preview panel</strong> on the right, then let me know if you'd like to build it or make any changes.
+                <p class="text-blue-300 text-base leading-relaxed">
+                    ${escapeHtml(conversationalMessage)} 
+                </p>
+                <p class="text-blue-300/80 text-sm mt-3">
+                    📋 Check out the detailed specifications in the <strong>API Preview panel</strong> on the right, then let me know if you'd like to build it or make any changes.
                 </p>
             </div>
         </div>
@@ -1713,15 +1944,32 @@ function updateAPIProposal(analysis, originalPrompt, userId) {
 function extractAPIDescription(documentation) {
     if (!documentation) return '';
     
-    // Extract first line or first sentence as description
+    // Look for Description section first
+    const descMatch = documentation.match(/###?\s*Description[:\s]*\n([^\n#]+)/i);
+    if (descMatch) {
+        const desc = descMatch[1].trim();
+        return desc.length > 150 ? desc.substring(0, 150) + '...' : desc;
+    }
+    
+    // Extract first meaningful line as description, filtering out emoji headers and formatting
     const lines = documentation.split('\n');
     for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('*')) {
-            return trimmed.length > 100 ? trimmed.substring(0, 100) + '...' : trimmed;
+        // Skip empty lines, headers, and lines that start with emojis or are formatting artifacts
+        if (trimmed && 
+            !trimmed.startsWith('#') && 
+            !trimmed.startsWith('*') && 
+            !trimmed.startsWith('🌐') && 
+            !trimmed.startsWith('📝') && 
+            !trimmed.startsWith('📤') && 
+            !trimmed.startsWith('💻') &&
+            !trimmed.startsWith('Based on the provided') &&
+            !trimmed.match(/^[\u{1F000}-\u{1F9FF}]/u) && // Filter out other emojis
+            trimmed.length > 10) {
+            return trimmed.length > 150 ? trimmed.substring(0, 150) + '...' : trimmed;
         }
     }
-    return '';
+    return 'API endpoint for processing requests';
 }
 
 function updateParametersTable(apiData) {
@@ -1776,8 +2024,8 @@ function extractParametersFromDocumentation(documentation) {
     // Enhanced parameter extraction from markdown documentation
     const doc = documentation.toLowerCase();
     
-    // Look for parameter sections in documentation
-    const paramSectionMatch = documentation.match(/parameters?[:\-\s]*\n(.*?)(?=\n\n|\n#|$)/is);
+    // Look for parameter sections in documentation with better emoji filtering
+    const paramSectionMatch = documentation.match(/(?:📝\s*)?parameters?[:\-\s]*\n(.*?)(?=\n\n|\n#|\n📤|\n💻|$)/is);
     if (paramSectionMatch) {
         const paramSection = paramSectionMatch[1];
         
@@ -1863,8 +2111,8 @@ function generateExampleResponse(apiData) {
     // Generate example based on API documentation or type
     const doc = (apiData.documentation || '').toLowerCase();
     
-    // Try to extract actual response format from documentation
-    const responseMatch = apiData.documentation && apiData.documentation.match(/response[:\-\s]*\n```json\s*(.*?)\s*```/is);
+    // Try to extract actual response format from documentation (handling emoji headers)
+    const responseMatch = apiData.documentation && apiData.documentation.match(/(?:📤\s*)?(?:example\s*)?response[:\-\s]*\n```json\s*(.*?)\s*```/is);
     if (responseMatch) {
         try {
             return JSON.parse(responseMatch[1]);
@@ -1968,8 +2216,8 @@ function generateExampleResponse(apiData) {
 function extractSampleTestDataFromDocumentation(documentation) {
     if (!documentation) return null;
     
-    // Look for Sample Test Data section in documentation
-    const sampleTestDataMatch = documentation.match(/### Sample Test Data\s*\n```json\s*(.*?)\s*```/is);
+    // Look for Sample Test Data section in documentation (with or without emoji)
+    const sampleTestDataMatch = documentation.match(/###?\s*Sample Test Data\s*\n```json\s*(.*?)\s*```/is);
     if (sampleTestDataMatch) {
         try {
             return JSON.parse(sampleTestDataMatch[1]);
@@ -1978,6 +2226,18 @@ function extractSampleTestDataFromDocumentation(documentation) {
             return null;
         }
     }
+    
+    // Also look for example request/payload sections
+    const exampleMatch = documentation.match(/(?:example|request|payload)[:\s]*\n```json\s*(.*?)\s*```/is);
+    if (exampleMatch) {
+        try {
+            return JSON.parse(exampleMatch[1]);
+        } catch (e) {
+            console.log('Failed to parse example data from documentation:', e);
+            return null;
+        }
+    }
+    
     return null;
 }
 

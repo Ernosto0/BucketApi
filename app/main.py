@@ -19,7 +19,7 @@ from .models import (
     ProposalRequest, ProposalResponse, ProposalModificationRequest, ProposalModificationResponse,
     APIGenerationRequest, APIGenerationResponse, APIModificationRequest, APIModificationResponse,
     APIExecutionRequest, APIExecutionResponse, SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
-    ChatAnalysisRequest, ChatAnalysisResponse, HealthResponse, ChatMessage,
+    ChatAnalysisRequest, ChatAnalysisResponse, MessageIntentRequest, MessageIntentResponse, HealthResponse, ChatMessage,
     RegisterResponse, LoginResponse, TestRequest, TestResponse,
     APIKey, CreateAPIKeyRequest, CreateAPIKeyResponse, ListAPIKeysResponse, 
     UpdateAPIKeyRequest, DeleteAPIKeyResponse, APIInputData,
@@ -735,7 +735,104 @@ async def analyze_chat_prompt(request: ChatAnalysisRequest, http_request: Reques
             "timestamp": datetime.now()
         }
 
+@app.post("/classify-message-intent", response_model=MessageIntentResponse)
+async def classify_message_intent(request: MessageIntentRequest):
+    """
+    Classify the intent of a user message to determine if it's a modification request or conversational.
+    Uses a cheap, fast LLM for accurate classification.
+    """
+    try:
+        logger.info(f"Classifying message intent: {request.message[:50]}... (context: {request.context})")
+        
+        # Create a simple classification prompt
+        system_prompt = """You are a message intent classifier. Classify user messages as:
 
+- "modification" - User wants to modify/change their API proposal
+- "conversational" - User is just chatting, saying thanks, or asking unrelated questions
+
+CRITICAL: The user has an existing API proposal. If they express ANY preference, requirement, or want to change ANYTHING about the API functionality, it's a MODIFICATION.
+
+Key modification indicators:
+- Expressing preferences: "I want", "I need", "I prefer", "I only want"
+- Negating features: "I don't need", "I don't want", "without", "exclude"
+- Specifying requirements: "only extract", "just", "specifically", "but I"
+- Feature changes: any mention of changing behavior, adding/removing features
+- Scope changes: "only", "just", "specifically", "limited to"
+
+Examples of MODIFICATION:
+- "But I only want to extract human names" (scope limitation)
+- "I don't need the id field" (removal request)
+- "Can you add authentication?" (addition request)
+- "Make it only extract human names" (behavior change)
+- "I only want person names, not organizations" (specification)
+- "Actually, I need it to be faster" (requirement change)
+- "Without the context_chars field" (removal)
+- "I prefer JSON output" (format preference)
+
+Examples of CONVERSATIONAL:
+- "Thanks!" (gratitude)
+- "That looks good" (approval without changes)
+- "Perfect!" (satisfaction)
+- "How are you?" (unrelated question)
+- "Hello" (greeting)
+- "OK" or "Alright" (simple acknowledgment)
+
+If in doubt, lean towards MODIFICATION rather than conversational.
+
+Respond with ONLY this JSON format:
+{
+    "intent": "modification" | "conversational",
+    "confidence": 0.0-1.0,
+    "reasoning": "Brief explanation"
+}"""
+
+        user_prompt = f"Message: {request.message}\nContext: {request.context}"
+        
+        # Use OpenAI service with the cheapest, fastest model
+        from .services.openai_service import OpenAIService
+        openai_service = OpenAIService()
+        
+        response = await openai_service.create_chat_completion(
+            model="gpt-4o-mini",  # Cheapest, fastest model
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=100  # Keep it very short
+        )
+        
+        result_text = response.choices[0].message.content.strip()
+        
+        # Parse the JSON response
+        import json
+        try:
+            classification = json.loads(result_text)
+            
+            return MessageIntentResponse(
+                success=True,
+                intent=classification.get("intent", "conversational"),
+                confidence=classification.get("confidence", 0.5),
+                reasoning=classification.get("reasoning", "Classification completed")
+            )
+            
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse classification result: {result_text}")
+            # Fallback to conservative classification
+            return MessageIntentResponse(
+                success=True,
+                intent="conversational",  # Default to conversational when uncertain
+                confidence=0.3,
+                reasoning="Failed to parse LLM response, defaulting to conversational"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error classifying message intent: {str(e)}")
+        return MessageIntentResponse(
+            success=False,
+            intent="conversational",  # Safe default
+            confidence=0.0,
+            reasoning=f"Error during classification: {str(e)}"
+        )
 
 @app.post("/test-proposal")
 async def test_proposal():
@@ -967,151 +1064,125 @@ async def modify_proposal(
         )
     
     try:
-        # Create a modified prompt by combining original prompt with modification request
-        modified_prompt = f"{request.original_prompt}\n\nAdditional requirements: {request.modification_request}"
-        
-        # Analyze the modification request using specialized proposal modification analysis
-        logger.info("Analyzing proposal modification with PromptServiceBuild...")
+        # Skip analysis and go directly to modification - much simpler and faster!
+        logger.info("Directly modifying existing proposal (skipping analysis step)...")
         prompt_service = PromptServiceBuild()
-        analysis_result = await prompt_service.CanIModifyProposal(
-            request.user_id, 
-            request.original_prompt, 
-            request.modification_request
-        )
         
-        # Parse the analysis result
+        # Import json at the top level for cleaner code
         import json
+        
+        # Go directly to modification without analysis
         try:
-            analysis_data = json.loads(analysis_result)
-            status = analysis_data.get("status")
-            
-            # Create modified prompt if the modification is valid
-            if status == "buildable":
-                # Use the analyzed modified requirements or fall back to combined prompt
-                modified_requirements = analysis_data.get("modified_requirements")
-                if modified_requirements:
-                    modified_prompt = modified_requirements
-                else:
-                    modified_prompt = f"{request.original_prompt}\n\nAdditional requirements: {request.modification_request}"
+            # Check if we have the current proposal data
+            if request.current_proposal:
+                logger.info("Using existing proposal data for direct context-aware modification")
+                # Use the ModifyExistingProposal method that preserves context
+                modified_proposal_result = await prompt_service.ModifyExistingProposal(
+                    request.user_id, 
+                    request.current_proposal, 
+                    request.modification_request,
+                    request.original_prompt
+                )
                 
-                # Generate a new proposal with the modified requirements
-                logger.info("Generating new proposal with modified requirements...")
-                logger.info(f"Modified prompt for new proposal: {modified_prompt}")
                 try:
-                    # Use PropeseTheBuild directly to generate a proposal instead of going through analysis
-                    new_proposal_result = await prompt_service.PropeseTheBuild(request.user_id, modified_prompt)
+                    analysis_data = json.loads(modified_proposal_result)
+                    modified_status = analysis_data.get("status")
                     
-                    try:
-                        new_proposal_data = json.loads(new_proposal_result)
-                        new_status = new_proposal_data.get("status")
+                    # If the modification was successful, use it
+                    if modified_status in ["buildable", "proposal_ready", "error"]:
+                        logger.info(f"Successfully processed proposal modification with status: {modified_status}")
+                        status = "buildable" if modified_status != "error" else "error"
+                        logger.info(f"Modified proposal data keys: {list(analysis_data.keys())}")
+                        if "proposal" in analysis_data:
+                            logger.info(f"Modified proposal contains proposal data with keys: {analysis_data['proposal'].keys() if analysis_data['proposal'] else 'None'}")
+                    else:
+                        logger.warning(f"Unexpected proposal modification status: {modified_status}")
+                        status = "buildable"  # Default to buildable
                         
-                        # If the new proposal is valid, use it
-                        if new_status in ["buildable", "proposal_ready"]:
-                            logger.info("Successfully generated new proposal with modifications")
-                            # Update the analysis data with the new proposal
-                            analysis_data = new_proposal_data
-                            status = "buildable"  # Always mark as buildable for frontend compatibility
-                            logger.info(f"New proposal data keys: {list(new_proposal_data.keys())}")
-                            if "proposal" in new_proposal_data:
-                                logger.info(f"New proposal contains proposal data: {new_proposal_data['proposal'].keys() if new_proposal_data['proposal'] else 'None'}")
-                        else:
-                            logger.warning(f"New proposal generation failed with status: {new_status}")
-                            # Fall back to original analysis but mark as buildable
-                            status = "buildable"
-                            
-                    except json.JSONDecodeError:
-                        logger.error("Failed to parse new proposal result")
-                        # Fall back to original analysis
-                        status = "buildable"
-                        
-                except Exception as e:
-                    logger.error(f"Error generating new proposal: {str(e)}")
-                    # Fall back to original analysis
-                    status = "buildable"
+                except json.JSONDecodeError:
+                    logger.error("Failed to parse modified proposal result")
+                    # Create fallback response
+                    analysis_data = {
+                        "status": "error",
+                        "message": "I had trouble processing your modification request. Please try rephrasing it.",
+                        "original_prompt": request.original_prompt,
+                        "proposal": request.current_proposal
+                    }
+                    status = "error"
             else:
-                modified_prompt = None
+                logger.warning("No current proposal data provided, cannot modify existing proposal")
+                # Create error response when no proposal data is available
+                analysis_data = {
+                    "status": "error", 
+                    "message": "I need the current proposal data to make modifications. Please try again.",
+                    "original_prompt": request.original_prompt
+                }
+                status = "error"
             
-            # Return appropriate response based on analysis status
-            response_data = {
-                "success": True,
-                "message": analysis_data.get("message", "Proposal modification analysis completed."),
-                "modified_prompt": modified_prompt,
+        except Exception as e:
+            logger.error(f"Error modifying proposal: {str(e)}")
+            # Create fallback response
+            analysis_data = {
+                "status": "error",
+                "message": f"I encountered an issue while modifying the proposal: {str(e)}",
                 "original_prompt": request.original_prompt,
-                "modification_request": request.modification_request,
-                "user_id": request.user_id,
-                "timestamp": datetime.now(),
-                "conversation_state": "proposal",  # Still in proposal state after modification
-                "proposal_id": request.proposal_id  # Maintain the same proposal session
+                "proposal": request.current_proposal if request.current_proposal else None
             }
+            status = "error"
             
-            # Add status-specific fields
-            if status == "needs_clarification":
-                response_data.update({
-                    "questions": analysis_data.get("questions", []),
-                    "suggestions": analysis_data.get("suggestions", [])
-                })
-                logger.info(f"Modified proposal needs clarification: {analysis_data.get('message')}")
-                
-            elif status == "not_buildable":
-                response_data.update({
-                        "reasons": analysis_data.get("reasons", []),
-                        "suggestions": analysis_data.get("suggestions", [])
-                })
-                logger.warning(f"Modified proposal not buildable")
-                
-            elif status == "buildable":
-                # Add modification-specific details
-                if analysis_data.get("modification_type"):
-                    response_data["instructions"] = [f"Modification type: {analysis_data.get('modification_type')}"]
-                if analysis_data.get("specific_changes"):
-                    response_data["next_steps"] = analysis_data.get("specific_changes")
-                logger.info(f"Modified proposal is buildable - {analysis_data.get('modification_type', 'general modification')}")
-                
-            elif status == "proposal_ready":
-                # Convert proposal_ready to buildable for frontend compatibility
-                response_data["status"] = "buildable"
-                status = "buildable"
-                # Use the next_steps from the proposal if available
-                if analysis_data.get("next_steps"):
-                    response_data["next_steps"] = analysis_data.get("next_steps")
-                logger.info(f"Modified proposal is ready (converted to buildable for frontend)")
-                
-            elif status == "error":
-                response_data["success"] = False
-                logger.error(f"Error in proposal modification analysis")
-                
-            else:
-                logger.warning(f"Unexpected analysis status: {status}")
-                response_data["message"] = f"Analysis returned unexpected status: {status}"
-                # Don't override status here - let it be set at the end
+        # Return appropriate response based on modification status
+        response_data = {
+            "success": True if status != "error" else False,
+            "message": analysis_data.get("message", "Proposal modification completed."),
+            "original_prompt": request.original_prompt,
+            "modification_request": request.modification_request,
+            "user_id": request.user_id,
+            "timestamp": datetime.now(),
+            "conversation_state": "proposal",  # Still in proposal state after modification
+            "proposal_id": request.proposal_id  # Maintain the same proposal session
+        }
+        
+        # Handle the simplified status (only "buildable" or "error")
+        if status == "buildable":
+            # Add next steps if available
+            if analysis_data.get("next_steps"):
+                response_data["next_steps"] = analysis_data.get("next_steps")
+            logger.info(f"Modified proposal is buildable")
             
-            # Always preserve proposal data if it exists (regardless of status) - DO THIS LAST
-            if "proposal" in analysis_data:
-                response_data["proposal"] = analysis_data.get("proposal", {})
-                logger.info(f"Preserved proposal data from modification analysis")
-            else:
-                logger.warning(f"No proposal data found in modification analysis")
+        elif status == "error":
+            response_data["success"] = False
+            logger.error(f"Error in proposal modification")
             
-            # Set the final status after all processing is complete
-            response_data["status"] = status
-                
-            logger.info(f"Final modification response_data keys: {list(response_data.keys())}")
-            logger.info(f"Final modification response_data: {response_data}")
-                
-            return ProposalModificationResponse(**response_data)
-            
-        except json.JSONDecodeError:
-            logger.error("Could not parse proposal modification analysis result")
-            return ProposalModificationResponse(
-                success=False,
-                status="error",
-                message="Failed to analyze the modified proposal. Please try again.",
-                modified_prompt=modified_prompt,
-                original_prompt=request.original_prompt,
-                modification_request=request.modification_request,
-                user_id=request.user_id,
-                timestamp=datetime.now()
-            )
+        else:
+            logger.warning(f"Unexpected status: {status}")
+            response_data["message"] = f"Unexpected status: {status}"
+        
+        # Always preserve proposal data if it exists
+        if "proposal" in analysis_data:
+            response_data["proposal"] = analysis_data.get("proposal", {})
+            logger.info(f"Preserved proposal data from modification")
+        else:
+            logger.warning(f"No proposal data found in modification")
+        
+        # Set the final status after all processing is complete
+        response_data["status"] = status
+        
+        logger.info(f"Final modification response_data keys: {list(response_data.keys())}")
+        logger.info(f"Final modification response_data: {response_data}")
+        
+        return ProposalModificationResponse(**response_data)
+        
+    except json.JSONDecodeError:
+        logger.error("Could not parse proposal modification analysis result")
+        return ProposalModificationResponse(
+            success=False,
+            status="error",
+            message="Failed to analyze the modified proposal. Please try again.",
+            original_prompt=request.original_prompt,
+            modification_request=request.modification_request,
+            user_id=request.user_id,
+            timestamp=datetime.now()
+        )
         
     except HTTPException:
         raise
@@ -1271,7 +1342,7 @@ async def generate_api(
         await file_service.save_api_code(api_slug, code)
         
         # Generate documentation
-        documentation, curl_example = await claude_service.generate_documentation(
+        documentation, curl_example = await openai_service.generate_documentation(
             code=code, 
             prompt=request.prompt,
             user_id=request.user_id,
