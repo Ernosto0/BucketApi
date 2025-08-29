@@ -402,9 +402,7 @@ class ClaudeService:
                 duration_ms = int((time.time() - start_time) * 1000)
                 prompt_length = len(user_prompt)
                 
-                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
-                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                estimated_input_tokens, estimated_output_tokens = usage_service.calculate_estimated_tokens(settings.CLAUDE_MODEL, system_prompt, user_prompt, response_length, success)
                 
                 # Log LLM call
                 try:

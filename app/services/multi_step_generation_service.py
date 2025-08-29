@@ -26,6 +26,8 @@ from .exceptions import (
     TemplateProcessingError, SessionCleanupError, GenerationModeError,
     LLMAPIError, CodeExtractionError, PromptBuildError, LLMBaseError, create_secure_error
 )
+from .usage_service import usage_service
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +266,7 @@ class MultiStepGenerationService:
                     }
                 )
                 
-                return session_id
+                
                 
             except Exception as e:
                 logger.error(f"Failed to create session: {str(e)}")
@@ -273,8 +275,9 @@ class MultiStepGenerationService:
                     user_id=user_id,
                     session_id=session_id,
                     details={"error": str(e)}
-                )
-                
+                    )
+                return session_id
+                    
         except MultiStepGenerationError as e:
             # Log custom exceptions
             await logging_service.log_llm_error(e, additional_details={
@@ -511,6 +514,51 @@ class MultiStepGenerationService:
                 }
             )
             
+            # Record usage tracking for the completed session
+            try:
+                response_length = len(session.final_code) if session.final_code else 0
+                prompt_length = len(session.prompt)
+                duration_ms = int(session.total_execution_time * 1000) if session.total_execution_time else 0
+                
+                # Calculate tokens based on actual session data
+                estimated_input_tokens, estimated_output_tokens = usage_service.calculate_estimated_tokens(
+                    settings.CLAUDE_MODEL, 
+                    session.prompt, 
+                    session.final_code or "", 
+                    response_length, 
+                    True
+                )
+                
+                await usage_service.record_usage(
+                    user_id=session.user_id,
+                    api_key_id=getattr(session, 'api_key_id', None),
+                    service_type="claude",
+                    operation_type="multi_step_generation",
+                    model_name=settings.CLAUDE_MODEL,
+                    input_tokens=estimated_input_tokens,
+                    output_tokens=estimated_output_tokens,
+                    prompt_length=prompt_length,
+                    response_length=response_length,
+                    request_duration_ms=duration_ms,
+                    operation_context={
+                        "pipeline_name": session.pipeline_name,
+                        "mode": session.mode.value if hasattr(session.mode, 'value') else str(session.mode),
+                        "steps_completed": len(session.steps_completed),
+                        "total_tokens_used": session.total_tokens_used,
+                        "final_code_length": response_length,
+                        "final_documentation_length": len(session.final_documentation) if session.final_documentation else 0,
+                        "prompt_preview": session.prompt[:100] + "..." if len(session.prompt) > 100 else session.prompt
+                    },
+                    api_slug="multi_step_generation",
+                    success=True,
+                    error_message=None
+                )
+                logger.info(f"Successfully recorded usage for completed session {session_id}")
+                
+            except Exception as usage_error:
+                logger.error(f"Failed to record usage for session {session_id}: {usage_error}")
+                # Don't fail the entire generation because of usage tracking issues
+            
             return {
                 "session_id": session_id,
                 "success": True,
@@ -571,6 +619,51 @@ class MultiStepGenerationService:
                 }
             )
             
+            # Record usage tracking for the failed session
+            try:
+                response_length = len(session.final_code) if session.final_code else 0
+                prompt_length = len(session.prompt)
+                duration_ms = int(session.total_execution_time * 1000) if session.total_execution_time else 0
+                
+                # Calculate tokens based on actual session data
+                estimated_input_tokens, estimated_output_tokens = usage_service.calculate_estimated_tokens(
+                    settings.CLAUDE_MODEL, 
+                    session.prompt, 
+                    session.final_code or "", 
+                    response_length, 
+                    False  # success = False for failed sessions
+                )
+                
+                await usage_service.record_usage(
+                    user_id=session.user_id,
+                    api_key_id=getattr(session, 'api_key_id', None),
+                    service_type="claude",
+                    operation_type="multi_step_generation",
+                    model_name=settings.CLAUDE_MODEL,
+                    input_tokens=estimated_input_tokens,
+                    output_tokens=estimated_output_tokens,
+                    prompt_length=prompt_length,
+                    response_length=response_length,
+                    request_duration_ms=duration_ms,
+                    operation_context={
+                        "pipeline_name": session.pipeline_name,
+                        "mode": session.mode.value if hasattr(session.mode, 'value') else str(session.mode),
+                        "steps_completed": len(session.steps_completed),
+                        "total_tokens_used": session.total_tokens_used,
+                        "final_code_length": response_length,
+                        "error_type": type(e).__name__,
+                        "prompt_preview": session.prompt[:100] + "..." if len(session.prompt) > 100 else session.prompt
+                    },
+                    api_slug="multi_step_generation",
+                    success=False,
+                    error_message=str(e)
+                )
+                logger.info(f"Successfully recorded usage for failed session {session_id}")
+                
+            except Exception as usage_error:
+                logger.error(f"Failed to record usage for failed session {session_id}: {usage_error}")
+                # Don't fail the entire response because of usage tracking issues
+            
             return {
                 "session_id": session_id,
                 "success": False,
@@ -599,6 +692,52 @@ class MultiStepGenerationService:
                 },
                 exc_info=True
             )
+            
+            # Record usage tracking for the unexpectedly failed session
+            try:
+                response_length = len(session.final_code) if session.final_code else 0
+                prompt_length = len(session.prompt)
+                duration_ms = int(session.total_execution_time * 1000) if session.total_execution_time else 0
+                
+                # Calculate tokens based on actual session data
+                estimated_input_tokens, estimated_output_tokens = usage_service.calculate_estimated_tokens(
+                    settings.CLAUDE_MODEL, 
+                    session.prompt, 
+                    session.final_code or "", 
+                    response_length, 
+                    False  # success = False for failed sessions
+                )
+                
+                await usage_service.record_usage(
+                    user_id=session.user_id,
+                    api_key_id=getattr(session, 'api_key_id', None),
+                    service_type="claude",
+                    operation_type="multi_step_generation",
+                    model_name=settings.CLAUDE_MODEL,
+                    input_tokens=estimated_input_tokens,
+                    output_tokens=estimated_output_tokens,
+                    prompt_length=prompt_length,
+                    response_length=response_length,
+                    request_duration_ms=duration_ms,
+                    operation_context={
+                        "pipeline_name": session.pipeline_name,
+                        "mode": session.mode.value if hasattr(session.mode, 'value') else str(session.mode),
+                        "steps_completed": len(session.steps_completed),
+                        "total_tokens_used": session.total_tokens_used,
+                        "final_code_length": response_length,
+                        "error_type": type(e).__name__,
+                        "error_category": "unexpected_error",
+                        "prompt_preview": session.prompt[:100] + "..." if len(session.prompt) > 100 else session.prompt
+                    },
+                    api_slug="multi_step_generation",
+                    success=False,
+                    error_message="An unexpected error occurred during generation"
+                )
+                logger.info(f"Successfully recorded usage for unexpectedly failed session {session_id}")
+                
+            except Exception as usage_error:
+                logger.error(f"Failed to record usage for unexpectedly failed session {session_id}: {usage_error}")
+                # Don't fail the entire response because of usage tracking issues
             
             return {
                 "session_id": session_id,

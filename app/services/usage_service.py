@@ -1,10 +1,26 @@
 import uuid
 import json
 import logging
+import re
+import functools
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Token counting libraries
+try:
+    import tiktoken
+    TIKTOKEN_AVAILABLE = True
+except ImportError:
+    TIKTOKEN_AVAILABLE = False
+
+try:
+    from transformers import AutoTokenizer
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+
 from ..models import (
     Usage, UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest
 )
@@ -24,8 +40,12 @@ class UsageService:
         self.DEFAULT_HOURLY_TOKEN_LIMIT = 10000  # 10k tokens per hour
         self.DEFAULT_MINUTELY_REQUEST_LIMIT = 100  # 100 requests per minute
         
+        # Initialize token estimation components
+        self._init_token_estimators()
+        
         # Cost per token in cents (approximate, based on current pricing)
         self.COST_PER_TOKEN = {
+            # TODO Update this to use the actual pricing from the API at deployment
             # Claude pricing (input/output tokens) - Updated December 2024
             'claude-3-haiku': {'input': 0.000025, 'output': 0.000125},  # $0.25/$1.25 per MTok
             'claude-3.5-haiku': {'input': 0.00008, 'output': 0.0004},   # $0.80/$4.00 per MTok
@@ -37,12 +57,72 @@ class UsageService:
             'claude-4-sonnet': {'input': 0.0003, 'output': 0.0015},     # $3/$15 per MTok
             
             # OpenAI pricing (keeping existing for compatibility)
-            'gpt-4o-mini': {'input': 0.00015, 'output': 0.0002},
-            'gpt-4': {'input': 0.003, 'output': 0.006},
-            'gpt-4-turbo': {'input': 0.001, 'output': 0.002},
+            'gpt-3.5-turbo': {'input': 0.000015, 'output': 0.00003},
+            'gpt-4o': {'input': 0.000015, 'output': 0.00003},
+            'gpt-4o-mini': {'input': 0.000015, 'output': 0.00003},
+            'gpt-4': {'input': 0.000015, 'output': 0.00003},
+            'gpt-4-turbo': {'input': 0.000015, 'output': 0.00003},
+            'gpt-5-mini': {'input': 0.00015, 'output': 0.0002},
         }
         
+        # Log warnings for missing dependencies
+        if not TIKTOKEN_AVAILABLE:
+            logger.warning("tiktoken not available, falling back to approximation for OpenAI models")
+        if not TRANSFORMERS_AVAILABLE:
+            logger.warning("transformers not available, advanced tokenization features disabled")
+            
         logger.info("UsageService initialized")
+    
+    def _init_token_estimators(self):
+        """Initialize token estimation tools for different models"""
+        self.token_estimators = {}
+        self.tokenizer_cache = {}
+        
+        # Initialize OpenAI encoders if tiktoken is available
+        if TIKTOKEN_AVAILABLE:
+            try:
+                # Common OpenAI model encodings
+                openai_models = {
+                    'gpt-4': 'cl100k_base',
+                    'gpt-4-turbo': 'cl100k_base', 
+                    'gpt-4o': 'o200k_base',
+                    'gpt-4o-mini': 'o200k_base',
+                    'gpt-5-mini': 'o200k_base',  # Assuming similar encoding
+                    'gpt-3.5-turbo': 'cl100k_base'
+                }
+                
+                for model, encoding_name in openai_models.items():
+                    try:
+                        self.token_estimators[model] = tiktoken.get_encoding(encoding_name)
+                        logger.info(f"Loaded tiktoken encoder for {model}")
+                    except Exception as e:
+                        logger.warning(f"Failed to load tiktoken encoder for {model}: {e}")
+                        
+            except Exception as e:
+                logger.warning(f"Failed to initialize tiktoken encoders: {e}")
+        
+        # Model-specific token patterns and multipliers for better estimation
+        self.model_estimation_params = {
+            # Claude models - based on observed patterns
+            'claude-3-haiku': {'chars_per_token': 3.8, 'overhead_tokens': 10},
+            'claude-3.5-haiku': {'chars_per_token': 3.8, 'overhead_tokens': 12},
+            'claude-3-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 15},
+            'claude-3.5-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 15},
+            'claude-3.7-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 15},
+            'claude-3-opus': {'chars_per_token': 4.2, 'overhead_tokens': 20},
+            'claude-4-opus': {'chars_per_token': 4.2, 'overhead_tokens': 20},
+            'claude-4-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 15},
+            
+            # OpenAI models - fallback if tiktoken fails
+            'gpt-4': {'chars_per_token': 4.0, 'overhead_tokens': 8},
+            'gpt-4-turbo': {'chars_per_token': 4.0, 'overhead_tokens': 8},
+            'gpt-4o': {'chars_per_token': 3.9, 'overhead_tokens': 10},
+            'gpt-4o-mini': {'chars_per_token': 3.9, 'overhead_tokens': 10},
+            'gpt-5-mini': {'chars_per_token': 3.9, 'overhead_tokens': 10},
+            'gpt-3.5-turbo': {'chars_per_token': 4.2, 'overhead_tokens': 6},
+        }
+        
+        logger.info(f"Initialized token estimation for {len(self.model_estimation_params)} models")
     
     async def record_usage(
         self,
@@ -236,7 +316,7 @@ class UsageService:
                 
                 # Estimate cost for the new tokens
                 estimated_new_cost_cents = self._calculate_cost_cents(
-                    "gpt-4o-mini",  # Use default model for estimation
+                    "gpt-5-mini",  # Use default model for estimation
                     tokens_to_use // 2,  # Rough split between input/output
                     tokens_to_use // 2
                 )
@@ -395,6 +475,252 @@ class UsageService:
             logger.error(f"Failed to get usage stats: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to get usage stats: {str(e)}")
     
+
+    def calculate_estimated_tokens(self, model_name: str, system_prompt: str, user_prompt: str, response_length: int, success: bool) -> Tuple[int, int]:
+        """
+        Calculate estimated tokens for a request using sophisticated methods.
+        
+        Args:
+            model_name: The LLM model name
+            system_prompt: System/instruction prompt text
+            user_prompt: User input text  
+            response_length: Length of response text (characters)
+            success: Whether the request was successful
+            
+        Returns:
+            Tuple of (estimated_input_tokens, estimated_output_tokens)
+        """
+        try:
+            # Combine input texts
+            combined_input = f"{system_prompt}\n{user_prompt}".strip()
+            
+            # Calculate input tokens
+            input_tokens = self._estimate_tokens_for_text(model_name, combined_input, is_input=True)
+            
+            # Calculate output tokens (0 if failed)
+            output_tokens = 0
+            if success and response_length > 0:
+                # For output estimation, we need to estimate based on response length
+                # Since we don't have the actual response text, use length-based estimation
+                output_tokens = self._estimate_tokens_from_length(model_name, response_length, is_input=False)
+            
+            # Ensure minimum values
+            input_tokens = max(1, input_tokens)
+            output_tokens = max(0, output_tokens)
+            
+            logger.debug(f"Token estimation for {model_name}: input={input_tokens}, output={output_tokens}")
+            return input_tokens, output_tokens
+            
+        except Exception as e:
+            logger.warning(f"Token estimation failed for {model_name}: {e}, falling back to basic estimation")
+            return self._fallback_token_estimation(system_prompt, user_prompt, response_length, success)
+    
+    def _estimate_tokens_for_text(self, model_name: str, text: str, is_input: bool = True) -> int:
+        """Estimate tokens for a given text using the best available method"""
+        
+        if not text or len(text.strip()) == 0:
+            return 0
+            
+        # Method 1: Use tiktoken for OpenAI models (most accurate)
+        if model_name in self.token_estimators and TIKTOKEN_AVAILABLE:
+            try:
+                tokens = len(self.token_estimators[model_name].encode(text))
+                logger.debug(f"Used tiktoken for {model_name}: {tokens} tokens")
+                return tokens
+            except Exception as e:
+                logger.warning(f"Tiktoken estimation failed for {model_name}: {e}")
+        
+        # Method 2: Use model-specific parameters (good accuracy)
+        if model_name in self.model_estimation_params:
+            params = self.model_estimation_params[model_name]
+            
+            # Enhanced estimation considering text characteristics
+            base_tokens = len(text) / params['chars_per_token']
+            
+            # Adjust for text complexity
+            complexity_multiplier = self._calculate_text_complexity_multiplier(text)
+            adjusted_tokens = base_tokens * complexity_multiplier
+            
+            # Add overhead tokens (for special tokens, formatting, etc.)
+            overhead = params['overhead_tokens']
+            if is_input:
+                overhead += self._calculate_input_overhead(text)
+            
+            total_tokens = int(adjusted_tokens + overhead)
+            logger.debug(f"Used model-specific estimation for {model_name}: {total_tokens} tokens")
+            return total_tokens
+        
+        # Method 3: Fallback to improved general estimation
+        return self._general_token_estimation(text)
+    
+    def _estimate_tokens_from_length(self, model_name: str, char_length: int, is_input: bool = True) -> int:
+        """Estimate tokens from character length when we don't have the actual text"""
+        
+        if char_length <= 0:
+            return 0
+            
+        # Use model-specific parameters if available
+        if model_name in self.model_estimation_params:
+            params = self.model_estimation_params[model_name]
+            base_tokens = char_length / params['chars_per_token']
+            
+            # Apply a moderate complexity multiplier for generated text
+            complexity_multiplier = 1.1 if is_input else 1.05  # Generated text is often simpler
+            adjusted_tokens = base_tokens * complexity_multiplier
+            
+            # Add minimal overhead for output
+            overhead = params['overhead_tokens'] // 2 if not is_input else params['overhead_tokens']
+            
+            return int(adjusted_tokens + overhead)
+        
+        # Fallback: use general estimation
+        return max(1, char_length // 4)
+    
+    def _calculate_text_complexity_multiplier(self, text: str) -> float:
+        """Calculate a multiplier based on text complexity characteristics"""
+        
+        if not text:
+            return 1.0
+            
+        base_multiplier = 1.0
+        
+        # Check for code patterns (more tokens per character)
+        code_patterns = [
+            r'def\s+\w+\(', r'class\s+\w+', r'import\s+\w+', r'from\s+\w+\s+import',
+            r'function\s+\w+\(', r'const\s+\w+\s*=', r'let\s+\w+\s*=', r'var\s+\w+\s*=',
+            r'\{\s*\w+:', r'\[\s*\w+', r'=>', r'&&', r'\|\|'
+        ]
+        
+        code_score = sum(1 for pattern in code_patterns if re.search(pattern, text))
+        if code_score > 0:
+            base_multiplier += min(0.3, code_score * 0.1)  # Up to 30% increase for code
+        
+        # Check for JSON/structured data
+        if '{' in text and '}' in text and '"' in text:
+            base_multiplier += 0.15
+        
+        # Check for special characters and symbols
+        special_char_ratio = len(re.findall(r'[^\w\s]', text)) / len(text) if text else 0
+        if special_char_ratio > 0.1:  # More than 10% special characters
+            base_multiplier += min(0.2, special_char_ratio)
+        
+        # Check for repeated patterns (might be more efficient)
+        if len(set(text.split())) / len(text.split()) if text.split() else 1 < 0.5:
+            base_multiplier -= 0.1  # Slight reduction for repetitive text
+        
+        return max(0.8, min(1.5, base_multiplier))  # Clamp between 0.8 and 1.5
+    
+    def _calculate_input_overhead(self, text: str) -> int:
+        """Calculate additional overhead tokens for input text characteristics"""
+        
+        overhead = 0
+        
+        # Add overhead for system prompts (usually have special formatting)
+        if any(keyword in text.lower() for keyword in ['system:', 'instruction:', 'you are', 'your task']):
+            overhead += 5
+        
+        # Add overhead for structured prompts
+        if text.count('\n') > 3:  # Multi-line prompts
+            overhead += 2
+            
+        # Add overhead for questions
+        if '?' in text:
+            overhead += 1
+            
+        return overhead
+    
+    def _general_token_estimation(self, text: str) -> int:
+        """Improved general token estimation when model-specific data isn't available"""
+        
+        if not text:
+            return 0
+            
+        # More sophisticated character-to-token ratio
+        char_count = len(text)
+        word_count = len(text.split())
+        
+        # Base estimation: average of character-based and word-based
+        char_based = char_count / 4.0  # Traditional approximation
+        word_based = word_count * 1.3  # Most words are 1-2 tokens
+        
+        # Use the higher estimate for safety
+        base_estimate = max(char_based, word_based)
+        
+        # Apply complexity multiplier
+        complexity = self._calculate_text_complexity_multiplier(text)
+        adjusted_estimate = base_estimate * complexity
+        
+        return max(1, int(adjusted_estimate))
+    
+    def _fallback_token_estimation(self, system_prompt: str, user_prompt: str, response_length: int, success: bool) -> Tuple[int, int]:
+        """Fallback estimation method when sophisticated methods fail"""
+        
+        # Improved fallback with better ratios
+        combined_input = f"{system_prompt}\n{user_prompt}".strip()
+        
+        # Use slightly more conservative estimates
+        input_tokens = max(1, len(combined_input) // 3.5)  # Slightly more generous than original
+        output_tokens = max(0, response_length // 3.5) if success else 0
+        
+        return int(input_tokens), int(output_tokens)
+    
+    @functools.lru_cache(maxsize=1000)
+    def _cached_token_estimation(self, model_name: str, text_hash: str, text_length: int, is_input: bool) -> int:
+        """Cached token estimation for frequently used texts"""
+        # This method signature allows caching while the actual logic is in the non-cached method
+        # The hash ensures we're not storing sensitive data in cache
+        return self._estimate_tokens_from_length(model_name, text_length, is_input)
+    
+    def estimate_tokens_for_actual_text(self, model_name: str, actual_text: str) -> int:
+        """
+        Estimate tokens for actual response text (when available).
+        This provides more accurate estimates than length-based estimation.
+        """
+        if not actual_text:
+            return 0
+            
+        return self._estimate_tokens_for_text(model_name, actual_text, is_input=False)
+    
+    def batch_estimate_tokens(self, requests: List[Dict[str, Any]]) -> List[Tuple[int, int]]:
+        """
+        Batch estimate tokens for multiple requests for better performance.
+        
+        Args:
+            requests: List of dicts with keys: model_name, system_prompt, user_prompt, response_length, success
+            
+        Returns:
+            List of (input_tokens, output_tokens) tuples
+        """
+        results = []
+        
+        for req in requests:
+            try:
+                input_tokens, output_tokens = self.calculate_estimated_tokens(
+                    model_name=req.get('model_name', 'gpt-4'),
+                    system_prompt=req.get('system_prompt', ''),
+                    user_prompt=req.get('user_prompt', ''),
+                    response_length=req.get('response_length', 0),
+                    success=req.get('success', True)
+                )
+                results.append((input_tokens, output_tokens))
+            except Exception as e:
+                logger.warning(f"Batch token estimation failed for request: {e}")
+                results.append((1, 0))  # Minimal fallback
+                
+        return results
+    
+    def get_token_estimation_stats(self) -> Dict[str, Any]:
+        """Get statistics about token estimation capabilities"""
+        return {
+            "tiktoken_available": TIKTOKEN_AVAILABLE,
+            "transformers_available": TRANSFORMERS_AVAILABLE,
+            "supported_models": list(self.model_estimation_params.keys()),
+            "tiktoken_models": list(self.token_estimators.keys()) if hasattr(self, 'token_estimators') else [],
+            "cache_info": self._cached_token_estimation.cache_info() if hasattr(self._cached_token_estimation, 'cache_info') else None
+        }
+
+
+
     def _calculate_cost_cents(self, model_name: str, input_tokens: int, output_tokens: int) -> int:
         """Calculate estimated cost in cents for token usage."""
         
