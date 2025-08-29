@@ -1,4 +1,7 @@
+# This script is used to count the lines of code in the project. I love watching the numbers go up.
 import os
+
+# Current lines of code count: 27063
 
 def count_lines(path, extensions=None, ignore_dirs=None):
     total_lines = 0

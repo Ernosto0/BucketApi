@@ -1357,37 +1357,12 @@ async def generate_api(
         if "your-endpoint-url" in curl_example:
             curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
         
-        # TODO Change this basic logic for testing
-        # Save API metadata for pricing (detect AI model from generated code)
+        # Save API metadata for pricing using actual generation data
         try:
-            # Analyze the generated code to detect which AI service it uses
-            ai_model_used = "claude-3-sonnet"  # Default to the generation service
-            estimated_tokens = 500  # Default estimate
+            # Use the actual AI model that was used for generation
+            ai_model_used = settings.CLAUDE_MODEL  # The model you actually used
             
-            # Check if the generated code uses OpenAI
-            if "openai" in code.lower() or "gpt-" in code.lower():
-                if "gpt-4" in code.lower():
-                    ai_model_used = "gpt-4"
-                    estimated_tokens = 800  # GPT-4 typically uses more tokens
-                else:
-                    ai_model_used = "gpt-4o-mini"
-                    estimated_tokens = 400  # GPT-3.5 is more efficient
-            # Check if it uses Claude API directly
-            elif "anthropic" in code.lower() or "claude" in code.lower():
-                if "opus" in code.lower():
-                    ai_model_used = "claude-3-opus"
-                    estimated_tokens = 600
-                elif "haiku" in code.lower():
-                    ai_model_used = "claude-3-haiku"
-                    estimated_tokens = 300
-                else:
-                    ai_model_used = "claude-3-sonnet"
-                    estimated_tokens = 500
-            # If no AI service detected, it's a simple processing API
-            elif not any(keyword in code.lower() for keyword in ["openai", "anthropic", "claude", "gpt"]):
-                ai_model_used = "none"  # No AI service used
-                estimated_tokens = 0
-            
+            # TODO: Add a more sophisticated complexity detection logic
             # Determine complexity based on code analysis
             complexity = 'simple'
             if len(code) > 2000 or "class" in code or "async def" in code:
@@ -1395,13 +1370,23 @@ async def generate_api(
             elif len(code) > 1000 or "try:" in code or "except:" in code:
                 complexity = 'medium'
             
-            logger.info(f"Detected AI model: {ai_model_used}, estimated tokens: {estimated_tokens}, complexity: {complexity}")
+            # Use sophisticated token estimation based on the actual prompt and response
+            estimated_input_tokens, estimated_output_tokens = usage_service.calculate_estimated_tokens(
+                model_name=ai_model_used,
+                system_prompt="",  # Add system prompt if you have it
+                user_prompt=request.prompt,
+                response_length=len(code),
+                success=True
+            )
+            estimated_tokens_per_call = estimated_input_tokens + estimated_output_tokens
+            
+            logger.info(f"AI model used: {ai_model_used}, estimated tokens: {estimated_tokens_per_call}, complexity: {complexity}")
             
             await api_pricing_service.save_api_metadata(
                 api_slug=clean_slug,
                 user_id=request.user_id,
                 ai_model_used=ai_model_used,
-                estimated_tokens_per_call=estimated_tokens,
+                estimated_tokens_per_call=estimated_tokens_per_call,
                 base_complexity=complexity
             )
         except Exception as e:
