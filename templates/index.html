@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-<div style="height: 100%; display: flex; padding: 1rem; gap: 1rem;">
+<div style="min-height: 95vh; display: flex; padding: 1rem; gap: 1rem;">
     <!-- Chat Container (Left Side - 50%) -->
     <div style="flex: 1; display: flex; flex-direction: column;">
         <div id="chatContainer" class="glass-card rounded-2xl shadow-2xl overflow-hidden flex-1 flex flex-col">
@@ -380,41 +380,5 @@
 {% endblock %}
 
 {% block extra_scripts %}
-    <script>
-        // Global variables for authentication
-        let authToken = null;
-        let currentUser = null;
-        
-        // Check authentication before loading the app
-        document.addEventListener('DOMContentLoaded', function() {
-            authToken = localStorage.getItem('authToken');
-            const currentUserStr = localStorage.getItem('currentUser');
-            
-            if (!authToken || !currentUserStr) {
-                // User is not authenticated, redirect to landing page
-                console.log('User not authenticated, redirecting to landing page');
-                window.location.href = '/landing';
-                return;
-            }
-            
-            try {
-                // Validate stored user data
-                const userData = JSON.parse(currentUser);
-                if (!userData || !userData.email) {
-                    throw new Error('Invalid user data');
-                }
-                
-                // User is authenticated, continue loading the app
-                console.log('User authenticated:', userData.email);
-                
-            } catch (error) {
-                console.log('Error validating user data, redirecting to landing page');
-                localStorage.removeItem('authToken');
-                localStorage.removeItem('currentUser');
-                window.location.href = '/landing';
-                return;
-            }
-        });
-    </script>
     <script src="/static/chat.js"></script>
 {% endblock %}

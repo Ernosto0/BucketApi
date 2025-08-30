@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status, Body, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Request
@@ -162,9 +162,9 @@ def check_rate_limit_auth(request: Request) -> bool:
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
     """Get current authenticated user from JWT token."""
-    logger.info(f"🔑 get_current_user called, credentials: {bool(credentials)}")
+    logger.info(f" get_current_user called, credentials: {bool(credentials)}")
     if not credentials:
-        logger.warning("❌ No credentials provided")
+        logger.warning(" No credentials provided")
         return None
     
     logger.info(f"🔍 Processing credentials: {credentials.credentials[:20]}...")
@@ -180,6 +180,31 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         return None
     except Exception as e:
         logger.error(f"❌ Unexpected authentication error: {str(e)}")
+        return None
+
+async def get_current_user_from_cookie(request: Request) -> Optional[User]:
+    """Get current authenticated user from JWT token stored in HTTP-only cookie."""
+    logger.info(f"🍪 get_current_user_from_cookie called")
+    
+    # Get token from cookie
+    token = request.cookies.get("access_token")
+    if not token:
+        logger.warning("🍪 No access_token cookie found")
+        return None
+    
+    logger.info(f"🔍 Processing cookie token: {token[:20]}...")
+    try:
+        token_data = auth_service.verify_token(token)
+        logger.info(f"🎫 Token verified successfully, username: {token_data.username}")
+        # The token contains email in the 'sub' field (stored as username for compatibility)
+        user = await auth_service.get_user_by_email(token_data.username)
+        logger.info(f"✅ User authenticated from cookie: {user.email if user else 'None'}")
+        return user
+    except HTTPException as e:
+        logger.error(f"❌ Cookie authentication failed: {e.detail}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ Unexpected cookie authentication error: {str(e)}")
         return None
 
 async def get_current_user_and_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Tuple[Optional[User], Optional[str]]:
@@ -225,6 +250,18 @@ async def require_auth(current_user: User = Depends(get_current_user)) -> User:
         )
     return current_user
 
+async def require_auth_cookie(request: Request) -> User:
+    """Require authentication for page routes using cookies."""
+    user = await get_current_user_from_cookie(request)
+    logger.info(f"🔐 require_auth_cookie called, user: {user.email if user else 'None'}")
+    if not user:
+        logger.warning("❌ Cookie authentication failed - no current user")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    return user
+
 async def require_auth_or_api_key(current_user: User = Depends(get_current_user_or_api_key)) -> User:
     """Require authentication via JWT token or API key for API endpoints."""
     if not current_user:
@@ -243,10 +280,18 @@ def get_or_create_session_id(request: Request) -> str:
         logger.debug(f"Generated new session ID: {session_id}")
     return session_id
 
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Serve the main frontend page for authenticated users, redirect to landing for non-authenticated."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    try:
+        # Check if user is authenticated via cookie
+        user = await require_auth_cookie(request)
+        # If we get here, user is authenticated
+        return templates.TemplateResponse("index.html", {"request": request, "user": user})
+    except HTTPException:
+        # User is not authenticated, redirect to landing page
+        return RedirectResponse(url="/landing", status_code=302)
 
 @app.get("/landing", response_class=HTMLResponse)
 async def landing_page(request: Request):
@@ -267,12 +312,27 @@ async def register_page(request: Request):
 @app.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request):
     """Serve the profile page."""
-    return templates.TemplateResponse("profile.html", {"request": request})
+    try:
+        # Check if user is authenticated via cookie
+        user = await require_auth_cookie(request)
+        # If we get here, user is authenticated
+        return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+    except HTTPException:
+        # User is not authenticated, redirect to landing page
+        return RedirectResponse(url="/landing", status_code=302)
+    
 
 @app.get("/logs", response_class=HTMLResponse)
-async def logs_dashboard_page(request: Request, current_user: User = Depends(require_auth)):
+async def logs_dashboard_page(request: Request):
     """Serve the logs dashboard page (requires authentication)."""
-    return templates.TemplateResponse("logs_dashboard.html", {"request": request})
+    try:
+        # Check if user is authenticated via cookie
+        user = await require_auth_cookie(request)
+        # If we get here, user is authenticated
+        return templates.TemplateResponse("logs_dashboard.html", {"request": request, "user": user})
+    except HTTPException:
+        # User is not authenticated, redirect to landing page
+        return RedirectResponse(url="/landing", status_code=302)
 
 @app.get("/api/{user_id}/{api_slug}/details", response_class=HTMLResponse)
 async def api_details_page(request: Request, user_id: str, api_slug: str):
@@ -367,8 +427,8 @@ async def register(user_data: UserCreate, request: Request):
         raise secure_error.to_http_exception()
 
 @app.post("/auth/login", response_model=LoginResponse)
-async def login(login_data: UserLogin):
-    """Authenticate user and return JWT token."""
+async def login(login_data: UserLogin, response: Response):
+    """Authenticate user and set JWT token in HTTP-only cookie."""
     try:
         # Authenticate user
         user = await auth_service.authenticate_user(login_data.email, login_data.password)
@@ -385,9 +445,19 @@ async def login(login_data: UserLogin):
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         
-        # Create token response
+        # Set HTTP-only cookie with the JWT token
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            httponly=True,
+            secure=False,  # Set to True in production with HTTPS
+            samesite="lax"
+        )
+        
+        # Create token response (without exposing the actual token)
         token = Token(
-            access_token=access_token,
+            access_token="set_in_cookie",  # Don't expose actual token
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             user=user
@@ -410,6 +480,12 @@ async def login(login_data: UserLogin):
             context={'email': login_data.email}
         )
         raise secure_error.to_http_exception()
+
+@app.post("/auth/logout")
+async def logout(response: Response):
+    """Logout user by clearing the authentication cookie."""
+    response.delete_cookie("access_token")
+    return {"success": True, "message": "Logged out successfully"}
 
 @app.get("/auth/profile", response_model=UserProfile)
 async def get_profile(current_user: User = Depends(require_auth)):
@@ -441,8 +517,12 @@ async def get_profile(current_user: User = Depends(require_auth)):
         )
 
 @app.get("/auth/me")
-async def get_current_user_info(current_user: Optional[User] = Depends(get_current_user)):
-    """Get current user information (no auth required)."""
+async def get_current_user_info(request: Request, current_user: Optional[User] = Depends(get_current_user)):
+    """Get current user information (checks both header and cookie auth)."""
+    # If header auth didn't work, try cookie auth
+    if not current_user:
+        current_user = await get_current_user_from_cookie(request)
+    
     if current_user:
         return {"authenticated": True, "user": current_user}
     else:

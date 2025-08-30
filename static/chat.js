@@ -1750,13 +1750,26 @@ async function processModificationRequest(modificationPrompt, userId) {
     }
 }
 
-function logout() {
+async function logout() {
+    try {
+        // Call server logout endpoint to clear cookie
+        await fetch('/auth/logout', {
+            method: 'POST',
+            credentials: 'include'
+        });
+    } catch (error) {
+        console.log('Error during logout:', error);
+    }
+    
     authToken = null;
     currentUser = null;
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('currentUser');
     updateAuthUI();
-    addMessage('system', '👋 Logged out successfully!');
+    addMessage('system', '👋 Logged out successfully! Redirecting to landing page...');
+    
+    // Redirect to landing page after a short delay
+    setTimeout(() => {
+        window.location.href = '/landing';
+    }, 1500);
 }
 
 // Adjust chat height dynamically

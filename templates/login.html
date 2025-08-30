@@ -182,18 +182,13 @@
             const result = await response.json();
 
             if (result.success) {
-                // Store auth data
-                localStorage.setItem('authToken', result.token.access_token);
-                localStorage.setItem('currentUser', JSON.stringify(result.token.user));
+                // Authentication token is now stored in HTTP-only cookie automatically
+                // No need to store in localStorage
                 
                 // Show success message
                 setInputState(emailInput, 'success');
                 setInputState(passwordInput, 'success');
                 showMessage('successMessage', '🎉 Login successful! Redirecting to your dashboard...', false);
-                
-                // Update global auth state
-                window.authToken = result.token.access_token;
-                window.currentUser = result.token.user;
                 
                 // Redirect to main page after short delay
                 setTimeout(() => {
@@ -228,13 +223,25 @@
     });
 
     // Check if user is already logged in
-    document.addEventListener('DOMContentLoaded', () => {
-        const authToken = localStorage.getItem('authToken');
-        const currentUser = localStorage.getItem('currentUser');
-        
-        if (authToken && currentUser) {
-            // User is already logged in, redirect to main page
-            window.location.href = '/';
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            // Check if user is already authenticated via cookie
+            const response = await fetch('/auth/me', {
+                method: 'GET',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.authenticated) {
+                    // User is already logged in, redirect to main page
+                    window.location.href = '/';
+                    return;
+                }
+            }
+        } catch (error) {
+            // Error checking auth status, continue with login page
+            console.log('Could not check auth status:', error);
         }
 
         // Add focus effects
