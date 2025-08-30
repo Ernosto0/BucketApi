@@ -3,7 +3,6 @@ let isGenerating = false;
 let currentApiData = null;
 let isModificationMode = false;
 let generationMode = 'multi-step'; // Default to multi-step
-let selectedPipeline = 'full_pipeline'; // Default pipeline
 
 // Conversation state tracking
 let conversationState = null; // "proposal", "code_generated", null
@@ -303,63 +302,14 @@ function sendQuickMessage(message) {
 
 // Generation mode handling
 function handleGenerationModeChange() {
-    const multiStepRadio = document.getElementById('multiStepMode');
-    const singleStepRadio = document.getElementById('singleStepMode');
-    const pipelineSelection = document.getElementById('pipelineSelection');
-    const pipelineSelect = document.getElementById('pipelineSelect');
-    
-    // Update visual state
-    updateRadioVisuals();
-    
-    if (multiStepRadio.checked) {
-        generationMode = 'multi-step';
-        pipelineSelection.style.display = 'block';
-        selectedPipeline = pipelineSelect.value;
-        console.log('Switched to multi-step generation mode with pipeline:', selectedPipeline);
-    } else if (singleStepRadio.checked) {
-        generationMode = 'single-step';
-        pipelineSelection.style.display = 'none';
-        console.log('Switched to single-step generation mode');
-    }
-}
-
-function updateRadioVisuals() {
-    const multiStepRadio = document.getElementById('multiStepMode');
-    const singleStepRadio = document.getElementById('singleStepMode');
-    
-    // Multi-step radio visual
-    const multiStepVisual = multiStepRadio.parentElement.querySelector('div');
-    if (multiStepRadio.checked) {
-        multiStepVisual.className = 'w-4 h-4 border-2 border-blue-500 rounded-full bg-blue-500 flex items-center justify-center';
-        multiStepVisual.innerHTML = '<div class="w-2 h-2 bg-white rounded-full"></div>';
-    } else {
-        multiStepVisual.className = 'w-4 h-4 border-2 border-slate-500 rounded-full flex items-center justify-center';
-        multiStepVisual.innerHTML = '<div class="w-2 h-2 bg-transparent rounded-full"></div>';
-    }
-    
-    // Single-step radio visual
-    const singleStepVisual = singleStepRadio.parentElement.querySelector('div');
-    if (singleStepRadio.checked) {
-        singleStepVisual.className = 'w-4 h-4 border-2 border-blue-500 rounded-full bg-blue-500 flex items-center justify-center';
-        singleStepVisual.innerHTML = '<div class="w-2 h-2 bg-white rounded-full"></div>';
-    } else {
-        singleStepVisual.className = 'w-4 h-4 border-2 border-slate-500 rounded-full flex items-center justify-center';
-        singleStepVisual.innerHTML = '<div class="w-2 h-2 bg-transparent rounded-full"></div>';
-    }
+    const generationModeSelect = document.getElementById('generationModeSelect');
+    generationMode = generationModeSelect.value;
+    console.log('Generation mode changed to:', generationMode);
 }
 
 // Initialize generation mode on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Set up pipeline change handler
-    const pipelineSelect = document.getElementById('pipelineSelect');
-    if (pipelineSelect) {
-        pipelineSelect.addEventListener('change', function() {
-            selectedPipeline = this.value;
-            console.log('Pipeline changed to:', selectedPipeline);
-        });
-    }
-    
-    // Initialize with multi-step mode
+    // Initialize generation mode
     handleGenerationModeChange();
 });
 
@@ -521,7 +471,7 @@ async function sendMessage() {
 
             // Show typing indicator with generation mode info
         const modeText = generationMode === 'multi-step' ? 
-            `Analyzing your request... (Multi-step: ${selectedPipeline})` : 
+            `Analyzing your request... (Multi-step)` : 
             "Analyzing your request... (Single-step)";
         showTypingIndicator(modeText);
 
@@ -615,14 +565,14 @@ async function sendMessage() {
 
 async function generateAPI(message, userId, skipAnalysis = true) {
     try {
-        console.log(`Generating API - Skip Analysis: ${skipAnalysis}, Mode: ${generationMode}, Pipeline: ${selectedPipeline}`);
+        console.log(`Generating API - Skip Analysis: ${skipAnalysis}, Mode: ${generationMode}`);
         console.log('generateAPI called with message:', message);
         
         // Update generation progress text if it exists
         const progressText = document.getElementById('generationProgressText');
         if (progressText) {
             const genModeText = generationMode === 'multi-step' ? 
-                `Generating your API... (Multi-step: ${selectedPipeline})` : 
+                `Generating your API... (Multi-step)` : 
                 'Generating your API... (Single-step)';
             progressText.textContent = genModeText;
         }
@@ -638,7 +588,7 @@ async function generateAPI(message, userId, skipAnalysis = true) {
                 user_id: userId,
                 skip_analysis: skipAnalysis,
                 use_multi_step: generationMode === 'multi-step',
-                pipeline_name: selectedPipeline,
+                pipeline_name: 'full_pipeline',
                 proposal_id: currentProposalId,
                 // Extract sample input/output from proposal if available
                 sample_input: currentProposal?.proposal?.input_format?.example || null,

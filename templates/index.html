@@ -139,53 +139,13 @@
                     </div>
                 </div>
 
-                <!-- Generation Mode Toggle -->
-                <div class="mb-4 p-4 bg-slate-800/30 border border-slate-600/50 rounded-xl">
-                    <h4 class="text-sm font-semibold text-white mb-3 flex items-center space-x-2">
-                        <span class="text-blue-400">⚙️</span>
-                        <span>Generation Mode</span>
-                    </h4>
-                    
-                    <div class="flex items-center space-x-4">
-                        <!-- Multi-Step Toggle -->
-                        <label class="flex items-center space-x-3 cursor-pointer">
-                            <div class="relative">
-                                <input type="radio" name="generationMode" value="multi-step" id="multiStepMode" checked class="sr-only" onchange="handleGenerationModeChange()">
-                                <div class="w-4 h-4 border-2 border-blue-500 rounded-full bg-blue-500 flex items-center justify-center">
-                                    <div class="w-2 h-2 bg-white rounded-full"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <span class="text-white font-medium">Multi-Step Generation</span>
-                                <p class="text-xs text-slate-400">3-step process: Analysis → Implementation → Tests</p>
-                            </div>
-                        </label>
-                    </div>
-                    
-                    <div class="flex items-center space-x-4 mt-3">
-                        <!-- Single-Step Toggle -->
-                        <label class="flex items-center space-x-3 cursor-pointer">
-                            <div class="relative">
-                                <input type="radio" name="generationMode" value="single-step" id="singleStepMode" class="sr-only" onchange="handleGenerationModeChange()">
-                                <div class="w-4 h-4 border-2 border-slate-500 rounded-full flex items-center justify-center">
-                                    <div class="w-2 h-2 bg-transparent rounded-full"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <span class="text-white font-medium">Single-Step Generation</span>
-                                <p class="text-xs text-slate-400">Quick generation with single Claude call (legacy mode)</p>
-                            </div>
-                        </label>
-                    </div>
-                    
-                    <!-- Pipeline Selection (only shown for multi-step) -->
-                    <div id="pipelineSelection" class="mt-4 pt-3 border-t border-slate-600/30">
-                        <label class="block text-sm font-medium text-slate-300 mb-2">Pipeline</label>
-                        <select id="pipelineSelect" class="w-full p-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                            <option value="full_pipeline">Full Pipeline (All 3 steps)</option>
-                            <option value="simple">Simple (Implementation only)</option>
-                        </select>
-                    </div>
+                <!-- Generation Mode -->
+                <div class="mb-3 flex items-center space-x-2">
+                    <span class="text-xs text-slate-400">Mode:</span>
+                    <select id="generationModeSelect" class="px-2 py-1 bg-slate-700/70 border border-slate-600/50 rounded text-white text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" onchange="handleGenerationModeChange()">
+                        <option value="multi-step">Multi-Step</option>
+                        <option value="single-step">Single-Step</option>
+                    </select>
                 </div>
 
                 <!-- Input Area -->
