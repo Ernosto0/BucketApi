@@ -626,6 +626,67 @@ JSON format:
         
         logger.info(f"Detected modify request for user {user_id} - frontend should handle routing based on context")
         return json.dumps(response, indent=2)
+
+    async def classify_message_intent(self, user_id: str, message: str, context: str = "") -> Dict[str, Any]:
+        """
+        Classify the intent of a user message to determine if it's a modification request or conversational.
+        Uses a cheap, fast LLM for accurate classification.
+        
+        Args:
+            user_id: The user's ID for logging
+            message: The message to classify
+            context: Additional context about the conversation
+            
+        Returns:
+            Dict with intent, confidence, and reasoning
+        """
+        try:
+            logger.info(f"Classifying message intent for user {user_id}: {message[:50]}... (context: {context})")
+            
+            # Load prompt configuration from JSON file
+            prompt_config = load_prompt("classify_message_intent")
+            system_prompt = prompt_config["system_prompt"]
+            
+            user_prompt = f"Message: {message}\nContext: {context}"
+            
+            # Use the class's OpenAI request method with logging
+            response = await self._make_openai_request_with_logging(
+                system_prompt,
+                user_prompt,
+                prompt_config,
+                user_id,
+                "message_intent_classification"
+            )
+            
+            # Parse the JSON response
+            try:
+                classification = json.loads(response)
+                
+                return {
+                    "success": True,
+                    "intent": classification.get("intent", "conversational"),
+                    "confidence": classification.get("confidence", 0.5),
+                    "reasoning": classification.get("reasoning", "Classification completed")
+                }
+                
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse classification result: {response}")
+                # Fallback to conservative classification
+                return {
+                    "success": True,
+                    "intent": "conversational",  # Default to conversational when uncertain
+                    "confidence": 0.3,
+                    "reasoning": "Failed to parse LLM response, defaulting to conversational"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error classifying message intent: {str(e)}")
+            return {
+                "success": False,
+                "intent": "conversational",  # Safe default
+                "confidence": 0.0,
+                "reasoning": f"Error during classification: {str(e)}"
+            }
     
 
 class PromptServiceModify:

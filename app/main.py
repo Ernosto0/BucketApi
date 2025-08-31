@@ -816,7 +816,7 @@ async def analyze_chat_prompt(request: ChatAnalysisRequest, http_request: Reques
         }
 
 @app.post("/classify-message-intent", response_model=MessageIntentResponse)
-async def classify_message_intent(request: MessageIntentRequest):
+async def classify_message_intent(request: MessageIntentRequest, http_request: Request):
     """
     Classify the intent of a user message to determine if it's a modification request or conversational.
     Uses a cheap, fast LLM for accurate classification.
@@ -824,86 +824,27 @@ async def classify_message_intent(request: MessageIntentRequest):
     try:
         logger.info(f"Classifying message intent: {request.message[:50]}... (context: {request.context})")
         
-        # Create a simple classification prompt
-        system_prompt = """You are a message intent classifier. Classify user messages as:
-
-- "modification" - User wants to modify/change their API proposal
-- "conversational" - User is just chatting, saying thanks, or asking unrelated questions
-
-CRITICAL: The user has an existing API proposal. If they express ANY preference, requirement, or want to change ANYTHING about the API functionality, it's a MODIFICATION.
-
-Key modification indicators:
-- Expressing preferences: "I want", "I need", "I prefer", "I only want"
-- Negating features: "I don't need", "I don't want", "without", "exclude"
-- Specifying requirements: "only extract", "just", "specifically", "but I"
-- Feature changes: any mention of changing behavior, adding/removing features
-- Scope changes: "only", "just", "specifically", "limited to"
-
-Examples of MODIFICATION:
-- "But I only want to extract human names" (scope limitation)
-- "I don't need the id field" (removal request)
-- "Can you add authentication?" (addition request)
-- "Make it only extract human names" (behavior change)
-- "I only want person names, not organizations" (specification)
-- "Actually, I need it to be faster" (requirement change)
-- "Without the context_chars field" (removal)
-- "I prefer JSON output" (format preference)
-
-Examples of CONVERSATIONAL:
-- "Thanks!" (gratitude)
-- "That looks good" (approval without changes)
-- "Perfect!" (satisfaction)
-- "How are you?" (unrelated question)
-- "Hello" (greeting)
-- "OK" or "Alright" (simple acknowledgment)
-
-If in doubt, lean towards MODIFICATION rather than conversational.
-
-Respond with ONLY this JSON format:
-{
-    "intent": "modification" | "conversational",
-    "confidence": 0.0-1.0,
-    "reasoning": "Brief explanation"
-}"""
-
-        user_prompt = f"Message: {request.message}\nContext: {request.context}"
+        # Use PromptService for classification
+        from .services.PromptService import PromptServiceBuild
+        prompt_service = PromptServiceBuild()
         
-        # Use OpenAI service with the cheapest, fastest model
-        from .services.openai_service import OpenAIService
-        openai_service = OpenAIService()
+        # Get session ID from cookies to use as user identifier
+        session_id = get_or_create_session_id(http_request)
+        user_id = f"session_{session_id[:8]}"  # Use session ID as user identifier for logging
         
-        response = await openai_service.create_chat_completion(
-            model="gpt-4o-mini",  # Cheapest, fastest model
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            max_tokens=100  # Keep it very short
+        # Use the PromptService method for classification
+        classification_result = await prompt_service.classify_message_intent(
+            user_id=user_id,
+            message=request.message,
+            context=request.context
         )
         
-        result_text = response.choices[0].message.content.strip()
-        
-        # Parse the JSON response
-        import json
-        try:
-            classification = json.loads(result_text)
-            
-            return MessageIntentResponse(
-                success=True,
-                intent=classification.get("intent", "conversational"),
-                confidence=classification.get("confidence", 0.5),
-                reasoning=classification.get("reasoning", "Classification completed")
-            )
-            
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse classification result: {result_text}")
-            # Fallback to conservative classification
-            return MessageIntentResponse(
-                success=True,
-                intent="conversational",  # Default to conversational when uncertain
-                confidence=0.3,
-                reasoning="Failed to parse LLM response, defaulting to conversational"
-            )
+        return MessageIntentResponse(
+            success=classification_result["success"],
+            intent=classification_result["intent"],
+            confidence=classification_result["confidence"],
+            reasoning=classification_result["reasoning"]
+        )
             
     except Exception as e:
         logger.error(f"Error classifying message intent: {str(e)}")
