@@ -266,7 +266,7 @@ class MultiStepGenerationService:
                     }
                 )
                 
-                
+                return session_id
                 
             except Exception as e:
                 logger.error(f"Failed to create session: {str(e)}")
@@ -276,7 +276,6 @@ class MultiStepGenerationService:
                     session_id=session_id,
                     details={"error": str(e)}
                     )
-                return session_id
                     
         except MultiStepGenerationError as e:
             # Log custom exceptions
@@ -1458,7 +1457,7 @@ class MultiStepGenerationService:
                 execution_time=execution_time,
                 tokens_used=0
             )
-    
+            
     def _extract_final_code(self, step_outputs: Dict[str, str]) -> Optional[str]:
         """Extract the final code from step outputs"""
         logger.info(f"Extracting final code from step outputs: {list(step_outputs.keys())}")

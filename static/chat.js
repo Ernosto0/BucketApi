@@ -488,6 +488,7 @@ async function sendMessage() {
                 'Content-Type': 'application/json',
                 ...(authToken && { 'Authorization': `Bearer ${authToken}` })
             },
+            credentials: 'include', // Include cookies for authentication
             body: JSON.stringify({
                 prompt: message,
                 user_id: userId

@@ -213,20 +213,34 @@
         let authToken = localStorage.getItem('authToken');
         let currentUser = null;
 
-        // Initialize user data
+        // Initialize user data from server-side (for cookie auth) or localStorage (for API key auth)
         function initializeAuth() {
+            // Check if user data is provided by server (for cookie-authenticated users)
+            {% if user %}
+            currentUser = {
+                id: "{{ user.id }}",
+                email: "{{ user.email }}",
+                created_at: "{{ user.created_at.isoformat() }}"
+            };
+            // For cookie auth, we don't need authToken
+            authToken = null;
+            console.log('✅ User initialized from server (cookie auth):', currentUser.email);
+            {% else %}
+            // Fallback to localStorage for API key authentication
             const storedUser = localStorage.getItem('currentUser');
             if (authToken && storedUser) {
                 try {
                     currentUser = JSON.parse(storedUser);
-                    updateAuthUI();
+                    console.log('✅ User initialized from localStorage (API key auth):', currentUser.email);
                 } catch (error) {
                     localStorage.removeItem('authToken');
                     localStorage.removeItem('currentUser');
                     authToken = null;
                     currentUser = null;
+                    console.log('❌ Invalid localStorage auth data, cleared');
                 }
             }
+            {% endif %}
             updateAuthUI();
         }
 
@@ -236,8 +250,8 @@
             const welcomeText = document.getElementById('welcomeText');
             const userInitials = document.getElementById('userInitials');
 
-            if (authToken && currentUser) {
-                // User is authenticated
+            if (currentUser) {
+                // User is authenticated (either via cookie or API key)
                 authButtons.classList.add('hidden');
                 userMenu.classList.remove('hidden');
                 welcomeText.textContent = currentUser.email;
@@ -369,7 +383,25 @@
                 ticking = true;
             }
         }
-
+        
+        // Check authentication after initialization, and only redirect if on a protected page
+        function checkAuthAndRedirect() {
+            // Only redirect if we're not already on landing, login, or register pages
+            const currentPath = window.location.pathname;
+            const publicPaths = ['/landing', '/login', '/register'];
+            
+            if (!currentUser && !publicPaths.includes(currentPath)) {
+                console.log('User not authenticated, redirecting to landing page');
+                window.location.href = '/landing';
+            }
+        }
+        
+        // Run auth check after DOM is loaded and auth is initialized
+        document.addEventListener('DOMContentLoaded', function() {
+            // Give initializeAuth a moment to run
+            setTimeout(checkAuthAndRedirect, 100);
+        });
+        
         window.addEventListener('scroll', requestTick, { passive: true });
     </script>
 

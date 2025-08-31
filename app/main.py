@@ -161,26 +161,26 @@ def check_rate_limit_auth(request: Request) -> bool:
     return True
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
-    """Get current authenticated user from JWT token."""
-    logger.info(f" get_current_user called, credentials: {bool(credentials)}")
+    """Get current authenticated user from API key only (JWT removed for simplicity)."""
+    logger.info(f"🔍 get_current_user called, credentials: {bool(credentials)}")
     if not credentials:
-        logger.warning(" No credentials provided")
+        logger.warning("🔍 No credentials provided")
         return None
     
     logger.info(f"🔍 Processing credentials: {credentials.credentials[:20]}...")
     try:
-        token_data = auth_service.verify_token(credentials.credentials)
-        logger.info(f"🎫 Token verified successfully, username: {token_data.username}")
-        # The token contains email in the 'sub' field (stored as username for compatibility)
-        user = await auth_service.get_user_by_email(token_data.username)
-        logger.info(f"✅ User authenticated: {user.email if user else 'None'}")
-        return user
-    except HTTPException as e:
-        logger.error(f"❌ Authentication failed: {e.detail}")
-        return None
+        # Only try API key authentication (JWT removed)
+        api_key_info = await api_key_service.validate_api_key(credentials.credentials)
+        if api_key_info:
+            user = await auth_service.get_user_by_id(api_key_info.user_id)
+            logger.info(f"✅ User authenticated via API key: {user.email if user else 'None'}")
+            return user
     except Exception as e:
-        logger.error(f"❌ Unexpected authentication error: {str(e)}")
+        logger.error(f"❌ API key authentication failed: {str(e)}")
         return None
+    
+    logger.warning("❌ No valid API key found")
+    return None
 
 async def get_current_user_from_cookie(request: Request) -> Optional[User]:
     """Get current authenticated user from JWT token stored in HTTP-only cookie."""
@@ -207,21 +207,12 @@ async def get_current_user_from_cookie(request: Request) -> Optional[User]:
         logger.error(f"❌ Unexpected cookie authentication error: {str(e)}")
         return None
 
-async def get_current_user_and_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Tuple[Optional[User], Optional[str]]:
-    """Get current authenticated user and API key ID if applicable."""
+async def get_current_user_and_api_key_legacy(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Tuple[Optional[User], Optional[str]]:
+    """DEPRECATED: Legacy function for JWT + API key auth. Use get_current_user_and_api_key_hybrid instead."""
     if not credentials:
         return None, None
     
-    # First try JWT token authentication
-    try:
-        token_data = auth_service.verify_token(credentials.credentials)
-        user = await auth_service.get_user_by_email(token_data.username)
-        if user:
-            return user, None  # No API key for JWT auth
-    except HTTPException:
-        pass
-    
-    # If JWT fails, try API key authentication
+    # Only try API key authentication (JWT tokens removed)
     try:
         api_key_info = await api_key_service.validate_api_key(credentials.credentials)
         if api_key_info:
@@ -233,9 +224,65 @@ async def get_current_user_and_api_key(credentials: HTTPAuthorizationCredentials
     
     return None, None
 
+async def get_current_user_and_api_key_hybrid(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Tuple[Optional[User], Optional[str]]:
+    """
+    Hybrid authentication: Cookie for web interface, API key for external clients.
+    
+    Authentication priority:
+    1. API Key (for external API clients)
+    2. Cookie (for web interface)
+    
+    JWT tokens have been removed for simplicity.
+    """
+    logger.info(f"🔍 get_current_user_and_api_key_hybrid called, credentials: {bool(credentials)}")
+    
+    # First try API key authentication if Bearer token is provided
+    if credentials:
+        logger.info(f"🔍 Trying API key authentication with: {credentials.credentials[:20]}...")
+        try:
+            api_key_info = await api_key_service.validate_api_key(credentials.credentials)
+            if api_key_info:
+                # Get user by user_id from API key
+                user = await auth_service.get_user_by_id(api_key_info.user_id)
+                logger.info(f"✅ User authenticated via API key: {user.email if user else 'None'}")
+                return user, api_key_info.id  # Return both user and API key ID
+        except Exception as e:
+            logger.info(f"❌ API key authentication failed: {str(e)}")
+            pass
+    else:
+        logger.info("🔍 No credentials provided, skipping API key auth")
+    
+    # Fallback to cookie authentication (for web interface)
+    logger.info("🔍 Trying cookie authentication...")
+    try:
+        user = await get_current_user_from_cookie(request)
+        if user:
+            logger.info(f"✅ User authenticated via cookie: {user.email}")
+            return user, None  # No API key for cookie auth
+        else:
+            logger.info("❌ Cookie authentication returned None")
+    except Exception as e:
+        logger.error(f"❌ Cookie authentication failed with exception: {str(e)}")
+        pass
+    
+    logger.warning("❌ No valid authentication found (API key or cookie)")
+    return None, None
+
 async def get_current_user_or_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
-    """Get current authenticated user from JWT token or API key."""
-    user, _ = await get_current_user_and_api_key(credentials)
+    """DEPRECATED: Get current authenticated user from API key only (JWT removed)."""
+    user, _ = await get_current_user_and_api_key_legacy(credentials)
+    return user
+
+async def get_current_user_cookie_only(request: Request) -> Optional[User]:
+    """Get current authenticated user from cookie only (for web interface)."""
+    return await get_current_user_from_cookie(request)
+
+async def get_current_user_hybrid(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Optional[User]:
+    """Get current authenticated user using hybrid auth (API key or cookie)."""
+    user, _ = await get_current_user_and_api_key_hybrid(request, credentials)
     return user
 
 async def require_auth(current_user: User = Depends(get_current_user)) -> User:
@@ -886,31 +933,39 @@ async def test_proposal():
 
 @app.post("/generate-proposal", response_model=ProposalResponse)
 async def generate_proposal(
-    request: ProposalRequest,
-    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
+    proposal_request: ProposalRequest,
+    request: Request,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key_hybrid)
 ):
     """
     Analyze a user prompt and generate a proposal with detailed analysis.
     This endpoint determines if the request is buildable, needs clarification,
     is a modification request, or is not buildable.
     """
+    logger.info(f"🎯 generate_proposal endpoint called with user_id: {proposal_request.user_id}")
+    logger.info(f"🎯 Request cookies: {list(request.cookies.keys())}")
+    logger.info(f"🎯 Request headers Authorization: {request.headers.get('authorization', 'None')}")
+    
     # Extract user and API key info
     current_user, api_key_id = user_and_key
+    logger.info(f"🎯 Authentication result - current_user: {current_user.email if current_user else 'None'}, api_key_id: {api_key_id}")
+    
     if not current_user:
+        logger.error("🎯 Authentication failed - raising 401")
         raise HTTPException(status_code=401, detail="Authentication required")
     
-    logger.info(f"Generating proposal for user {request.user_id} with prompt: {request.prompt[:100]}...")
+    logger.info(f"Generating proposal for user {proposal_request.user_id} with prompt: {proposal_request.prompt[:100]}...")
     
     # Check usage limits before proceeding
     try:
         limits = await usage_service.check_usage_limits(
-            user_id=request.user_id,
+            user_id=proposal_request.user_id,
             api_key_id=api_key_id,
             tokens_to_use=1000  # Estimated tokens for analysis
         )
         
         if limits.is_over_limit:
-            logger.warning(f"Rate limit exceeded for user {request.user_id}: {limits.limit_exceeded_reason}")
+            logger.warning(f"Rate limit exceeded for user {proposal_request.user_id}: {limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
                 detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
@@ -929,7 +984,7 @@ async def generate_proposal(
         # Analyze the prompt using PromptService
         logger.info("Analyzing prompt with PromptServiceBuild...")
         prompt_service = PromptServiceBuild()
-        analysis_result = await prompt_service.CanIBuildThis(request.user_id, request.prompt)
+        analysis_result = await prompt_service.CanIBuildThis(proposal_request.user_id, proposal_request.prompt)
         
         # Parse the analysis result
         import json
@@ -953,8 +1008,8 @@ async def generate_proposal(
                 "success": True,
                 "status": status,
                 "message": analysis_data.get("message", "Analysis completed."),
-                "original_prompt": request.prompt,
-                "user_id": request.user_id,
+                "original_prompt": proposal_request.prompt,
+                "user_id": proposal_request.user_id,
                 "timestamp": datetime.now(),
                 "conversation_state": "proposal",
                 "proposal_id": proposal_id
@@ -1028,8 +1083,8 @@ async def generate_proposal(
                 success=False,
                 status="error",
                 message="Failed to analyze the prompt. Please try again.",
-                original_prompt=request.prompt,
-                user_id=request.user_id,
+                original_prompt=proposal_request.prompt,
+                user_id=proposal_request.user_id,
                 timestamp=datetime.now()
             )
         
@@ -1045,8 +1100,9 @@ async def generate_proposal(
 
 @app.post("/modify-proposal", response_model=ProposalModificationResponse)
 async def modify_proposal(
-    request: ProposalModificationRequest,
-    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
+    modify_request: ProposalModificationRequest,
+    request: Request,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key_hybrid)
 ):
     """
     Modify an existing proposal by combining the original prompt with modification request.
@@ -1058,18 +1114,18 @@ async def modify_proposal(
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
-    logger.info(f"Modifying proposal for user {request.user_id} - modification: {request.modification_request[:100]}...")
+    logger.info(f"Modifying proposal for user {current_user.id} - modification: {modify_request.modification_request[:100]}...")
     
     # Check usage limits before proceeding
     try:
         limits = await usage_service.check_usage_limits(
-            user_id=request.user_id,
+            user_id=current_user.id,
             api_key_id=api_key_id,
             tokens_to_use=1200  # Estimated tokens for proposal modification analysis
         )
         
         if limits.is_over_limit:
-            logger.warning(f"Rate limit exceeded for user {request.user_id}: {limits.limit_exceeded_reason}")
+            logger.warning(f"Rate limit exceeded for user {current_user.id}: {limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
                 detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
@@ -1095,14 +1151,14 @@ async def modify_proposal(
         # Go directly to modification without analysis
         try:
             # Check if we have the current proposal data
-            if request.current_proposal:
+            if modify_request.current_proposal:
                 logger.info("Using existing proposal data for direct context-aware modification")
                 # Use the ModifyExistingProposal method that preserves context
                 modified_proposal_result = await prompt_service.ModifyExistingProposal(
-                    request.user_id, 
-                    request.current_proposal, 
-                    request.modification_request,
-                    request.original_prompt
+                    current_user.id, 
+                    modify_request.current_proposal, 
+                    modify_request.modification_request,
+                    modify_request.original_prompt
                 )
                 
                 try:
@@ -1126,8 +1182,8 @@ async def modify_proposal(
                     analysis_data = {
                         "status": "error",
                         "message": "I had trouble processing your modification request. Please try rephrasing it.",
-                        "original_prompt": request.original_prompt,
-                        "proposal": request.current_proposal
+                        "original_prompt": modify_request.original_prompt,
+                        "proposal": modify_request.current_proposal
                     }
                     status = "error"
             else:
@@ -1136,7 +1192,7 @@ async def modify_proposal(
                 analysis_data = {
                     "status": "error", 
                     "message": "I need the current proposal data to make modifications. Please try again.",
-                    "original_prompt": request.original_prompt
+                    "original_prompt": modify_request.original_prompt
                 }
                 status = "error"
             
@@ -1146,8 +1202,8 @@ async def modify_proposal(
             analysis_data = {
                 "status": "error",
                 "message": f"I encountered an issue while modifying the proposal: {str(e)}",
-                "original_prompt": request.original_prompt,
-                "proposal": request.current_proposal if request.current_proposal else None
+                "original_prompt": modify_request.original_prompt,
+                "proposal": modify_request.current_proposal if modify_request.current_proposal else None
             }
             status = "error"
             
@@ -1155,12 +1211,12 @@ async def modify_proposal(
         response_data = {
             "success": True if status != "error" else False,
             "message": analysis_data.get("message", "Proposal modification completed."),
-            "original_prompt": request.original_prompt,
-            "modification_request": request.modification_request,
-            "user_id": request.user_id,
+            "original_prompt": modify_request.original_prompt,
+            "modification_request": modify_request.modification_request,
+            "user_id": current_user.id,
             "timestamp": datetime.now(),
             "conversation_state": "proposal",  # Still in proposal state after modification
-            "proposal_id": request.proposal_id  # Maintain the same proposal session
+            "proposal_id": modify_request.proposal_id  # Maintain the same proposal session
         }
         
         # Handle the simplified status (only "buildable" or "error")
@@ -1199,9 +1255,9 @@ async def modify_proposal(
             success=False,
             status="error",
             message="Failed to analyze the modified proposal. Please try again.",
-            original_prompt=request.original_prompt,
-            modification_request=request.modification_request,
-            user_id=request.user_id,
+            original_prompt=modify_request.original_prompt,
+            modification_request=modify_request.modification_request,
+            user_id=current_user.id,
             timestamp=datetime.now()
         )
         
@@ -1217,8 +1273,9 @@ async def modify_proposal(
 
 @app.post("/generate-api", response_model=APIGenerationResponse)
 async def generate_api(
-    request: APIGenerationRequest,
-    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
+    api_request: APIGenerationRequest,
+    request: Request,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key_hybrid)
 ):
     """
     Generate a new API based on user prompt.
@@ -1234,19 +1291,19 @@ async def generate_api(
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
-    logger.info(f"Generating API for user {request.user_id} with prompt: {request.prompt[:100]}...")
+    logger.info(f"Generating API for user {current_user.id} with prompt: {api_request.prompt[:100]}...")
     
     # Check usage limits before proceeding
     try:
         limits = await usage_service.check_usage_limits(
-            user_id=request.user_id,
+            user_id=current_user.id,
             api_key_id=api_key_id,
             tokens_to_use=2000  # Estimated tokens for code generation
         )
         
         if limits.is_over_limit:
             # Log the limit breach for monitoring
-            logger.warning(f"Rate limit exceeded for user {request.user_id}: {limits.limit_exceeded_reason}")
+            logger.warning(f"Rate limit exceeded for user {current_user.id}: {limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
                 detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
@@ -1278,17 +1335,17 @@ async def generate_api(
             )
         
         # Use multi-step generation by default, single-step only if explicitly disabled
-        if not request.use_multi_step == False:  # Default to multi-step
-            logger.info(f"Using multi-step generation for user {request.user_id}")
+        if not api_request.use_multi_step == False:  # Default to multi-step
+            logger.info(f"Using multi-step generation for user {current_user.id}")
             
             # Multi-step generation in normal mode
             session_id = await multi_step_generation_service.start_generation(
-                prompt=request.prompt,
-                user_id=request.user_id,
-                sample_input=request.sample_input,
-                expected_output=request.expected_output,
+                prompt=api_request.prompt,
+                user_id=current_user.id,
+                sample_input=api_request.sample_input,
+                expected_output=api_request.expected_output,
                 api_key_id=api_key_id,
-                pipeline_name=request.pipeline_name or "full_pipeline",
+                pipeline_name=api_request.pipeline_name or "full_pipeline",
                 mode=GenerationMode("normal")
             )
             
@@ -1320,7 +1377,7 @@ async def generate_api(
                 prompt=request.prompt,
                 sample_input=request.sample_input,
                 expected_output=request.expected_output,
-                user_id=request.user_id,
+                user_id=current_user.id,
                 api_key_id=api_key_id
             )
             logger.info("Code generation completed successfully")
@@ -1329,7 +1386,7 @@ async def generate_api(
         # Debug and fix the generated code
         logger.info("Analyzing and fixing generated code...")
         code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
-            raw_code, request.prompt, request.user_id, api_key_id
+            raw_code, api_request.prompt, current_user.id, api_key_id
         )
         
         if issues_found:
@@ -1352,27 +1409,27 @@ async def generate_api(
         
         # Generate API slug
         api_slug = file_service.generate_api_slug(
-            user_id=request.user_id,
-            api_name=request.api_name
+            user_id=current_user.id,
+            api_name=api_request.api_name
         )
         
         # Remove user_id prefix for clean slug
-        clean_slug = api_slug.replace(f"{request.user_id}_", "")
+        clean_slug = api_slug.replace(f"{current_user.id}_", "")
         
         # Save the code
         await file_service.save_api_code(api_slug, code)
         
         # Generate documentation
-        documentation, curl_example = await openai_service.generate_documentation(
+        documentation, openapi_spec, curl_example = await openai_service.generate_documentation(
             code=code, 
-            prompt=request.prompt,
-            user_id=request.user_id,
+            prompt=api_request.prompt,
+            user_id=current_user.id,
             api_key_id=api_key_id,
             api_slug=clean_slug
         )
         
         # Build endpoint URL
-        endpoint_url = f"{settings.API_PREFIX}/{request.user_id}/{clean_slug}"
+        endpoint_url = f"{settings.API_PREFIX}/{current_user.id}/{clean_slug}"
         
         # Update curl example with actual endpoint
         if "your-endpoint-url" in curl_example:
@@ -1395,7 +1452,7 @@ async def generate_api(
             estimated_input_tokens, estimated_output_tokens = usage_service.calculate_estimated_tokens(
                 model_name=ai_model_used,
                 system_prompt="",  # Add system prompt if you have it
-                user_prompt=request.prompt,
+                user_prompt=api_request.prompt,
                 response_length=len(code),
                 success=True
             )
@@ -1405,7 +1462,7 @@ async def generate_api(
             
             await api_pricing_service.save_api_metadata(
                 api_slug=clean_slug,
-                user_id=request.user_id,
+                user_id=current_user.id,
                 ai_model_used=ai_model_used,
                 estimated_tokens_per_call=estimated_tokens_per_call,
                 base_complexity=complexity
@@ -1442,8 +1499,9 @@ async def generate_api(
 
 @app.post("/modify-api", response_model=APIModificationResponse)
 async def modify_api(
-    request: APIModificationRequest,
-    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key)
+    modification_request: APIModificationRequest,
+    request: Request,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key_hybrid)
 ):
     """
     Modify an existing API's code based on user prompt.

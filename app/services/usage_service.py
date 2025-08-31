@@ -16,7 +16,10 @@ except ImportError:
     TIKTOKEN_AVAILABLE = False
 
 try:
-    from transformers import AutoTokenizer
+    import warnings
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*PyTorch, TensorFlow.*")
+        from transformers import AutoTokenizer
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -728,7 +731,7 @@ class UsageService:
         if model_name not in self.COST_PER_TOKEN:
             logger.warning(f"Unknown model {model_name}, using default pricing")
             # Default to GPT-3.5 pricing
-            pricing = self.COST_PER_TOKEN['gpt-3.5-turbo']
+            pricing = self.COST_PER_TOKEN['gpt-5-mini']
         else:
             pricing = self.COST_PER_TOKEN[model_name]
         
