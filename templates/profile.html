@@ -151,7 +151,9 @@
                             <span class="text-sm text-gray-400" id="tokenUsageText">0 / 10,000</span>
                         </div>
                         <div class="limit-bar">
-                            <div class="limit-progress low" id="tokenUsageProgress" style="width: 0%"></div>
+                            <div class="limit-progress low" id="tokenUsageProgress" style="width: 0%">
+                                <span class="limit-progress-text" id="tokenUsagePercent">0%</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -168,7 +170,9 @@
                                 <span class="text-sm text-gray-400" id="dailyExecutionsText">0 / 1,000</span>
                             </div>
                             <div class="limit-bar">
-                                <div class="limit-progress low" id="dailyExecutionsProgress" style="width: 0%"></div>
+                                <div class="limit-progress low" id="dailyExecutionsProgress" style="width: 0%">
+                                    <span class="limit-progress-text" id="dailyExecutionsPercent">0%</span>
+                                </div>
                             </div>
                         </div>
 
@@ -179,7 +183,9 @@
                                 <span class="text-sm text-gray-400" id="monthlyExecutionsText">0 / 10,000</span>
                             </div>
                             <div class="limit-bar">
-                                <div class="limit-progress low" id="monthlyExecutionsProgress" style="width: 0%"></div>
+                                <div class="limit-progress low" id="monthlyExecutionsProgress" style="width: 0%">
+                                    <span class="limit-progress-text" id="monthlyExecutionsPercent">0%</span>
+                                </div>
                             </div>
                         </div>
 
@@ -190,7 +196,9 @@
                                 <span class="text-sm text-gray-400" id="dailyDataText">0 MB / 100 MB</span>
                             </div>
                             <div class="limit-bar">
-                                <div class="limit-progress low" id="dailyDataProgress" style="width: 0%"></div>
+                                <div class="limit-progress low" id="dailyDataProgress" style="width: 0%">
+                                    <span class="limit-progress-text" id="dailyDataPercent">0%</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -225,7 +233,9 @@
                                 <span class="text-sm text-gray-400" id="dailyTokensText">0 / 100,000</span>
                             </div>
                             <div class="limit-bar">
-                                <div class="limit-progress low" id="dailyTokensProgress" style="width: 0%"></div>
+                                <div class="limit-progress low" id="dailyTokensProgress" style="width: 0%">
+                                    <span class="limit-progress-text" id="dailyTokensPercent">0%</span>
+                                </div>
                             </div>
                         </div>
 
@@ -236,7 +246,9 @@
                                 <span class="text-sm text-gray-400" id="monthlyTokensText">0 / 1,000,000</span>
                             </div>
                             <div class="limit-bar">
-                                <div class="limit-progress low" id="monthlyTokensProgress" style="width: 0%"></div>
+                                <div class="limit-progress low" id="monthlyTokensProgress" style="width: 0%">
+                                    <span class="limit-progress-text" id="monthlyTokensPercent">0%</span>
+                                </div>
                             </div>
                         </div>
 
@@ -247,7 +259,9 @@
                                 <span class="text-sm text-gray-400" id="dailyCostText">$0.00 / $10.00</span>
                             </div>
                             <div class="limit-bar">
-                                <div class="limit-progress low" id="dailyCostProgress" style="width: 0%"></div>
+                                <div class="limit-progress low" id="dailyCostProgress" style="width: 0%">
+                                    <span class="limit-progress-text" id="dailyCostPercent">0%</span>
+                                </div>
                             </div>
                         </div>
 
@@ -258,7 +272,9 @@
                                 <span class="text-sm text-gray-400" id="hourlyTokensText">0 / 10,000</span>
                             </div>
                             <div class="limit-bar">
-                                <div class="limit-progress low" id="hourlyTokensProgress" style="width: 0%"></div>
+                                <div class="limit-progress low" id="hourlyTokensProgress" style="width: 0%">
+                                    <span class="limit-progress-text" id="hourlyTokensPercent">0%</span>
+                                </div>
                             </div>
                         </div>
 
@@ -269,7 +285,9 @@
                                 <span class="text-sm text-gray-400" id="minutelyRequestsText">0 / 100</span>
                             </div>
                             <div class="limit-bar">
-                                <div class="limit-progress low" id="minutelyRequestsProgress" style="width: 0%"></div>
+                                <div class="limit-progress low" id="minutelyRequestsProgress" style="width: 0%">
+                                    <span class="limit-progress-text" id="minutelyRequestsPercent">0%</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -510,10 +528,8 @@
     // Initialize profile data
     async function loadProfile() {
         try {
-            const response = await fetch('/auth/profile', {
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+            const response = await fetch('/auth/me', {
+                credentials: 'include'
             });
             
             if (!response.ok) {
@@ -521,6 +537,13 @@
             }
             
             const profile = await response.json();
+            
+            if (!profile.authenticated) {
+                throw new Error('Not authenticated');
+            }
+            
+            // Store user data globally for other functions
+            window.currentUser = profile.user;
             
             // Update profile info
             document.getElementById('profileInitials').textContent = 
@@ -540,9 +563,7 @@
         try {
             // Load usage statistics
             const statsResponse = await fetch('/usage/stats?days=30', {
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             if (statsResponse.ok) {
@@ -552,9 +573,7 @@
 
             // Load usage limits
             const limitsResponse = await fetch('/usage/limits', {
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             if (limitsResponse.ok) {
@@ -589,30 +608,26 @@
         const dailyTokenPercent = Math.min((data.daily_tokens_used / data.daily_token_limit) * 100, 100);
         document.getElementById('dailyTokensText').textContent = 
             `${data.daily_tokens_used.toLocaleString()} / ${data.daily_token_limit.toLocaleString()}`;
-        document.getElementById('dailyTokensProgress').style.width = dailyTokenPercent + '%';
-        updateProgressBarColor(document.getElementById('dailyTokensProgress'), dailyTokenPercent);
+        animateProgressBar(document.getElementById('dailyTokensProgress'), dailyTokenPercent);
 
         // Monthly tokens
         const monthlyTokenPercent = Math.min((data.monthly_tokens_used / data.monthly_token_limit) * 100, 100);
         document.getElementById('monthlyTokensText').textContent = 
             `${data.monthly_tokens_used.toLocaleString()} / ${data.monthly_token_limit.toLocaleString()}`;
-        document.getElementById('monthlyTokensProgress').style.width = monthlyTokenPercent + '%';
-        updateProgressBarColor(document.getElementById('monthlyTokensProgress'), monthlyTokenPercent);
+        animateProgressBar(document.getElementById('monthlyTokensProgress'), monthlyTokenPercent);
 
         // Daily cost
         const dailyCostPercent = Math.min((data.daily_cost_used_cents / data.daily_cost_limit_cents) * 100, 100);
         document.getElementById('dailyCostText').textContent = 
             `$${(data.daily_cost_used_cents / 100).toFixed(2)} / $${(data.daily_cost_limit_cents / 100).toFixed(2)}`;
-        document.getElementById('dailyCostProgress').style.width = dailyCostPercent + '%';
-        updateProgressBarColor(document.getElementById('dailyCostProgress'), dailyCostPercent);
+        animateProgressBar(document.getElementById('dailyCostProgress'), dailyCostPercent);
 
         // Hourly tokens
         if (data.hourly_token_limit) {
             const hourlyTokenPercent = Math.min((data.hourly_tokens_used / data.hourly_token_limit) * 100, 100);
             document.getElementById('hourlyTokensText').textContent = 
                 `${data.hourly_tokens_used.toLocaleString()} / ${data.hourly_token_limit.toLocaleString()}`;
-            document.getElementById('hourlyTokensProgress').style.width = hourlyTokenPercent + '%';
-            updateProgressBarColor(document.getElementById('hourlyTokensProgress'), hourlyTokenPercent);
+            animateProgressBar(document.getElementById('hourlyTokensProgress'), hourlyTokenPercent);
         }
 
         // Minutely requests
@@ -620,12 +635,11 @@
             const minutelyRequestPercent = Math.min((data.minutely_requests_used / data.minutely_request_limit) * 100, 100);
             document.getElementById('minutelyRequestsText').textContent = 
                 `${data.minutely_requests_used} / ${data.minutely_request_limit}`;
-            document.getElementById('minutelyRequestsProgress').style.width = minutelyRequestPercent + '%';
-            updateProgressBarColor(document.getElementById('minutelyRequestsProgress'), minutelyRequestPercent);
+            animateProgressBar(document.getElementById('minutelyRequestsProgress'), minutelyRequestPercent);
         }
     }
 
-    // Update progress bar color based on percentage
+    // Update progress bar color and percentage display based on percentage
     function updateProgressBarColor(element, percent) {
         element.className = 'limit-progress ';
         if (percent < 50) {
@@ -637,6 +651,33 @@
         } else {
             element.className += 'critical';
         }
+        
+        // Update percentage text if it exists
+        const percentElement = element.querySelector('.limit-progress-text');
+        if (percentElement) {
+            const displayPercent = Math.round(percent);
+            percentElement.textContent = displayPercent + '%';
+            // Always show percentage text for high usage, hide only for very small bars
+            percentElement.style.opacity = (percent > 10 || percent >= 90) ? '1' : '0';
+            
+            // Special styling for over-limit situations
+            if (percent >= 100) {
+                percentElement.style.color = 'rgba(255, 255, 255, 1)';
+                percentElement.style.fontWeight = '900';
+            }
+        }
+    }
+
+    // Animate progress bar to new width
+    function animateProgressBar(element, targetPercent) {
+        // Reset to 0 width first
+        element.style.width = '0%';
+        
+        // Use requestAnimationFrame for smooth animation
+        setTimeout(() => {
+            element.style.width = targetPercent + '%';
+            updateProgressBarColor(element, targetPercent);
+        }, 100);
     }
 
     // Display service usage breakdown
@@ -700,9 +741,7 @@
         try {
             // Load API execution statistics
             const statsResponse = await fetch('/api-execution-stats?days=30', {
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             if (statsResponse.ok) {
@@ -712,9 +751,7 @@
 
             // Load API execution limits
             const limitsResponse = await fetch('/api-execution-limits', {
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             if (limitsResponse.ok) {
@@ -724,9 +761,7 @@
 
             // Load internal token balance
             const tokenResponse = await fetch('/internal-token-balance', {
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             if (tokenResponse.ok) {
@@ -759,23 +794,20 @@
         const dailyExecPercent = Math.min((data.daily_executions_used / data.daily_execution_limit) * 100, 100);
         document.getElementById('dailyExecutionsText').textContent = 
             `${data.daily_executions_used.toLocaleString()} / ${data.daily_execution_limit.toLocaleString()}`;
-        document.getElementById('dailyExecutionsProgress').style.width = dailyExecPercent + '%';
-        updateProgressBarColor(document.getElementById('dailyExecutionsProgress'), dailyExecPercent);
+        animateProgressBar(document.getElementById('dailyExecutionsProgress'), dailyExecPercent);
 
         // Monthly executions
         const monthlyExecPercent = Math.min((data.monthly_executions_used / data.monthly_execution_limit) * 100, 100);
         document.getElementById('monthlyExecutionsText').textContent = 
             `${data.monthly_executions_used.toLocaleString()} / ${data.monthly_execution_limit.toLocaleString()}`;
-        document.getElementById('monthlyExecutionsProgress').style.width = monthlyExecPercent + '%';
-        updateProgressBarColor(document.getElementById('monthlyExecutionsProgress'), monthlyExecPercent);
+        animateProgressBar(document.getElementById('monthlyExecutionsProgress'), monthlyExecPercent);
 
         // Daily data
         const dailyDataMB = Math.round(data.daily_data_used_bytes / (1024 * 1024));
         const dailyDataLimitMB = Math.round(data.daily_data_limit_bytes / (1024 * 1024));
         const dailyDataPercent = Math.min((data.daily_data_used_bytes / data.daily_data_limit_bytes) * 100, 100);
         document.getElementById('dailyDataText').textContent = `${dailyDataMB} MB / ${dailyDataLimitMB} MB`;
-        document.getElementById('dailyDataProgress').style.width = dailyDataPercent + '%';
-        updateProgressBarColor(document.getElementById('dailyDataProgress'), dailyDataPercent);
+        animateProgressBar(document.getElementById('dailyDataProgress'), dailyDataPercent);
     }
 
     // Display token balance
@@ -788,8 +820,7 @@
         const tokenPercent = Math.min((data.used_tokens / data.total_tokens) * 100, 100);
         document.getElementById('tokenUsageText').textContent = 
             `${data.used_tokens.toLocaleString()} / ${data.total_tokens.toLocaleString()}`;
-        document.getElementById('tokenUsageProgress').style.width = tokenPercent + '%';
-        updateProgressBarColor(document.getElementById('tokenUsageProgress'), tokenPercent);
+        animateProgressBar(document.getElementById('tokenUsageProgress'), tokenPercent);
     }
 
     // Display API usage breakdown
@@ -854,9 +885,9 @@
             const response = await fetch('/allocate-monthly-tokens', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${window.authToken}`
+                    'Content-Type': 'application/json'
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     amount: 10000,
                     source: 'monthly_allocation'
@@ -889,9 +920,7 @@
         
         try {
             const response = await fetch('/api-keys', {
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             const result = await response.json();
@@ -973,9 +1002,7 @@
         
         try {
             const response = await fetch(`/api/${window.currentUser.id}`, {
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             const result = await response.json();
@@ -1068,9 +1095,9 @@
             const response = await fetch('/api-keys', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${window.authToken}`
+                    'Content-Type': 'application/json'
                 },
+                credentials: 'include',
                 body: JSON.stringify(requestBody)
             });
             
@@ -1114,9 +1141,9 @@
             const response = await fetch(`/api-keys/${keyId}`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${window.authToken}`
+                    'Content-Type': 'application/json'
                 },
+                credentials: 'include',
                 body: JSON.stringify({ is_active: isActive })
             });
             
@@ -1148,9 +1175,7 @@
         try {
             const response = await fetch(`/api-keys/${currentDeleteAPIKeyTarget.keyId}`, {
                 method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             if (response.ok) {
@@ -1209,9 +1234,7 @@
         try {
             const response = await fetch(`/api/${currentDeleteAPITarget.userId}/${currentDeleteAPITarget.apiSlug}`, {
                 method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${window.authToken}`
-                }
+                credentials: 'include'
             });
             
             if (response.ok) {
@@ -1253,25 +1276,8 @@
     document.addEventListener('DOMContentLoaded', async () => {
         console.log('=== NEW PROFILE PAGE LOADING ===');
         
-        // Wait a bit for base.html to initialize
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        // Get auth data
-        const authToken = localStorage.getItem('authToken');
-        const currentUserStr = localStorage.getItem('currentUser');
-        
-        if (!authToken || !currentUserStr) {
-            console.log('❌ Not authenticated, redirecting to home page');
-            window.location.href = '/';
-            return;
-        }
-        
         try {
-            const currentUser = JSON.parse(currentUserStr);
-            window.authToken = authToken;
-            window.currentUser = currentUser;
-            
-            console.log('✅ Authentication found, loading profile data');
+            console.log('✅ Setting up profile page components');
             
             // Setup tab navigation
             document.querySelectorAll('[data-tab]').forEach(button => {
@@ -1294,7 +1300,7 @@
             // Setup create API key button
             document.getElementById('createAPIKeyBtn').addEventListener('click', showCreateAPIKeyModal);
             
-            // Load initial data
+            // Load initial data - loadProfile will check authentication
             await loadProfile();
             await loadUsageData(); // Load usage tab by default
             

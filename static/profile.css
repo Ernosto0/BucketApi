@@ -356,33 +356,98 @@
 .limit-bar {
     background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
     border-radius: 8px;
-    height: 10px;
+    height: 12px;
     overflow: hidden;
     margin: 0.5rem 0;
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .limit-progress {
     height: 100%;
     border-radius: 8px;
-    transition: width 0.5s ease;
+    transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.limit-progress::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: shimmer 2s infinite;
 }
 
 .limit-progress.low {
     background: linear-gradient(90deg, var(--vscode-green), #32d74b);
+    box-shadow: 0 2px 8px rgba(52, 215, 75, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .limit-progress.medium {
     background: linear-gradient(90deg, var(--vscode-yellow), #ffd60a);
+    box-shadow: 0 2px 8px rgba(255, 214, 10, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .limit-progress.high {
     background: linear-gradient(90deg, var(--vscode-orange), #ff9500);
+    box-shadow: 0 2px 8px rgba(255, 149, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: pulse-warning 2s infinite;
 }
 
 .limit-progress.critical {
     background: linear-gradient(90deg, var(--vscode-red), #ff453a);
+    box-shadow: 0 2px 8px rgba(255, 69, 58, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: pulse-critical 1.5s infinite;
+}
+
+.limit-progress.critical .limit-progress-text,
+.limit-progress.high .limit-progress-text {
+    color: rgba(255, 255, 255, 1);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7);
+    font-weight: 800;
+}
+
+.limit-progress-text {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8), 0 0 6px rgba(0, 0, 0, 0.6);
+    z-index: 10;
+    pointer-events: none;
+    letter-spacing: 0.02em;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+@keyframes pulse-warning {
+    0%, 100% { 
+        box-shadow: 0 2px 8px rgba(255, 149, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    50% { 
+        box-shadow: 0 2px 15px rgba(255, 149, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+}
+
+@keyframes pulse-critical {
+    0%, 100% { 
+        box-shadow: 0 2px 8px rgba(255, 69, 58, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    50% { 
+        box-shadow: 0 2px 20px rgba(255, 69, 58, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
 }
 
 /* API Keys Grid Styles */

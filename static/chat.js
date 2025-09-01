@@ -125,6 +125,19 @@ async function handleProposalModificationWithContext(modificationRequest, userId
             })
         });
 
+        // Check for rate limiting or other HTTP errors
+        if (modifyResponse.status === 429) {
+            const errorData = await modifyResponse.json();
+            hideTypingIndicator();
+            addRateLimitMessage(errorData.detail);
+            return;
+        } else if (!modifyResponse.ok) {
+            const errorData = await modifyResponse.json();
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Error: ${errorData.detail || 'Request failed'}`);
+            return;
+        }
+
         const modifyResult = await modifyResponse.json();
         console.log('Proposal Modification Response:', modifyResult);
         console.log('Modification Result Keys:', Object.keys(modifyResult));
@@ -211,6 +224,19 @@ async function handleProposalModification(modificationRequest, userId) {
                 current_proposal: currentProposal.proposal
             })
         });
+
+        // Check for rate limiting or other HTTP errors
+        if (modifyResponse.status === 429) {
+            const errorData = await modifyResponse.json();
+            hideTypingIndicator();
+            addRateLimitMessage(errorData.detail);
+            return;
+        } else if (!modifyResponse.ok) {
+            const errorData = await modifyResponse.json();
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Error: ${errorData.detail || 'Request failed'}`);
+            return;
+        }
 
         const modifyResult = await modifyResponse.json();
         console.log('Proposal Modification Response:', modifyResult);
@@ -495,6 +521,19 @@ async function sendMessage() {
             })
         });
 
+        // Check for rate limiting or other HTTP errors
+        if (proposalResponse.status === 429) {
+            const errorData = await proposalResponse.json();
+            hideTypingIndicator();
+            addRateLimitMessage(errorData.detail);
+            return;
+        } else if (!proposalResponse.ok) {
+            const errorData = await proposalResponse.json();
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Error: ${errorData.detail || 'Request failed'}`);
+            return;
+        }
+
         const proposalResult = await proposalResponse.json();
         console.log('Proposal Response:', proposalResult);
         console.log('Proposal Status:', proposalResult.status);
@@ -596,6 +635,19 @@ async function generateAPI(message, userId, skipAnalysis = true) {
                 expected_output: currentProposal?.proposal?.output_format?.example || null
             })
         });
+
+        // Check for rate limiting or other HTTP errors
+        if (response.status === 429) {
+            const errorData = await response.json();
+            hideTypingIndicator();
+            addRateLimitMessage(errorData.detail);
+            return;
+        } else if (!response.ok) {
+            const errorData = await response.json();
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Error: ${errorData.detail || 'Request failed'}`);
+            return;
+        }
 
         const result = await response.json();
         
@@ -792,6 +844,46 @@ function addRejectionMessage(analysis) {
             </div>
             <div class="text-center text-sm text-slate-400 mt-4">
                 Feel free to rephrase your request or try a different approach!
+            </div>
+        </div>
+    `;
+    addMessage('assistant', content);
+    hideTypingIndicator();
+}
+
+function addRateLimitMessage(rateLimitDetails) {
+    const content = `
+        <div class="space-y-4">
+            <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></div>
+                <span class="text-orange-300 font-medium">⏱️ Rate Limit Reached</span>
+            </div>
+            <div class="bg-orange-900/20 border border-orange-600/30 rounded-lg p-4">
+                <div class="text-orange-200 space-y-3">
+                    <p class="text-sm leading-relaxed">
+                        You've reached your current usage limit. This helps ensure fair access for all users.
+                    </p>
+                    <div class="text-xs text-orange-300/80">
+                        ${escapeHtml(rateLimitDetails || 'Daily usage limit exceeded')}
+                    </div>
+                    <div class="space-y-2 text-sm">
+                        <p class="font-medium text-orange-200">What you can do:</p>
+                        <ul class="space-y-1 text-orange-200/90">
+                            <li class="flex items-start space-x-2">
+                                <span class="text-orange-400">•</span>
+                                <span>Wait for your limits to reset (usually 24 hours)</span>
+                            </li>
+                            <li class="flex items-start space-x-2">
+                                <span class="text-orange-400">•</span>
+                                <span>Check your <a href="/profile" class="text-orange-300 hover:text-orange-200 underline">usage dashboard</a> for details</span>
+                            </li>
+                            <li class="flex items-start space-x-2">
+                                <span class="text-orange-400">•</span>
+                                <span>Consider upgrading for higher limits</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     `;
@@ -1704,6 +1796,19 @@ async function processModificationRequest(modificationPrompt, userId) {
             })
         });
 
+        // Check for rate limiting or other HTTP errors
+        if (response.status === 429) {
+            const errorData = await response.json();
+            hideTypingIndicator();
+            addRateLimitMessage(errorData.detail);
+            return;
+        } else if (!response.ok) {
+            const errorData = await response.json();
+            hideTypingIndicator();
+            addMessage('assistant', `❌ Error: ${errorData.detail || 'Request failed'}`);
+            return;
+        }
+
         const result = await response.json();
         
         hideTypingIndicator();
@@ -1836,6 +1941,7 @@ function getMethodColor(method) {
 }
 
 function updateAPIPreview(apiData) {
+    console.log('updateAPIPreview called with:', apiData);
     currentAPISpec = apiData;
     currentProposal = null;
     previewMode = 'api';
@@ -2208,6 +2314,10 @@ function extractSampleTestDataFromDocumentation(documentation) {
 async function updateTestInput(apiData) {
     const testInput = document.getElementById('previewTestInput');
     
+    // Debug logging
+    console.log('updateTestInput called with:', apiData);
+    console.log('API slug:', apiData.api_slug, 'User ID:', apiData.user_id);
+    
     // Try to generate smart test data using our AI endpoint
     if (apiData.api_slug && apiData.user_id) {
         try {
@@ -2234,13 +2344,44 @@ async function updateTestInput(apiData) {
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('Test data generation response:', data);
                 
                 if (data.success && data.test_scenarios && data.test_scenarios.length > 0) {
-                    // Use the first scenario's data as the default test input
+                    // Store all scenarios globally
+                    window.currentTestScenarios = data.test_scenarios;
+                    
+                    // Show the scenario selector if we have multiple scenarios
+                    const scenarioSelector = document.getElementById('testScenarioSelector');
+                    const scenarioSelect = document.getElementById('scenarioSelect');
+                    const generateBtn = document.getElementById('generateNewScenariosBtn');
+                    
+                    if (data.test_scenarios.length > 1) {
+                        // Show the selector
+                        scenarioSelector.classList.remove('hidden');
+                        generateBtn.classList.remove('hidden');
+                        
+                        // Populate the dropdown
+                        scenarioSelect.innerHTML = '<option value="">Select a test scenario...</option>';
+                        data.test_scenarios.forEach((scenario, index) => {
+                            const option = document.createElement('option');
+                            option.value = index;
+                            option.textContent = `${index + 1}. ${scenario.scenario}`;
+                            scenarioSelect.appendChild(option);
+                        });
+                        
+                        // Auto-select the first scenario
+                        scenarioSelect.value = '0';
+                    } else {
+                        // Hide the selector for single scenarios
+                        scenarioSelector.classList.add('hidden');
+                        generateBtn.classList.remove('hidden');
+                    }
+                    
+                    // Load the first scenario by default
                     const firstScenario = data.test_scenarios[0];
                     testInput.value = JSON.stringify(firstScenario.data, null, 2);
                     
-                    // Store all scenarios for potential future use
+                    // Store for backward compatibility
                     testInput.setAttribute('data-ai-scenarios', JSON.stringify(data.test_scenarios));
                     testInput.setAttribute('data-sample-json', JSON.stringify(firstScenario.data, null, 2));
                     
@@ -2251,16 +2392,17 @@ async function updateTestInput(apiData) {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
                         </svg>
                         <span>AI-generated test data loaded (${data.test_scenarios.length} scenarios available)</span>
-                        <button onclick="loadSampleTestData()" class="text-green-300 hover:text-green-200 underline">Reload</button>
                     `;
                     
                     console.log('Smart test data generated successfully:', data.test_scenarios.length, 'scenarios');
                     return;
                 } else {
                     console.warn('AI test data generation returned no scenarios, falling back to documentation extraction');
+                    console.log('Data received:', data);
                 }
             } else {
                 console.warn('AI test data generation failed, falling back to documentation extraction');
+                console.log('Response status:', response.status, 'Response text:', await response.text());
             }
         } catch (error) {
             console.error('Error generating smart test data:', error);
@@ -2912,3 +3054,47 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure scroll to bottom button starts hidden
     document.getElementById('scrollToBottomBtn').classList.add('hidden');
 }); 
+
+// Test scenario management functions
+function loadSelectedScenario() {
+    const scenarioSelect = document.getElementById('scenarioSelect');
+    const testInput = document.getElementById('previewTestInput');
+    const selectedIndex = scenarioSelect.value;
+    
+    if (selectedIndex !== '' && window.currentTestScenarios && window.currentTestScenarios[selectedIndex]) {
+        const selectedScenario = window.currentTestScenarios[selectedIndex];
+        testInput.value = JSON.stringify(selectedScenario.data, null, 2);
+        console.log('Loaded test scenario:', selectedScenario.scenario);
+    }
+}
+
+async function regenerateTestScenarios() {
+    if (!currentAPISpec || !currentAPISpec.api_slug || !currentAPISpec.user_id) {
+        console.warn('Cannot regenerate scenarios: missing API data');
+        return;
+    }
+    
+    console.log('Regenerating test scenarios...');
+    
+    // Clear current scenarios
+    window.currentTestScenarios = null;
+    const scenarioSelector = document.getElementById('testScenarioSelector');
+    const generateBtn = document.getElementById('generateNewScenariosBtn');
+    scenarioSelector.classList.add('hidden');
+    
+    // Show loading state on button
+    const originalText = generateBtn.textContent;
+    generateBtn.textContent = '🔄 Generating...';
+    generateBtn.disabled = true;
+    
+    try {
+        // Call the updateTestInput function to regenerate scenarios
+        await updateTestInput(currentAPISpec);
+    } catch (error) {
+        console.error('Error regenerating test scenarios:', error);
+    } finally {
+        // Restore button state
+        generateBtn.textContent = originalText;
+        generateBtn.disabled = false;
+    }
+}
