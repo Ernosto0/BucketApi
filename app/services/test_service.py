@@ -409,35 +409,48 @@ class TestService:
         try:
             logger.info(f"Generating AI-powered test data for API {api_slug}")
             
-            # Load API details if available
-            api_details = await file_service.get_api_details(user_id, api_slug)
+            # Try to load API details, but continue even if not available
+            api_details = {}
+            try:
+                api_details = await file_service.get_api_details(user_id, api_slug)
+                logger.info(f"Loaded API details for {api_slug}")
+            except Exception as e:
+                logger.warning(f"Could not load API details for {api_slug}: {str(e)}, trying to load code directly")
+                # Try to load the code directly from file
+                try:
+                    full_slug = f"{user_id}_{api_slug}"
+                    code = file_service.load_api_code(user_id, api_slug)
+                    api_details = {
+                        'description': f'API endpoint {api_slug}',
+                        'functionality': 'Data processing and response generation',
+                        'expected_output': 'JSON response with processed data',
+                        'documentation': f'API {api_slug} for data processing',
+                        'curl_example': '',
+                        'code': code  # Include the actual code
+                    }
+                    logger.info(f"Loaded API code directly for {api_slug}")
+                except Exception as code_error:
+                    logger.warning(f"Could not load API code either: {code_error}, using minimal defaults")
+                    api_details = {
+                        'description': f'API endpoint {api_slug}',
+                        'functionality': 'Data processing and response generation',
+                        'expected_output': 'JSON response with processed data',
+                        'documentation': f'API {api_slug} for data processing',
+                        'curl_example': '',
+                        'code': ''
+                    }
             
-            # Extract information for the AI prompt
-            api_description = api_details.get('description', 'API for data processing')
-            api_functionality = api_details.get('functionality', api_description)
-            expected_output = api_details.get('expected_output', 'JSON response with processed data')
+            # Enhanced extraction of API context
+            context = self._extract_api_context(api_details)
             
-            # Try to extract sample input from curl example or documentation
-            sample_input = None
-            if 'curl_example' in api_details:
-                curl_example = api_details['curl_example']
-                extracted_data = self._extract_data_from_curl(curl_example)
-                if extracted_data:
-                    sample_input = json.dumps(extracted_data, indent=2)
-            
-            # Determine expected fields and processing type from API details
-            expected_fields = "data, message"  # Default fields
-            input_type = "JSON object"
-            processing_type = "data processing"
-            api_purpose = api_description
-            
-            # If we have documentation or code, extract more details
-            if 'documentation' in api_details:
-                doc = api_details['documentation']
-                # Try to extract field information from documentation
-                if 'input' in doc.lower() or 'field' in doc.lower():
-                    # Basic extraction - could be enhanced further
-                    expected_fields = "Based on API documentation"
+            api_description = context['description']
+            api_functionality = context['functionality'] 
+            expected_output = context['expected_output']
+            sample_input = context['sample_input']
+            expected_fields = context['expected_fields']
+            input_type = context['input_type']
+            processing_type = context['processing_type']
+            api_purpose = context['api_purpose']
             
             # Load the test data generator prompt
             prompt_config = load_test_data_generator_prompt()
@@ -455,36 +468,56 @@ class TestService:
                 processing_type=processing_type
             )
             
-            # Make request to OpenAI using the cheap model
+            # Try OpenAI first, fallback to enhanced test data if it fails
             logger.info(f"Making OpenAI request for test data generation using model: {prompt_config.get('model', 'gpt-4o-mini')}")
-            response = await openai_service.make_openai_request(
-                system_prompt=system_prompt, 
-                user_prompt=user_prompt, 
-                prompt_config=prompt_config, 
-                user_id=user_id, 
-                operation_type="test_data_generation", 
-                api_slug=api_slug
-            )
+            logger.info(f"Context being sent to AI - Expected fields: {expected_fields}, API purpose: {api_purpose}")
             
-            # Parse the AI response
             try:
-                test_scenarios = json.loads(response)
+                response = await openai_service.make_openai_request(
+                    system_prompt=system_prompt, 
+                    user_prompt=user_prompt, 
+                    prompt_config=prompt_config, 
+                    user_id=user_id, 
+                    operation_type="test_data_generation", 
+                    api_slug=api_slug
+                )
                 
-                # Validate the response format
-                if isinstance(test_scenarios, list) and len(test_scenarios) > 0:
-                    logger.info(f"Generated {len(test_scenarios)} test scenarios using AI")
-                    return test_scenarios
-                else:
-                    logger.warning("AI response was not in expected format, falling back to basic test data")
-                    return self._generate_fallback_test_data(api_details)
+                # Parse the AI response
+                try:
+                    test_data_array = json.loads(response)
                     
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse AI response as JSON: {e}, falling back to basic test data")
-                return self._generate_fallback_test_data(api_details)
+                    # Convert direct input data to scenario format
+                    if isinstance(test_data_array, list) and len(test_data_array) > 0:
+                        # Convert direct input objects to scenario format
+                        test_scenarios = []
+                        scenario_names = ["Normal input test", "Minimal input test", "Rich data test"]
+                        
+                        for i, input_data in enumerate(test_data_array[:3]):  # Limit to 3 scenarios
+                            if isinstance(input_data, dict):
+                                scenario_name = scenario_names[i] if i < len(scenario_names) else f"Test scenario {i+1}"
+                                test_scenarios.append({
+                                    "scenario": scenario_name,
+                                    "data": input_data
+                                })
+                        
+                        if test_scenarios:
+                            logger.info(f"Generated {len(test_scenarios)} test scenarios using AI")
+                            return test_scenarios
+                    
+                    logger.warning("AI response was not in expected format, falling back to enhanced test data")
+                    return self._generate_enhanced_fallback_test_data(api_details)
+                        
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse AI response as JSON: {e}, falling back to enhanced test data")
+                    return self._generate_enhanced_fallback_test_data(api_details)
+                    
+            except Exception as openai_error:
+                logger.warning(f"OpenAI request failed: {str(openai_error)}, falling back to enhanced test data")
+                return self._generate_enhanced_fallback_test_data(api_details)
             
         except Exception as e:
             logger.error(f"Failed to generate AI test data: {str(e)}, falling back to basic test data")
-            return self._generate_fallback_test_data(api_details if 'api_details' in locals() else {})
+            return self._generate_enhanced_fallback_test_data(api_details if 'api_details' in locals() else {})
     
     def _generate_fallback_test_data(self, api_details: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate basic fallback test data when AI generation fails."""
@@ -699,6 +732,602 @@ class TestService:
                 "test_id": getattr(test_response, 'test_id', 'unknown'),
                 "error": str(e)
             }
+    
+    def _generate_enhanced_fallback_test_data(self, api_details: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate enhanced fallback test data with more realistic scenarios."""
+        try:
+            # Extract API context using the same logic as the main generation
+            context = self._extract_api_context(api_details)
+            
+            api_purpose = context['api_purpose']
+            processing_type = context['processing_type']
+            expected_fields = context['expected_fields']
+            
+            # Try to extract data from curl example if available
+            sample_data = None
+            if 'curl_example' in api_details:
+                sample_data = self._extract_data_from_curl(api_details['curl_example'])
+            
+            # Generate context-aware test scenarios
+            test_scenarios = []
+            
+            # Generate scenarios based on the actual API context
+            test_scenarios = self._generate_context_aware_scenarios(context, sample_data)
+            
+            logger.info(f"Generated {len(test_scenarios)} enhanced fallback test scenarios")
+            return test_scenarios
+            
+        except Exception as e:
+            logger.error(f"Error generating enhanced fallback test data: {e}")
+            # Fall back to the basic method if enhanced fails
+            return self._generate_fallback_test_data(api_details)
+    
+    def _extract_api_context(self, api_details: Dict[str, Any]) -> Dict[str, str]:
+        """Dynamically extract API context by analyzing the actual code and documentation."""
+        try:
+            # Get basic information
+            api_description = api_details.get('description', 'API for data processing')
+            api_functionality = api_details.get('functionality', api_description)
+            expected_output = api_details.get('expected_output', 'JSON response with processed data')
+            documentation = api_details.get('documentation', '')
+            curl_example = api_details.get('curl_example', '')
+            code = api_details.get('code', '')
+            
+            # Try to extract sample input from curl example
+            sample_input = None
+            if curl_example:
+                extracted_data = self._extract_data_from_curl(curl_example)
+                if extracted_data:
+                    sample_input = json.dumps(extracted_data, indent=2)
+            
+            # Analyze the actual API code to extract parameters and functionality
+            code_analysis = self._analyze_api_code(code)
+            
+            # Extract from documentation structure (if available)
+            doc_analysis = self._analyze_documentation(documentation)
+            
+            # Combine all sources of information
+            api_purpose = api_description
+            processing_type = "data processing"
+            expected_fields = "data"
+            input_type = "JSON object"
+            
+            # Use code analysis as primary source
+            if code_analysis['parameters']:
+                expected_fields = ", ".join(code_analysis['parameters'])
+                api_purpose = code_analysis['inferred_purpose'] or api_description
+                processing_type = code_analysis['processing_type'] or processing_type
+                input_type = code_analysis['input_structure'] or input_type
+                
+                # Enhance context with actual code content for better AI understanding
+                if code:
+                    # Extract meaningful context from the code itself
+                    code_context = self._extract_code_context_for_ai(code, code_analysis['parameters'])
+                    if code_context:
+                        api_purpose = code_context.get('purpose', api_purpose)
+                        processing_type = code_context.get('processing_type', processing_type)
+                        api_description = code_context.get('description', api_description)
+            
+            # Enhance with documentation analysis
+            if doc_analysis['parameters']:
+                # Merge parameters from documentation
+                doc_params = set(doc_analysis['parameters'])
+                code_params = set(code_analysis['parameters'])
+                all_params = doc_params.union(code_params)
+                if all_params:
+                    expected_fields = ", ".join(sorted(all_params))
+            
+            # Use curl example to validate and enhance
+            if sample_input:
+                try:
+                    sample_data = json.loads(sample_input)
+                    if isinstance(sample_data, dict):
+                        sample_params = list(sample_data.keys())
+                        if sample_params:
+                            # This gives us the actual expected structure
+                            expected_fields = ", ".join(sample_params)
+                            # Infer input type from sample structure
+                            input_type = self._infer_input_type_from_sample(sample_data)
+                except:
+                    pass
+            
+            return {
+                'description': api_description,
+                'functionality': api_functionality,
+                'expected_output': expected_output,
+                'sample_input': sample_input,
+                'expected_fields': expected_fields,
+                'input_type': input_type,
+                'processing_type': processing_type,
+                'api_purpose': api_purpose
+            }
+            
+        except Exception as e:
+            logger.error(f"Error extracting API context: {e}")
+            # Return defaults if analysis fails
+            return {
+                'description': api_details.get('description', 'API for data processing'),
+                'functionality': api_details.get('functionality', 'Data processing and response generation'),
+                'expected_output': api_details.get('expected_output', 'JSON response with processed data'),
+                'sample_input': None,
+                'expected_fields': "data",
+                'input_type': "JSON object",
+                'processing_type': "data processing",
+                'api_purpose': api_details.get('description', 'API for data processing')
+            }
+    
+    def _analyze_api_code(self, code: str) -> Dict[str, Any]:
+        """Analyze the actual API code to extract parameters, functionality, and structure."""
+        try:
+            import re
+            import ast
+            
+            analysis = {
+                'parameters': [],
+                'inferred_purpose': None,
+                'processing_type': None,
+                'input_structure': None,
+                'return_structure': None
+            }
+            
+            if not code:
+                return analysis
+            
+            # Extract function definition and parameters
+            # Look for async def or def followed by function signature
+            func_pattern = r'(?:async\s+)?def\s+(\w+)\s*\([^)]*request[^)]*\):'
+            func_matches = re.findall(func_pattern, code)
+            
+            # Extract request body parsing patterns
+            request_patterns = [
+                r'request\.json\(\)',
+                r'await\s+request\.json\(\)',
+                r'request_data\s*=\s*request\.json\(\)',
+                r'data\s*=\s*await\s+request\.json\(\)',
+                r'body\s*=\s*request\.json\(\)'
+            ]
+            
+            # Extract parameters from Pydantic model definitions
+            pydantic_params = self._extract_pydantic_fields(code)
+            parameters = set(pydantic_params)
+            
+            # Extract parameters from actual data access patterns
+            data_access_patterns = [
+                r'input_data\[[\'"]([\w_]+)[\'"]\]',
+                r'input_data\.get\([\'\"]([\w_]+)[\'\"]',  # Match input_data.get('text', ...)
+                r'input_data\.get\([\'\"]([\w_]+)[\'\"],',  # Match with comma after parameter
+                r'request\.(\w+)',
+                r'(\w+)\s*=\s*input_data\[[\'"]\w+[\'"]\]',
+                r'(\w+)\s*=\s*input_data\.get\([\'\"]\w+[\'\"]'
+            ]
+            
+            for pattern in data_access_patterns:
+                matches = re.findall(pattern, code)
+                parameters.update(matches)
+                # Debug logging - always log for debugging
+                logger.info(f"Testing pattern '{pattern}': {matches}")
+                if matches:
+                    logger.info(f"✓ Found parameters using pattern '{pattern}': {matches}")
+                
+            # Also look for file processing patterns
+            file_patterns = [
+                r'file_bytes\.decode\([\'\"]([\w_-]+)[\'\"]\)',  # file encoding
+                r'(\w+)\s*=\s*file_bytes',  # file assignment
+            ]
+            
+            for pattern in file_patterns:
+                matches = re.findall(pattern, code)
+                # Don't add encoding names, only meaningful parameters
+                if pattern == file_patterns[0]:  # encoding pattern
+                    continue
+                parameters.update(matches)
+            
+            analysis['parameters'] = list(parameters)
+            
+            # Debug logging to see what parameters we extracted
+            logger.info(f"Extracted parameters from code analysis: {list(parameters)}")
+            
+            # Infer purpose from function names, variable names, and operations
+            code_lower = code.lower()
+            
+            # Extract purpose from function names, comments, and docstrings only
+            analysis['inferred_purpose'] = self._extract_purpose_from_code_structure(code)
+            analysis['processing_type'] = self._extract_processing_type_from_code_structure(code)
+            
+            # Infer input structure from parameter usage
+            if parameters:
+                if len(parameters) == 1 and 'data' in parameters:
+                    analysis['input_structure'] = 'JSON object with "data" field containing the main input'
+                else:
+                    analysis['input_structure'] = f'JSON object with fields: {", ".join(sorted(parameters))}'
+            
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error analyzing API code: {e}")
+            return {
+                'parameters': [],
+                'inferred_purpose': None,
+                'processing_type': None,
+                'input_structure': None,
+                'return_structure': None
+            }
+    
+    def _analyze_documentation(self, documentation: str) -> Dict[str, Any]:
+        """Extract parameter information from API documentation."""
+        try:
+            import re
+            
+            analysis = {
+                'parameters': [],
+                'descriptions': {}
+            }
+            
+            if not documentation:
+                return analysis
+            
+            # Look for parameter tables or lists in documentation
+            # Common patterns: "Name | Type | Required | Description"
+            param_patterns = [
+                r'[\|]\s*(\w+)\s*[\|]\s*\w+\s*[\|]',  # Table format
+                r'(\w+)\s*\([^)]+\):\s*[^.\n]+',      # Parameter(type): description
+                r'[\'"]([\w_]+)[\'"]:\s*[^,\n}]+',    # JSON-like format
+                r'- (\w+):',                          # List format
+                r'`(\w+)`'                            # Code format
+            ]
+            
+            parameters = set()
+            for pattern in param_patterns:
+                matches = re.findall(pattern, documentation)
+                parameters.update(matches)
+            
+            # Filter out common non-parameter words
+            excluded_words = {'api', 'endpoint', 'response', 'status', 'success', 'error', 'result', 'output'}
+            parameters = {p for p in parameters if p.lower() not in excluded_words and len(p) > 1}
+            
+            analysis['parameters'] = list(parameters)
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error analyzing documentation: {e}")
+            return {'parameters': [], 'descriptions': {}}
+    
+    def _infer_input_type_from_sample(self, sample_data: Dict) -> str:
+        """Infer the input type description from sample data structure."""
+        try:
+            if not isinstance(sample_data, dict):
+                return "JSON object"
+            
+            field_descriptions = []
+            for key, value in sample_data.items():
+                if isinstance(value, str):
+                    field_descriptions.append(f'"{key}" (text)')
+                elif isinstance(value, (int, float)):
+                    field_descriptions.append(f'"{key}" (number)')
+                elif isinstance(value, bool):
+                    field_descriptions.append(f'"{key}" (boolean)')
+                elif isinstance(value, list):
+                    field_descriptions.append(f'"{key}" (array)')
+                elif isinstance(value, dict):
+                    field_descriptions.append(f'"{key}" (object)')
+                else:
+                    field_descriptions.append(f'"{key}"')
+            
+            if field_descriptions:
+                return f"JSON object with {', '.join(field_descriptions)}"
+            else:
+                return "JSON object"
+                
+        except Exception:
+            return "JSON object"
+    
+    def _generate_context_aware_scenarios(self, context: Dict[str, str], sample_data: Dict = None) -> List[Dict[str, Any]]:
+        """Generate test scenarios based on the actual API context and parameters."""
+        try:
+            api_purpose = context['api_purpose']
+            expected_fields = context['expected_fields']
+            processing_type = context['processing_type']
+            
+            test_scenarios = []
+            
+            # Extract parameter names (all of them)
+            param_names = [field.strip().split('(')[0].strip('"') for field in expected_fields.split(',') if field.strip()]
+            
+            # Scenario 1: Use sample data if available
+            if sample_data:
+                test_scenarios.append({
+                    "scenario": "Sample input test",
+                    "data": sample_data
+                })
+            else:
+                # Generate realistic data for all parameters
+                test_scenarios.append({
+                    "scenario": "Normal input test", 
+                    "data": self._generate_data_for_all_params(param_names, "normal")
+                })
+            
+            # Scenario 2: Edge case - minimal input
+            test_scenarios.append({
+                "scenario": "Minimal input test",
+                "data": self._generate_data_for_all_params(param_names, "minimal")
+            })
+            
+            # Scenario 3: Rich input with multiple data types
+            test_scenarios.append({
+                "scenario": "Rich data test",
+                "data": self._generate_data_for_all_params(param_names, "rich")
+            })
+            
+            return test_scenarios
+            
+        except Exception as e:
+            logger.error(f"Error generating context-aware scenarios: {e}")
+            # Fallback to basic scenario
+            return [{
+                "scenario": "Basic input test",
+                "data": {"data": "test input"}
+            }]
+    
+    def _generate_realistic_data(self, param_name: str, api_purpose: str, processing_type: str) -> Dict[str, Any]:
+        """Generate realistic test data based on parameter name only."""
+        # Generate appropriate data based on parameter name
+        if param_name == 'text':
+            return {param_name: "John Smith works at ABC Company with Sarah Johnson."}
+        elif param_name == 'data':
+            return {param_name: "Sample data for processing"}
+        elif param_name == 'texts':
+            return {param_name: ["First text sample", "Second text sample"]}
+        elif param_name == 'language':
+            return {param_name: "en"}
+        elif param_name == 'options':
+            return {param_name: {}}
+        elif param_name == 'input':
+            return {param_name: "Sample input"}
+        elif param_name == 'content':
+            return {param_name: "Sample content"}
+        elif param_name == 'message':
+            return {param_name: "Sample message"}
+        elif param_name == 'query':
+            return {param_name: "Sample query"}
+        else:
+            return {param_name: "Sample value"}
+    
+    def _generate_minimal_data(self, param_name: str, api_purpose: str) -> Dict[str, Any]:
+        """Generate minimal test data for edge case testing."""
+        # Always return minimal data regardless of purpose
+        return {param_name: ""}
+    
+    def _generate_rich_data(self, param_name: str, api_purpose: str, processing_type: str) -> Dict[str, Any]:
+        """Generate rich test data with complex content."""
+        # Generate complex data based on parameter name only
+        if param_name == 'data':
+            return {
+                param_name: "This is comprehensive test data with multiple elements, special characters (!@#$%), numbers (123, 456.78), and various formats to thoroughly test functionality.",
+                "metadata": {"test_type": "comprehensive", "complexity": "high"}
+            }
+        else:
+            return {
+                param_name: "Complex test input with varied content and special formatting.",
+                "additional_context": {"test": "rich_data", "complexity": "high"}
+            }
+    
+    def _generate_data_for_all_params(self, param_names: List[str], data_type: str) -> Dict[str, Any]:
+        """Generate test data for all extracted parameters."""
+        try:
+            data = {}
+            
+            for param_name in param_names:
+                if not param_name:
+                    continue
+                    
+                # Generate contextually appropriate data based on parameter name
+                if data_type == "minimal":
+                    data[param_name] = ""
+                        
+                elif data_type == "rich":
+                    if param_name.endswith('s') and param_name != 'options':  # likely plural/array
+                        data[param_name] = [f"Sample {param_name[:-1]} one", f"Sample {param_name[:-1]} two", f"Sample {param_name[:-1]} three"]
+                    elif 'option' in param_name.lower() or 'config' in param_name.lower():
+                        data[param_name] = {"advanced": True, "detailed": True}
+                    else:
+                        data[param_name] = f"Comprehensive test data for {param_name} with multiple elements and varied content"
+                        
+                else:  # normal data
+                    if param_name.endswith('s') and param_name != 'options':  # likely plural/array
+                        data[param_name] = [f"Sample {param_name[:-1]} one", f"Sample {param_name[:-1]} two"]
+                    elif 'option' in param_name.lower() or 'config' in param_name.lower():
+                        data[param_name] = {}
+                    else:
+                        data[param_name] = f"Sample {param_name} content"
+            
+            # If no parameters were extracted, provide basic data structure
+            if not data:
+                data = {"data": "Sample input for processing"}
+                
+            return data
+            
+        except Exception as e:
+            logger.error(f"Error generating data for all params: {e}")
+            return {"data": "Sample input"}
+    
+    def _extract_purpose_from_code_structure(self, code: str) -> str:
+        """Extract API purpose from function names, docstrings, and comments only."""
+        try:
+            import re
+            
+            # Extract function names
+            func_pattern = r'(?:async\s+)?def\s+(\w+)\s*\('
+            functions = re.findall(func_pattern, code)
+            
+            # Extract docstrings
+            docstring_pattern = r'"""([^"]+)"""'
+            docstrings = re.findall(docstring_pattern, code)
+            
+            # Extract comments
+            comment_pattern = r'#\s*(.+)'
+            comments = re.findall(comment_pattern, code)
+            
+            # Combine all extracted text
+            all_text = ' '.join(functions + docstrings + comments)
+            
+            # Return the extracted text as purpose (no interpretation)
+            return all_text.strip() if all_text.strip() else "API functionality"
+            
+        except Exception as e:
+            logger.error(f"Error extracting purpose from code: {e}")
+            return "API functionality"
+    
+    def _extract_processing_type_from_code_structure(self, code: str) -> str:
+        """Extract processing type from return statements and variable assignments."""
+        try:
+            import re
+            
+            # Look for return patterns
+            return_pattern = r'return\s+(.+)'
+            returns = re.findall(return_pattern, code)
+            
+            # Look for variable assignments that might indicate processing
+            assignment_pattern = r'(\w+)\s*=\s*(.+)'
+            assignments = re.findall(assignment_pattern, code)
+            
+            # Return basic processing description based on what we find
+            if returns or assignments:
+                return "data processing and response generation"
+            else:
+                return "data processing"
+                
+        except Exception as e:
+            logger.error(f"Error extracting processing type: {e}")
+            return "data processing"
+    
+    def _extract_code_context_for_ai(self, code: str, parameters: List[str]) -> Dict[str, str]:
+        """Dynamically extract context from code to help AI generate better test data."""
+        try:
+            import re
+            
+            context = {}
+            
+            # Extract docstrings and comments that describe functionality
+            docstring_pattern = r'"""([^"]+)"""'
+            docstrings = re.findall(docstring_pattern, code, re.DOTALL)
+            
+            comment_pattern = r'#\s*(.+)'
+            comments = re.findall(comment_pattern, code)
+            
+            # Combine meaningful text from docstrings and comments
+            meaningful_text = []
+            for doc in docstrings:
+                # Clean up docstring content
+                cleaned = re.sub(r'\s+', ' ', doc.strip())
+                if len(cleaned) > 10:  # Only meaningful content
+                    meaningful_text.append(cleaned)
+            
+            for comment in comments:
+                cleaned = comment.strip()
+                if len(cleaned) > 5 and not cleaned.startswith('TODO'):  # Skip trivial comments
+                    meaningful_text.append(cleaned)
+            
+            # Extract function and variable names that give clues about functionality
+            func_pattern = r'(?:async\s+)?def\s+(\w+)\s*\('
+            functions = re.findall(func_pattern, code)
+            
+            # Look for external API calls or library usage
+            api_call_patterns = [
+                r'(\w+)\.chat\.completions\.create',  # OpenAI calls
+                r'client\.(\w+)',  # Generic client calls
+                r'requests\.(\w+)',  # HTTP requests
+                r'(\w+_\w+)\s*=.*\.create',  # API object creation
+            ]
+            
+            api_calls = []
+            for pattern in api_call_patterns:
+                matches = re.findall(pattern, code)
+                api_calls.extend(matches)
+            
+            # Extract model or service references
+            model_pattern = r'model\s*=\s*[\'\"]([\w\-\.]+)[\'\"]'
+            models = re.findall(model_pattern, code)
+            
+            # Build context description based on what we found
+            if meaningful_text:
+                # Use the most descriptive docstring/comment
+                best_description = max(meaningful_text, key=len)
+                context['purpose'] = best_description
+                context['description'] = f"API that {best_description.lower()}"
+            
+            if api_calls:
+                if 'chat' in api_calls or 'completions' in api_calls:
+                    context['processing_type'] = "AI-powered text processing"
+                elif 'requests' in api_calls or 'get' in api_calls or 'post' in api_calls:
+                    context['processing_type'] = "external API integration and data processing"
+                else:
+                    context['processing_type'] = f"data processing using {', '.join(set(api_calls))}"
+            
+            if models:
+                context['ai_model_used'] = models[0]
+                if not context.get('processing_type'):
+                    context['processing_type'] = f"AI processing using {models[0]}"
+            
+            # Infer from parameters and code structure
+            if parameters:
+                param_hints = []
+                for param in parameters:
+                    if param == 'text':
+                        param_hints.append("text input for processing")
+                    elif param == 'data':
+                        param_hints.append("data input for analysis")
+                    elif param == 'file':
+                        param_hints.append("file content for processing")
+                    elif param in ['email', 'message', 'content']:
+                        param_hints.append(f"{param} for analysis")
+                    else:
+                        param_hints.append(f"{param} parameter")
+                
+                if param_hints and not context.get('purpose'):
+                    context['purpose'] = f"Process {', '.join(param_hints)}"
+            
+            return context
+            
+        except Exception as e:
+            logger.error(f"Error extracting code context for AI: {e}")
+            return {}
+    
+    def _extract_pydantic_fields(self, code: str) -> set:
+        """Extract field names from Pydantic model definitions in the code."""
+        try:
+            import re
+            
+            fields = set()
+            
+            # Look for Pydantic model class definitions
+            class_pattern = r'class\s+(\w+)\(BaseModel\):(.*?)(?=class|\Z)'
+            model_matches = re.findall(class_pattern, code, re.DOTALL)
+            
+            for model_name, model_body in model_matches:
+                # Extract field definitions within the model
+                field_patterns = [
+                    r'(\w+):\s*(?:Optional\[)?[\w\[\], ]+(?:\])?\s*=',  # field: type = default
+                    r'(\w+):\s*(?:Optional\[)?[\w\[\], ]+(?:\])?(?:\s*$|\s*\n)',  # field: type
+                ]
+                
+                for pattern in field_patterns:
+                    field_matches = re.findall(pattern, model_body)
+                    fields.update(field_matches)
+            
+            # Also look for fields accessed as attributes in the main logic
+            attr_pattern = r'request\.(\w+)'
+            attr_matches = re.findall(attr_pattern, code)
+            fields.update(attr_matches)
+            
+            # Filter out common non-field attributes
+            excluded = {'model_dump', 'dict', 'json', 'parse_obj', 'validate', 'schema'}
+            fields = {f for f in fields if f not in excluded and not f.startswith('_')}
+            
+            return fields
+            
+        except Exception as e:
+            logger.error(f"Error extracting Pydantic fields: {e}")
+            return set()
 
 # Global instance
 test_service = TestService()

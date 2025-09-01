@@ -3,5 +3,5 @@
     "user_prompt_template": "Please validate if this API test result makes logical sense:\n\nINPUT DATA: {input_data}\n\nOUTPUT RESULT: {output_data}\n\nAPI CONTEXT:\n- API Slug: {api_slug}\n- Test Type: {test_type}\n- Has File Input: {has_file_input}\n- Execution Time: {execution_time}s\n- Status Code: {status_code}\n\nVALIDATION TASK:\nAnalyze if the OUTPUT logically corresponds to the INPUT. Check if:\n1. The response addresses what was requested in the input\n2. The output data makes sense given the input data\n3. There are no obvious errors, inconsistencies, or missing expected data\n4. The response format is appropriate and complete\n5. The API appears to be functioning correctly based on this input-output pair\n\nFocus primarily on the logical relationship between input and output. Return your analysis as JSON.",
     "description": "System prompt for validating API test results and analyzing input-output logical consistency",
     "model": "gpt-5-mini",
-    "max_completion_tokens": 800
+    "max_completion_tokens": 3000
 }

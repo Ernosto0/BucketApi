@@ -376,14 +376,37 @@ class OpenAIService:
                 )
                 
                 content = response.choices[0].message.content
+                finish_reason = response.choices[0].finish_reason if hasattr(response.choices[0], 'finish_reason') else None
+                
                 if content is None or content.strip() == "":
                     logger.warning(f"OpenAI returned empty/None content with model {model}")
                     logger.warning(f"Response details - Choice count: {len(response.choices) if response.choices else 0}")
-                    if hasattr(response.choices[0], 'finish_reason'):
-                        logger.warning(f"Finish reason: {response.choices[0].finish_reason}")
+                    logger.warning(f"Finish reason: {finish_reason}")
+                    
+                    # If length limit was hit, try reducing max_completion_tokens and retry
+                    if finish_reason == "length":
+                        logger.warning("Response was truncated due to length limit, trying with reduced token limit")
+                        reduced_tokens = max(500, prompt_config.get("max_completion_tokens", 2000) // 2)
+                        logger.info(f"Retrying with reduced max_completion_tokens: {reduced_tokens}")
+                        
+                        retry_response = self.client.chat.completions.create(
+                            model=model,
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt}
+                            ],
+                            max_completion_tokens=reduced_tokens,
+                        )
+                        
+                        retry_content = retry_response.choices[0].message.content
+                        if retry_content and retry_content.strip():
+                            logger.info(f"Retry with reduced tokens succeeded, length: {len(retry_content)}")
+                            return retry_content, retry_response
+                        else:
+                            logger.warning("Retry with reduced tokens also failed")
                     
                     # Try with fallback model if the primary model returns empty content
-                    fallback_model = "gpt-5-mini"
+                    fallback_model = "gpt-4o-mini"  # Use a more reliable fallback
                     if model != fallback_model:
                         logger.info(f"Trying fallback model: {fallback_model}")
                         fallback_response = self.client.chat.completions.create(

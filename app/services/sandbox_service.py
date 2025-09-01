@@ -141,15 +141,22 @@ class SandboxService:
                 
                 # Execute the run function
                 if hasattr(module, 'run'):
-                    # Create a new event loop for this process
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        # Run the async function and get the result
-                        result = loop.run_until_complete(module.run(file_bytes=file_bytes, input_data=input_data))
+                    import inspect
+                    # Check if the run function is async or sync
+                    if inspect.iscoroutinefunction(module.run):
+                        # Create a new event loop for async function
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            # Run the async function and get the result
+                            result = loop.run_until_complete(module.run(file_bytes=file_bytes, input_data=input_data))
+                            namespace['result'] = result
+                        finally:
+                            loop.close()
+                    else:
+                        # Run the sync function directly
+                        result = module.run(file_bytes=file_bytes, input_data=input_data)
                         namespace['result'] = result
-                    finally:
-                        loop.close()
                 else:
                     raise Exception("API code must define a 'run' function")
             finally:

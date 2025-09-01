@@ -40,7 +40,7 @@ class UsageService:
         self.DEFAULT_DAILY_COST_LIMIT_CENTS = 1000  # $10 per day
         
         # Short-term rate limits for burst protection
-        self.DEFAULT_HOURLY_TOKEN_LIMIT = 10000  # 10k tokens per hour
+        self.DEFAULT_HOURLY_TOKEN_LIMIT = 20000  # 10k tokens per hour
         self.DEFAULT_MINUTELY_REQUEST_LIMIT = 100  # 100 requests per minute
         
         # Initialize token estimation components

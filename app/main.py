@@ -319,6 +319,19 @@ async def require_auth_or_api_key(current_user: User = Depends(get_current_user_
         )
     return current_user
 
+async def require_auth_hybrid(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_hybrid)
+) -> User:
+    """Require authentication via Bearer token, API key, or cookie (for web interface)."""
+    if not current_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required (Bearer token, API key, or session cookie)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return current_user
+
 def get_or_create_session_id(request: Request) -> str:
     """Get session ID from cookies or create a new one."""
     session_id = request.cookies.get('session_id')
@@ -577,15 +590,19 @@ async def get_current_user_info(request: Request, current_user: Optional[User] =
 
 # API Key Management Endpoints
 @app.post("/api-keys", response_model=CreateAPIKeyResponse)
-async def create_api_key(request: CreateAPIKeyRequest, current_user: User = Depends(require_auth)):
+async def create_api_key(
+    key_request: CreateAPIKeyRequest, 
+    request: Request,
+    current_user: User = Depends(require_auth_hybrid)
+):
     """Create a new API key for the authenticated user."""
-    logger.info(f"🎯 POST /api-keys endpoint hit! Creating API key '{request.key_name}' for user {current_user.id}")
-    result = await api_key_service.create_api_key(current_user.id, request)
+    logger.info(f"🎯 POST /api-keys endpoint hit! Creating API key '{key_request.key_name}' for user {current_user.id}")
+    result = await api_key_service.create_api_key(current_user.id, key_request)
     logger.info(f"🔄 API key creation result: success={result.success}")
     return result
 
 @app.get("/api-keys", response_model=ListAPIKeysResponse)
-async def list_api_keys(current_user: User = Depends(require_auth)):
+async def list_api_keys(request: Request, current_user: User = Depends(require_auth_hybrid)):
     logger.info(f"🔑 GET /api-keys endpoint hit! Listing API keys for user {current_user.id}")
     """List all API keys for the authenticated user."""
     api_keys = await api_key_service.get_user_api_keys(current_user.id)
@@ -598,16 +615,17 @@ async def list_api_keys(current_user: User = Depends(require_auth)):
 @app.put("/api-keys/{key_id}")
 async def update_api_key(
     key_id: str, 
-    request: UpdateAPIKeyRequest, 
-    current_user: User = Depends(require_auth)
+    update_request: UpdateAPIKeyRequest, 
+    request: Request,
+    current_user: User = Depends(require_auth_hybrid)
 ):
     logger.info(f"🔄 PUT /api-keys/{key_id} endpoint hit! Updating API key for user {current_user.id}")
     """Update an API key."""
     success = await api_key_service.update_api_key(
         current_user.id, 
         key_id, 
-        request.key_name, 
-        request.is_active
+        update_request.key_name, 
+        update_request.is_active
     )
     if success:
         return {"success": True, "message": "API key updated successfully"}
@@ -615,7 +633,7 @@ async def update_api_key(
         raise HTTPException(status_code=404, detail="API key not found or update failed")
 
 @app.delete("/api-keys/{key_id}", response_model=DeleteAPIKeyResponse)
-async def delete_api_key(key_id: str, current_user: User = Depends(require_auth)):
+async def delete_api_key(key_id: str, request: Request, current_user: User = Depends(require_auth_hybrid)):
     """Delete an API key."""
     logger.info(f"🔄 DELETE /api-keys/{key_id} endpoint hit! Deleting API key for user {current_user.id}")
     success = await api_key_service.delete_api_key(current_user.id, key_id)
@@ -631,9 +649,10 @@ async def delete_api_key(key_id: str, current_user: User = Depends(require_auth)
 
 @app.get("/usage/stats", response_model=UsageStatsResponse)
 async def get_usage_stats(
+    request: Request,
     days: int = 30,
     api_key_id: Optional[str] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_auth_hybrid)
 ):
     """
     Get usage statistics for the current user.
@@ -656,8 +675,9 @@ async def get_usage_stats(
 
 @app.get("/usage/limits", response_model=UsageLimitsResponse)
 async def get_usage_limits(
+    request: Request,
     api_key_id: Optional[str] = None,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_auth_hybrid)
 ):
     """
     Check current usage limits for the user.
@@ -1478,7 +1498,7 @@ async def generate_api(
             documentation=documentation,
             curl_example=curl_example,
             api_slug=clean_slug,
-            user_id=request.user_id,
+            user_id=current_user.id,
             generated_at=datetime.now(),
             debug_info={
                 "issues_found": issues_found,
@@ -2481,9 +2501,10 @@ async def generate_test_data(user_id: str, api_slug: str):
 
 @app.get("/api-execution-stats", response_model=APIExecutionStatsResponse)
 async def get_api_execution_stats(
+    request: Request,
     days: int = 30,
     api_key_id: Optional[str] = None,
-    current_user: User = Depends(require_auth_or_api_key)
+    current_user: User = Depends(require_auth_hybrid)
 ):
     """Get API execution statistics for the current user."""
     try:
@@ -2506,8 +2527,9 @@ async def get_api_execution_stats(
 
 @app.get("/api-execution-limits", response_model=APIExecutionLimitsResponse)
 async def get_api_execution_limits(
+    request: Request,
     api_key_id: Optional[str] = None,
-    current_user: User = Depends(require_auth_or_api_key)
+    current_user: User = Depends(require_auth_hybrid)
 ):
     """Get API execution limits and current usage for the current user."""
     try:
@@ -2583,8 +2605,9 @@ async def get_api_execution_stats_by_slug(
 
 @app.get("/internal-token-balance", response_model=InternalTokenBalance)
 async def get_internal_token_balance(
+    request: Request,
     api_key_id: Optional[str] = None,
-    current_user: User = Depends(require_auth_or_api_key)
+    current_user: User = Depends(require_auth_hybrid)
 ):
     """Get current internal token balance for the user."""
     try:
@@ -2599,16 +2622,17 @@ async def get_internal_token_balance(
 
 @app.post("/allocate-monthly-tokens")
 async def allocate_monthly_tokens(
-    request: CreateInternalTokenRequest,
-    current_user: User = Depends(require_auth_or_api_key)
+    monthly_request: CreateInternalTokenRequest,
+    request: Request,
+    current_user: User = Depends(require_auth_hybrid)
 ):
     """Allocate monthly tokens to the user (admin function or monthly allocation)."""
     try:
         token = await api_pricing_service.allocate_monthly_tokens(
             user_id=current_user.id,
             api_key_id=None,
-            amount=request.amount,
-            source=request.source
+            amount=monthly_request.amount,
+            source=monthly_request.source
         )
         return {"success": True, "message": f"Allocated {token.amount} tokens", "token_id": token.id}
     except Exception as e:

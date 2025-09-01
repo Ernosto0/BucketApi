@@ -16,7 +16,7 @@ class Settings:
     
     # Claude Configuration
     CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
-    CLAUDE_MODEL: str = "claude-3-5-sonnet-20240620"
+    CLAUDE_MODEL: str = "claude-3-5-haiku-latest"
     
     GENERATE_DOCS_SERVICE: str = "OPENAI_SERVICE"
 
