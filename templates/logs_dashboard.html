@@ -109,6 +109,7 @@
             <div class="navbar-nav ms-auto">
                 <a class="nav-link" href="/">Dashboard</a>
                 <a class="nav-link active" href="/logs">Logs</a>
+                <a class="nav-link" href="/admin">Admin</a>
                 <a class="nav-link" href="/profile">Profile</a>
             </div>
         </div>
@@ -288,18 +289,9 @@
         // Check authentication status
         async function checkAuthStatus() {
             try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    console.log('No token found in localStorage');
-                    showAuthError('No authentication token found. Please log in.');
-                    return false;
-                }
-                
-                // Test the token with the /auth/me endpoint
+                // Use cookie-based authentication instead of localStorage token
                 const response = await fetch('/auth/me', {
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    }
+                    credentials: 'include' // Include cookies in the request
                 });
                 
                 if (response.ok) {
@@ -313,8 +305,8 @@
                         return false;
                     }
                 } else {
-                    console.log('Token validation failed with status:', response.status);
-                    showAuthError('Authentication token is invalid. Please log in again.');
+                    console.log('Authentication failed with status:', response.status);
+                    showAuthError('Authentication failed. Please log in again.');
                     return false;
                 }
             } catch (error) {
@@ -396,15 +388,14 @@
             }
             
             try {
-                const token = localStorage.getItem('token');
-                console.log('Logs request - Token from localStorage:', token ? 'exists' : 'missing');
+                console.log('Logs request - Using cookie-based authentication');
                 
                 const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + token
+                        'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // Include cookies in the request
                     body: JSON.stringify(filters)
                 });
                 
@@ -556,13 +547,10 @@
         
         async function loadStatistics() {
             try {
-                const token = localStorage.getItem('token');
-                console.log('Token from localStorage:', token ? 'exists' : 'missing');
+                console.log('Statistics request - Using cookie-based authentication');
                 
                 const response = await fetch('/logs/statistics', {
-                    headers: {
-                        'Authorization': 'Bearer ' + token
-                    }
+                    credentials: 'include' // Include cookies in the request
                 });
                 
                 if (response.ok) {

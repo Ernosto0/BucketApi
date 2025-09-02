@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - AI API Generator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .admin-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .config-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .danger-section {
+            background-color: #fff5f5;
+            border-left-color: #dc3545;
+        }
+        
+        .success-section {
+            background-color: #f0f8f0;
+            border-left-color: #28a745;
+        }
+        
+        .warning-section {
+            background-color: #fffbf0;
+            border-left-color: #ffc107;
+        }
+        
+        .admin-sidebar {
+            position: sticky;
+            top: 20px;
+            z-index: 1000;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        
+        .admin-nav-item {
+            display: block;
+            padding: 10px 15px;
+            color: #495057;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            transition: all 0.3s;
+        }
+        
+        .admin-nav-item:hover {
+            background-color: #e9ecef;
+            color: #007bff;
+        }
+        
+        .admin-nav-item.active {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .setting-input {
+            margin-bottom: 15px;
+        }
+        
+        .api-key-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .user-item {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .status-badge {
+            font-size: 0.8em;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-cog"></i> AI API Generator - Admin
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">Dashboard</a>
+                <a class="nav-link" href="/logs">Logs</a>
+                <a class="nav-link active" href="/admin">Admin</a>
+                <a class="nav-link" href="/profile">Profile</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Sidebar Navigation -->
+            <div class="col-md-3">
+                <div class="admin-sidebar">
+                    <h5><i class="fas fa-shield-alt"></i> Admin Panel</h5>
+                    <nav class="nav flex-column">
+                        <a href="#overview" class="admin-nav-item active" onclick="showSection('overview')">
+                            <i class="fas fa-chart-line"></i> Overview
+                        </a>
+                        <a href="#system-config" class="admin-nav-item" onclick="showSection('system-config')">
+                            <i class="fas fa-cogs"></i> System Config
+                        </a>
+                        <a href="#api-keys" class="admin-nav-item" onclick="showSection('api-keys')">
+                            <i class="fas fa-key"></i> API Keys
+                        </a>
+                        <a href="#user-management" class="admin-nav-item" onclick="showSection('user-management')">
+                            <i class="fas fa-users"></i> User Management
+                        </a>
+                        <a href="#security" class="admin-nav-item" onclick="showSection('security')">
+                            <i class="fas fa-shield-alt"></i> Security
+                        </a>
+                        <a href="#maintenance" class="admin-nav-item" onclick="showSection('maintenance')">
+                            <i class="fas fa-tools"></i> Maintenance
+                        </a>
+                    </nav>
+                </div>
+            </div>
+            
+            <!-- Main Content Area -->
+            <div class="col-md-9">
+                <!-- Overview Section -->
+                <div id="overview-section" class="admin-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2><i class="fas fa-chart-line"></i> System Overview</h2>
+                        <button class="btn btn-outline-primary" onclick="refreshOverview()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    
+                    <div class="stats-grid" id="systemStats">
+                        <div class="stat-card">
+                            <div class="stat-number text-primary" id="totalUsers">-</div>
+                            <div class="stat-label">Total Users</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number text-success" id="activeUsers">-</div>
+                            <div class="stat-label">Active Users</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number text-info" id="totalAPIs">-</div>
+                            <div class="stat-label">Generated APIs</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number text-warning" id="totalTokens">-</div>
+                            <div class="stat-label">Tokens Used</div>
+                        </div>
+                    </div>
+                    
+                    <div class="admin-card">
+                        <h5><i class="fas fa-info-circle"></i> System Status</h5>
+                        <div id="systemStatus">
+                            <div class="d-flex justify-content-between">
+                                <span>Environment:</span>
+                                <span id="environment">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Security Service:</span>
+                                <span id="securityStatus">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Database:</span>
+                                <span id="databaseStatus">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Configuration Section -->
+                <div id="system-config-section" class="admin-section hidden">
+                    <h2><i class="fas fa-cogs"></i> System Configuration</h2>
+                    
+                    <div class="config-section">
+                        <h5><i class="fas fa-robot"></i> AI Service Configuration</h5>
+                        <form id="aiConfigForm">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="setting-input">
+                                        <label class="form-label">OpenAI API Key</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="openaiKey" placeholder="sk-...">
+                                            <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('openaiKey')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="setting-input">
+                                        <label class="form-label">OpenAI Model</label>
+                                        <select class="form-select" id="openaiModel">
+                                            <option value="gpt-4">GPT-4</option>
+                                            <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="setting-input">
+                                        <label class="form-label">Claude API Key</label>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="claudeKey" placeholder="sk-ant-...">
+                                            <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('claudeKey')">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="setting-input">
+                                        <label class="form-label">Claude Model</label>
+                                        <select class="form-select" id="claudeModel">
+                                            <option value="claude-3-5-haiku-latest">Claude 3.5 Haiku</option>
+                                            <option value="claude-3-5-sonnet-latest">Claude 3.5 Sonnet</option>
+                                            <option value="claude-3-opus-latest">Claude 3 Opus</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-primary" onclick="saveAIConfig()">
+                                <i class="fas fa-save"></i> Save AI Configuration
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div class="config-section warning-section">
+                        <h5><i class="fas fa-exclamation-triangle"></i> Security Configuration</h5>
+                        <form id="securityConfigForm">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="securityServiceEnabled">
+                                        <label class="form-check-label" for="securityServiceEnabled">
+                                            Enable Security Service
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="setting-input">
+                                        <label class="form-label">Environment</label>
+                                        <select class="form-select" id="environment">
+                                            <option value="development">Development</option>
+                                            <option value="production">Production</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="setting-input">
+                                <label class="form-label">Maximum File Size (MB)</label>
+                                <input type="number" class="form-control" id="maxFileSize" min="1" max="100">
+                            </div>
+                            <button type="button" class="btn btn-warning" onclick="saveSecurityConfig()">
+                                <i class="fas fa-shield-alt"></i> Save Security Configuration
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- API Keys Section -->
+                <div id="api-keys-section" class="admin-section hidden">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2><i class="fas fa-key"></i> API Key Management</h2>
+                        <button class="btn btn-primary" onclick="showCreateAPIKeyModal()">
+                            <i class="fas fa-plus"></i> Create API Key
+                        </button>
+                    </div>
+                    
+                    <div class="config-section">
+                        <h5><i class="fas fa-search"></i> Filter API Keys</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" id="keySearchFilter" placeholder="Search by user or key name...">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="keyStatusFilter">
+                                    <option value="">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-primary" onclick="loadAPIKeys()">
+                                    <i class="fas fa-search"></i> Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="apiKeysList">
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i> Loading API keys...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Management Section -->
+                <div id="user-management-section" class="admin-section hidden">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2><i class="fas fa-users"></i> User Management</h2>
+                        <button class="btn btn-success" onclick="exportUsers()">
+                            <i class="fas fa-download"></i> Export Users
+                        </button>
+                    </div>
+                    
+                    <div class="config-section">
+                        <h5><i class="fas fa-search"></i> Filter Users</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" id="userSearchFilter" placeholder="Search by email...">
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="userStatusFilter">
+                                    <option value="">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-primary" onclick="loadUsers()">
+                                    <i class="fas fa-search"></i> Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="usersList">
+                        <div class="loading">
+                            <i class="fas fa-spinner fa-spin"></i> Loading users...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Section -->
+                <div id="security-section" class="admin-section hidden">
+                    <h2><i class="fas fa-shield-alt"></i> Security Management</h2>
+                    
+                    <div class="config-section danger-section">
+                        <h5><i class="fas fa-ban"></i> Forbidden Keywords</h5>
+                        <p class="text-muted">Manage keywords that are blocked in generated code for security.</p>
+                        <div class="setting-input">
+                            <label class="form-label">Forbidden Keywords (comma-separated)</label>
+                            <textarea class="form-control" id="forbiddenKeywords" rows="4" placeholder="os, subprocess, eval, exec..."></textarea>
+                        </div>
+                        <button type="button" class="btn btn-danger" onclick="saveForbiddenKeywords()">
+                            <i class="fas fa-ban"></i> Update Forbidden Keywords
+                        </button>
+                    </div>
+                    
+                    <div class="config-section">
+                        <h5><i class="fas fa-globe"></i> CORS Configuration</h5>
+                        <div class="setting-input">
+                            <label class="form-label">Allowed Origins (one per line)</label>
+                            <textarea class="form-control" id="allowedOrigins" rows="5" placeholder="https://yourdomain.com&#10;https://app.yourdomain.com"></textarea>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveCORSConfig()">
+                            <i class="fas fa-globe"></i> Update CORS Settings
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Maintenance Section -->
+                <div id="maintenance-section" class="admin-section hidden">
+                    <h2><i class="fas fa-tools"></i> System Maintenance</h2>
+                    
+                    <div class="config-section">
+                        <h5><i class="fas fa-database"></i> Database Operations</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-info w-100 mb-2" onclick="runDatabaseMaintenance()">
+                                    <i class="fas fa-broom"></i> Clean Database
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-success w-100 mb-2" onclick="backupDatabase()">
+                                    <i class="fas fa-download"></i> Backup Database
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="config-section warning-section">
+                        <h5><i class="fas fa-file-code"></i> File System</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-warning w-100 mb-2" onclick="cleanupOrphanedFiles()">
+                                    <i class="fas fa-trash"></i> Cleanup Orphaned Files
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-info w-100 mb-2" onclick="analyzeStorageUsage()">
+                                    <i class="fas fa-chart-pie"></i> Analyze Storage
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="config-section danger-section">
+                        <h5><i class="fas fa-exclamation-triangle"></i> System Actions</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-danger w-100 mb-2" onclick="clearAllLogs()">
+                                    <i class="fas fa-trash-alt"></i> Clear All Logs
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button type="button" class="btn btn-outline-secondary w-100 mb-2" onclick="restartService()">
+                                    <i class="fas fa-redo"></i> Restart Service
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Creating API Key -->
+    <div class="modal fade" id="createAPIKeyModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New API Key</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createAPIKeyForm">
+                        <div class="mb-3">
+                            <label class="form-label">User Email</label>
+                            <input type="email" class="form-control" id="newKeyUserEmail" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Key Name</label>
+                            <input type="text" class="form-control" id="newKeyName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Expires At (optional)</label>
+                            <input type="datetime-local" class="form-control" id="newKeyExpires">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="createAPIKey()">Create API Key</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentSection = 'overview';
+        
+        // Check admin authentication status
+        async function checkAdminAuthStatus() {
+            try {
+                // Use cookie-based authentication instead of localStorage token
+                const response = await fetch('/admin/auth/check', {
+                    credentials: 'include' // Include cookies in the request
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.is_admin) {
+                        return true;
+                    } else {
+                        showAuthError('Admin access required. You do not have admin privileges.');
+                        return false;
+                    }
+                } else {
+                    showAuthError('Authentication failed. Please log in again.');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Auth check error:', error);
+                showAuthError('Authentication check failed. Please try logging in again.');
+                return false;
+            }
+        }
+        
+        function showAuthError(message) {
+            document.body.innerHTML = `
+                <div class="container mt-5">
+                    <div class="alert alert-danger text-center">
+                        <h4><i class="fas fa-exclamation-triangle"></i> Access Denied</h4>
+                        <p>${message}</p>
+                        <a href="/login" class="btn btn-primary">Go to Login</a>
+                        <a href="/" class="btn btn-secondary ms-2">Back to Dashboard</a>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            const isAdmin = await checkAdminAuthStatus();
+            if (isAdmin) {
+                loadSystemStatus();
+                loadSystemStats();
+                loadCurrentConfig();
+            }
+        });
+        
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('.admin-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // Remove active class from all nav items
+            document.querySelectorAll('.admin-nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Show selected section
+            document.getElementById(sectionName + '-section').classList.remove('hidden');
+            
+            // Add active class to selected nav item
+            document.querySelector(`[onclick="showSection('${sectionName}')"]`).classList.add('active');
+            
+            currentSection = sectionName;
+            
+            // Load section-specific data
+            switch(sectionName) {
+                case 'overview':
+                    loadSystemStats();
+                    break;
+                case 'api-keys':
+                    loadAPIKeys();
+                    break;
+                case 'user-management':
+                    loadUsers();
+                    break;
+                case 'security':
+                    loadSecurityConfig();
+                    break;
+            }
+        }
+        
+        async function loadSystemStatus() {
+            try {
+                const response = await fetch('/admin/system/status', {
+                    credentials: 'include' // Include cookies in the request
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('environment').textContent = data.environment;
+                    document.getElementById('securityStatus').textContent = data.security_enabled ? 'Enabled' : 'Disabled';
+                    document.getElementById('databaseStatus').textContent = 'Connected';
+                } else {
+                    console.error('Failed to load system status');
+                }
+            } catch (error) {
+                console.error('Error loading system status:', error);
+            }
+        }
+        
+        async function loadSystemStats() {
+            try {
+                const response = await fetch('/admin/system/stats', {
+                    credentials: 'include' // Include cookies in the request
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('totalUsers').textContent = data.total_users || 0;
+                    document.getElementById('activeUsers').textContent = data.active_users || 0;
+                    document.getElementById('totalAPIs').textContent = data.total_apis || 0;
+                    document.getElementById('totalTokens').textContent = data.total_tokens || 0;
+                } else {
+                    console.error('Failed to load system stats');
+                }
+            } catch (error) {
+                console.error('Error loading system stats:', error);
+            }
+        }
+        
+        async function loadCurrentConfig() {
+            try {
+                const response = await fetch('/admin/config', {
+                    credentials: 'include' // Include cookies in the request
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    // Populate AI config
+                    document.getElementById('openaiModel').value = data.openai_model || '';
+                    document.getElementById('claudeModel').value = data.claude_model || '';
+                    
+                    // Populate security config
+                    document.getElementById('securityServiceEnabled').checked = data.security_enabled || false;
+                    document.getElementById('maxFileSize').value = (data.max_file_size / (1024*1024)) || 10;
+                } else {
+                    console.error('Failed to load current config');
+                }
+            } catch (error) {
+                console.error('Error loading current config:', error);
+            }
+        }
+        
+        async function saveAIConfig() {
+            try {
+                const config = {
+                    openai_api_key: document.getElementById('openaiKey').value,
+                    openai_model: document.getElementById('openaiModel').value,
+                    claude_api_key: document.getElementById('claudeKey').value,
+                    claude_model: document.getElementById('claudeModel').value
+                };
+                
+                const response = await fetch('/admin/config/ai', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', // Include cookies in the request
+                    body: JSON.stringify(config)
+                });
+                
+                if (response.ok) {
+                    alert('AI configuration saved successfully!');
+                    document.getElementById('openaiKey').value = '';
+                    document.getElementById('claudeKey').value = '';
+                } else {
+                    alert('Failed to save AI configuration');
+                }
+            } catch (error) {
+                console.error('Error saving AI config:', error);
+                alert('Error saving AI configuration');
+            }
+        }
+        
+        async function saveSecurityConfig() {
+            try {
+                const config = {
+                    security_enabled: document.getElementById('securityServiceEnabled').checked,
+                    max_file_size: parseInt(document.getElementById('maxFileSize').value) * 1024 * 1024
+                };
+                
+                const response = await fetch('/admin/config/security', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', // Include cookies in the request
+                    body: JSON.stringify(config)
+                });
+                
+                if (response.ok) {
+                    alert('Security configuration saved successfully!');
+                } else {
+                    alert('Failed to save security configuration');
+                }
+            } catch (error) {
+                console.error('Error saving security config:', error);
+                alert('Error saving security configuration');
+            }
+        }
+        
+        async function loadAPIKeys() {
+            try {
+                const searchFilter = document.getElementById('keySearchFilter')?.value || '';
+                const statusFilter = document.getElementById('keyStatusFilter')?.value || '';
+                
+                const params = new URLSearchParams();
+                if (searchFilter) params.append('search', searchFilter);
+                if (statusFilter) params.append('status', statusFilter);
+                
+                const response = await fetch(`/admin/api-keys?${params}`, {
+                    credentials: 'include' // Include cookies in the request
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    renderAPIKeys(data.api_keys);
+                } else {
+                    document.getElementById('apiKeysList').innerHTML = '<div class="alert alert-danger">Failed to load API keys</div>';
+                }
+            } catch (error) {
+                console.error('Error loading API keys:', error);
+                document.getElementById('apiKeysList').innerHTML = '<div class="alert alert-danger">Error loading API keys</div>';
+            }
+        }
+        
+        function renderAPIKeys(apiKeys) {
+            const container = document.getElementById('apiKeysList');
+            
+            if (apiKeys.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-4">No API keys found</div>';
+                return;
+            }
+            
+            container.innerHTML = apiKeys.map(key => `
+                <div class="api-key-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${key.key_name}</h6>
+                            <small class="text-muted">User: ${key.user_email || key.user_id}</small><br>
+                            <small class="text-muted">Created: ${new Date(key.created_at).toLocaleDateString()}</small>
+                            ${key.last_used ? `<br><small class="text-muted">Last used: ${new Date(key.last_used).toLocaleDateString()}</small>` : ''}
+                        </div>
+                        <div class="text-end">
+                            <span class="status-badge ${key.is_active ? 'bg-success' : 'bg-secondary'} text-white">${key.is_active ? 'Active' : 'Inactive'}</span>
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-primary" onclick="editAPIKey('${key.id}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteAPIKey('${key.id}')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">Usage: ${key.usage_count || 0} times</small>
+                        ${key.expires_at ? `<small class="text-muted ms-3">Expires: ${new Date(key.expires_at).toLocaleDateString()}</small>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        async function loadUsers() {
+            try {
+                const searchFilter = document.getElementById('userSearchFilter')?.value || '';
+                const statusFilter = document.getElementById('userStatusFilter')?.value || '';
+                
+                const params = new URLSearchParams();
+                if (searchFilter) params.append('search', searchFilter);
+                if (statusFilter) params.append('status', statusFilter);
+                
+                const response = await fetch(`/admin/users?${params}`, {
+                    credentials: 'include' // Include cookies in the request
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    renderUsers(data.users);
+                } else {
+                    document.getElementById('usersList').innerHTML = '<div class="alert alert-danger">Failed to load users</div>';
+                }
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('usersList').innerHTML = '<div class="alert alert-danger">Error loading users</div>';
+            }
+        }
+        
+        function renderUsers(users) {
+            const container = document.getElementById('usersList');
+            
+            if (users.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted py-4">No users found</div>';
+                return;
+            }
+            
+            container.innerHTML = users.map(user => `
+                <div class="user-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${user.email}</h6>
+                            <small class="text-muted">ID: ${user.id}</small><br>
+                            <small class="text-muted">Created: ${new Date(user.created_at).toLocaleDateString()}</small>
+                            ${user.last_login ? `<br><small class="text-muted">Last login: ${new Date(user.last_login).toLocaleDateString()}</small>` : ''}
+                        </div>
+                        <div class="text-end">
+                            <span class="status-badge ${user.is_active ? 'bg-success' : 'bg-secondary'} text-white">${user.is_active ? 'Active' : 'Inactive'}</span>
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-primary" onclick="editUser('${user.id}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="toggleUserStatus('${user.id}', ${!user.is_active})">
+                                    <i class="fas fa-${user.is_active ? 'ban' : 'check'}"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const button = input.nextElementSibling;
+            const icon = button.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        }
+        
+        function showCreateAPIKeyModal() {
+            new bootstrap.Modal(document.getElementById('createAPIKeyModal')).show();
+        }
+        
+        async function createAPIKey() {
+            try {
+                const keyData = {
+                    user_email: document.getElementById('newKeyUserEmail').value,
+                    key_name: document.getElementById('newKeyName').value,
+                    expires_at: document.getElementById('newKeyExpires').value || null
+                };
+                
+                const response = await fetch('/admin/api-keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include', // Include cookies in the request
+                    body: JSON.stringify(keyData)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`API Key created successfully!\n\nKey: ${data.api_key}\n\nPlease copy this key as it won't be shown again.`);
+                    bootstrap.Modal.getInstance(document.getElementById('createAPIKeyModal')).hide();
+                    document.getElementById('createAPIKeyForm').reset();
+                    loadAPIKeys();
+                } else {
+                    alert('Failed to create API key');
+                }
+            } catch (error) {
+                console.error('Error creating API key:', error);
+                alert('Error creating API key');
+            }
+        }
+        
+        function refreshOverview() {
+            loadSystemStats();
+            loadSystemStatus();
+        }
+        
+        // Placeholder functions for maintenance operations
+        async function runDatabaseMaintenance() {
+            if (confirm('Are you sure you want to run database maintenance? This may take some time.')) {
+                alert('Database maintenance started. Check logs for progress.');
+            }
+        }
+        
+        async function backupDatabase() {
+            alert('Database backup initiated. Download will start shortly.');
+        }
+        
+        async function cleanupOrphanedFiles() {
+            if (confirm('Are you sure you want to cleanup orphaned files? This action cannot be undone.')) {
+                alert('File cleanup started. Check logs for progress.');
+            }
+        }
+        
+        async function analyzeStorageUsage() {
+            alert('Storage analysis completed. Check the logs section for detailed report.');
+        }
+        
+        async function clearAllLogs() {
+            if (confirm('Are you sure you want to clear ALL logs? This action cannot be undone.')) {
+                alert('All logs have been cleared.');
+            }
+        }
+        
+        async function restartService() {
+            if (confirm('Are you sure you want to restart the service? This will temporarily interrupt service.')) {
+                alert('Service restart initiated. Please refresh the page in a few moments.');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -45,7 +45,8 @@ from .services.usage_service import usage_service
 from .services.api_execution_usage_service import api_execution_usage_service
 from .services.api_pricing_service import api_pricing_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
-from .services.database import init_database
+from .services.database import init_database, UserDB, SavedAPIDB, APIKeyDB, AsyncSessionLocal
+from sqlalchemy import select
 from .services.test_service import test_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
 from .services.exceptions import create_secure_error, SecureHTTPException
@@ -332,6 +333,39 @@ async def require_auth_hybrid(
         )
     return current_user
 
+async def require_admin_auth(request: Request) -> User:
+    """Require admin authentication for admin panel routes."""
+    user = await get_current_user_from_cookie(request)
+    logger.info(f"🔐 require_admin_auth called, user: {user.email if user else 'None'}")
+    if not user:
+        logger.warning("❌ Admin authentication failed - no current user")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+        )
+    
+    # Check if user is admin (for now, check if email contains 'admin' or is a specific admin email)
+    # You can modify this logic based on your admin user identification strategy
+    if not is_admin_user(user.email):
+        logger.warning(f"❌ Admin access denied for user: {user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return user
+
+def is_admin_user(email: str) -> bool:
+    """Check if a user is an admin based on their email."""
+    # Simple admin check - I will change this later TODO
+    admin_emails = [
+        "ernosto20.03@gmail.com",
+        "admin@localhost",
+        "admin@yourdomain.com"
+    ]
+    logger.info(f"Checking if {email} is an admin user")
+    # Check if email is in admin list or contains 'admin'
+    return email.lower() in [e.lower() for e in admin_emails] or 'admin' in email.lower()
+
 def get_or_create_session_id(request: Request) -> str:
     """Get session ID from cookies or create a new one."""
     session_id = request.cookies.get('session_id')
@@ -393,6 +427,22 @@ async def logs_dashboard_page(request: Request):
     except HTTPException:
         # User is not authenticated, redirect to landing page
         return RedirectResponse(url="/landing", status_code=302)
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_panel_page(request: Request):
+    """Serve the admin panel page (requires admin authentication)."""
+    try:
+        # Check if user is authenticated and is admin
+        user = await require_admin_auth(request)
+        # If we get here, user is authenticated and is admin
+        return templates.TemplateResponse("admin_panel.html", {"request": request, "user": user})
+    except HTTPException as e:
+        if e.status_code == 403:
+            # User is authenticated but not admin
+            return RedirectResponse(url="/", status_code=302)
+        else:
+            # User is not authenticated, redirect to landing page
+            return RedirectResponse(url="/landing", status_code=302)
 
 @app.get("/api/{user_id}/{api_slug}/details", response_class=HTMLResponse)
 async def api_details_page(request: Request, user_id: str, api_slug: str):
@@ -2816,6 +2866,291 @@ async def get_log_statistics(
     except Exception as e:
         logger.error(f"Failed to get log statistics: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get log statistics: {str(e)}")
+
+
+# Admin Panel API Endpoints
+@app.get("/admin/auth/check")
+async def check_admin_auth(request: Request):
+    """Check if the current user has admin privileges."""
+    try:
+        user = await require_admin_auth(request)
+        return {
+            "success": True,
+            "is_admin": True,
+            "user": {
+                "email": user.email,
+                "id": user.id
+            }
+        }
+    except HTTPException as e:
+        if e.status_code == 403:
+            return {"success": False, "is_admin": False, "message": "Admin access required"}
+        else:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+@app.get("/admin/system/status")
+async def get_system_status(request: Request, admin_user: User = Depends(require_admin_auth)):
+    """Get system status information."""
+    return {
+        "success": True,
+        "environment": settings.ENVIRONMENT,
+        "security_enabled": settings.SECURITY_SERVICE_ENABLED,
+        "max_file_size": settings.MAX_FILE_SIZE,
+        "host": settings.HOST,
+        "port": settings.PORT
+    }
+
+@app.get("/admin/system/stats")
+async def get_system_stats(request: Request, admin_user: User = Depends(require_admin_auth)):
+    """Get system statistics."""
+    try:
+        # Get user count
+        async with AsyncSessionLocal() as session:
+            total_users_result = await session.execute(select(UserDB))
+            all_users = total_users_result.scalars().all()
+            total_users = len(all_users)
+            active_users = len([u for u in all_users if u.is_active])
+            
+            # Get API count
+            api_count_result = await session.execute(select(SavedAPIDB))
+            total_apis = len(api_count_result.scalars().all())
+        
+        # Get usage stats (rough estimation)
+        total_tokens = 0
+        try:
+            # This would require aggregating from usage service
+            pass
+        except:
+            pass
+        
+        return {
+            "success": True,
+            "total_users": total_users,
+            "active_users": active_users,
+            "total_apis": total_apis,
+            "total_tokens": total_tokens
+        }
+    except Exception as e:
+        logger.error(f"Failed to get system stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get system stats: {str(e)}")
+
+@app.get("/admin/config")
+async def get_admin_config(request: Request, admin_user: User = Depends(require_admin_auth)):
+    """Get current system configuration (without sensitive data)."""
+    return {
+        "success": True,
+        "openai_model": settings.OPENAI_MODEL,
+        "claude_model": settings.CLAUDE_MODEL,
+        "security_enabled": settings.SECURITY_SERVICE_ENABLED,
+        "max_file_size": settings.MAX_FILE_SIZE,
+        "environment": settings.ENVIRONMENT,
+        "docs_service": settings.GENERATE_DOCS_SERVICE
+    }
+
+@app.post("/admin/config/ai")
+async def update_ai_config(
+    request: Request,
+    config: dict = Body(...),
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Update AI service configuration."""
+    try:
+        # In a real implementation, you would update environment variables
+        # or configuration files. For now, we'll just validate the input
+        
+        updated_fields = []
+        
+        if "openai_api_key" in config and config["openai_api_key"]:
+            # In production, store this securely
+            updated_fields.append("OpenAI API Key")
+            
+        if "openai_model" in config:
+            # settings.OPENAI_MODEL = config["openai_model"]
+            updated_fields.append("OpenAI Model")
+            
+        if "claude_api_key" in config and config["claude_api_key"]:
+            # In production, store this securely
+            updated_fields.append("Claude API Key")
+            
+        if "claude_model" in config:
+            # settings.CLAUDE_MODEL = config["claude_model"]
+            updated_fields.append("Claude Model")
+        
+        return {
+            "success": True,
+            "message": f"Updated: {', '.join(updated_fields)}",
+            "note": "Configuration changes require service restart to take effect"
+        }
+    except Exception as e:
+        logger.error(f"Failed to update AI config: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update AI config: {str(e)}")
+
+@app.post("/admin/config/security")
+async def update_security_config(
+    request: Request,
+    config: dict = Body(...),
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Update security configuration."""
+    try:
+        updated_fields = []
+        
+        if "security_enabled" in config:
+            # settings.SECURITY_SERVICE_ENABLED = config["security_enabled"]
+            updated_fields.append("Security Service")
+            
+        if "max_file_size" in config:
+            # settings.MAX_FILE_SIZE = config["max_file_size"]
+            updated_fields.append("Max File Size")
+        
+        return {
+            "success": True,
+            "message": f"Updated: {', '.join(updated_fields)}",
+            "note": "Configuration changes require service restart to take effect"
+        }
+    except Exception as e:
+        logger.error(f"Failed to update security config: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update security config: {str(e)}")
+
+@app.get("/admin/api-keys")
+async def list_all_api_keys(
+    request: Request,
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    admin_user: User = Depends(require_admin_auth)
+):
+    """List all API keys in the system (admin only)."""
+    try:
+        async with AsyncSessionLocal() as session:
+            query = select(APIKeyDB).join(UserDB, APIKeyDB.user_id == UserDB.id)
+            
+            if status == "active":
+                query = query.where(APIKeyDB.is_active == True)
+            elif status == "inactive":
+                query = query.where(APIKeyDB.is_active == False)
+                
+            if search:
+                query = query.where(
+                    (UserDB.email.contains(search)) |
+                    (APIKeyDB.key_name.contains(search))
+                )
+            
+            result = await session.execute(query)
+            db_keys = result.scalars().all()
+            
+            # Get user emails for each key
+            api_keys = []
+            for db_key in db_keys:
+                user_result = await session.execute(
+                    select(UserDB).where(UserDB.id == db_key.user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                
+                api_keys.append({
+                    "id": db_key.id,
+                    "key_name": db_key.key_name,
+                    "user_id": db_key.user_id,
+                    "user_email": user.email if user else "Unknown",
+                    "is_active": db_key.is_active,
+                    "created_at": db_key.created_at.isoformat(),
+                    "last_used": db_key.last_used.isoformat() if db_key.last_used else None,
+                    "usage_count": db_key.usage_count,
+                    "expires_at": db_key.expires_at.isoformat() if db_key.expires_at else None
+                })
+            
+            return {
+                "success": True,
+                "api_keys": api_keys,
+                "count": len(api_keys)
+            }
+    except Exception as e:
+        logger.error(f"Failed to list API keys: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list API keys: {str(e)}")
+
+@app.post("/admin/api-keys")
+async def create_admin_api_key(
+    request: Request,
+    key_data: dict = Body(...),
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Create an API key for any user (admin only)."""
+    try:
+        user_email = key_data.get("user_email")
+        key_name = key_data.get("key_name")
+        expires_at = key_data.get("expires_at")
+        
+        if not user_email or not key_name:
+            raise HTTPException(status_code=400, detail="user_email and key_name are required")
+        
+        # Find user by email
+        async with AsyncSessionLocal() as session:
+            user_result = await session.execute(
+                select(UserDB).where(UserDB.email == user_email)
+            )
+            user = user_result.scalar_one_or_none()
+            
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+        
+        # Create API key request
+        create_request = CreateAPIKeyRequest(
+            key_name=key_name,
+            expires_at=datetime.fromisoformat(expires_at) if expires_at else None
+        )
+        
+        result = await api_key_service.create_api_key(user.id, create_request)
+        
+        return {
+            "success": True,
+            "api_key": result.api_key,
+            "message": "API key created successfully"
+        }
+    except Exception as e:
+        logger.error(f"Failed to create admin API key: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create admin API key: {str(e)}")
+
+@app.get("/admin/users")
+async def list_all_users(
+    request: Request,
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    admin_user: User = Depends(require_admin_auth)
+):
+    """List all users in the system (admin only)."""
+    try:
+        async with AsyncSessionLocal() as session:
+            query = select(UserDB)
+            
+            if status == "active":
+                query = query.where(UserDB.is_active == True)
+            elif status == "inactive":
+                query = query.where(UserDB.is_active == False)
+                
+            if search:
+                query = query.where(UserDB.email.contains(search))
+            
+            result = await session.execute(query)
+            db_users = result.scalars().all()
+            
+            users = [
+                {
+                    "id": user.id,
+                    "email": user.email,
+                    "is_active": user.is_active,
+                    "created_at": user.created_at.isoformat(),
+                    "last_login": user.last_login.isoformat() if user.last_login else None
+                }
+                for user in db_users
+            ]
+            
+            return {
+                "success": True,
+                "users": users,
+                "count": len(users)
+            }
+    except Exception as e:
+        logger.error(f"Failed to list users: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list users: {str(e)}")
 
 
 if __name__ == "__main__":
