@@ -139,6 +139,14 @@ class CodeDebugger:
             if pattern in code and required_import not in code:
                 issues.append(f"Missing import: {required_import}")
         
+        # Check for serialization issues
+        if 'BaseModel(' in code or 'NameResult(' in code:
+            issues.append("Using non-serializable Pydantic models in return data")
+        
+        if 'response_format={"type": "json_object"}' in code and 'raw_entities = json.loads' in code:
+            if 'if not isinstance(raw_entities, list)' in code:
+                issues.append("Incorrect assumption about OpenAI JSON object format")
+        
         return issues
     
     def _analyze_exception_handling(self, code: str) -> List[str]:
@@ -173,6 +181,9 @@ CRITICAL RULES:
 7. Ensure proper Python syntax and indentation
 8. Use os.getenv() for API keys, never hardcode them
 9. Return ONLY the corrected Python code, no explanations
+10. CRITICAL: Return only plain dictionaries/lists, never Pydantic model instances
+11. Convert any Pydantic models to .model_dump() or dict() before returning
+12. Handle OpenAI JSON object responses correctly (expect objects, not arrays)
 
 COMMON FIXES:
 - Remove duplicate return statements
@@ -180,7 +191,10 @@ COMMON FIXES:
 - Add missing imports
 - Fix indentation issues
 - Replace hardcoded API keys with os.getenv()
-- Ensure proper exception handling"""
+- Ensure proper exception handling
+- Convert Pydantic models to plain dicts: NameResult(...) → {...}
+- Fix OpenAI JSON parsing: expect {"entities": [...]} not [...]
+- Ensure all return values are JSON-serializable (no class instances)"""
 
         user_prompt = f"""Please fix the following Python code issues:
 
@@ -279,6 +293,9 @@ Return the corrected code with all issues fixed. Maintain the same functionality
         6. Use os.getenv() for API keys, never hardcode them
         7. Add proper error handling if missing
         8. Return ONLY the corrected Python code, no explanations
+        9. CRITICAL: Return only plain dictionaries/lists, never Pydantic model instances
+        10. Convert any Pydantic models to .model_dump() or dict() before returning
+        11. Handle OpenAI JSON object responses correctly (expect objects, not arrays)
 
         COMMON TEST FAILURE PATTERNS TO FIX:
         - Syntax errors (missing colons, parentheses, indentation)
@@ -290,7 +307,10 @@ Return the corrected code with all issues fixed. Maintain the same functionality
         - File handling errors (not using io.BytesIO for binary data)
         - JSON parsing errors
         - Network timeout issues
-        - Incorrect response formatting"""
+        - Incorrect response formatting
+        - PICKLING ERRORS: Returning Pydantic model instances instead of plain dicts
+        - STRING INDEXING ERRORS: Treating OpenAI JSON objects as arrays
+        - SERIALIZATION ERRORS: Non-JSON-serializable objects in return data"""
 
         user_prompt = f"""Please analyze this test failure and fix the code:
 
@@ -750,8 +770,10 @@ Analyze if this test result is logically valid and return your assessment as JSO
             
             # Parse AI response
             try:
-                # Clean up the response
+                # Clean up the response and extract JSON more robustly
                 cleaned_response = response.strip()
+                
+                # Remove markdown code blocks if present
                 if cleaned_response.startswith("```json"):
                     start = cleaned_response.find("{")
                     end = cleaned_response.rfind("}") + 1
@@ -760,6 +782,22 @@ Analyze if this test result is logically valid and return your assessment as JSO
                 elif cleaned_response.startswith("```"):
                     lines = cleaned_response.split('\n')
                     cleaned_response = '\n'.join(lines[1:-1])
+                
+                # Extract just the JSON object if there's extra content
+                if '{' in cleaned_response:
+                    start = cleaned_response.find('{')
+                    # Find the matching closing brace
+                    brace_count = 0
+                    end = start
+                    for i in range(start, len(cleaned_response)):
+                        if cleaned_response[i] == '{':
+                            brace_count += 1
+                        elif cleaned_response[i] == '}':
+                            brace_count -= 1
+                            if brace_count == 0:
+                                end = i + 1
+                                break
+                    cleaned_response = cleaned_response[start:end]
                 
                 validation_result = json.loads(cleaned_response)
                 
