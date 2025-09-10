@@ -604,6 +604,12 @@ async function sendMessage() {
 }
 
 async function generateAPI(message, userId, skipAnalysis = true) {
+    // Check if multi-step mode is enabled and use streaming
+    if (generationMode === 'multi-step') {
+        return await generateAPIStream(message, userId, skipAnalysis);
+    }
+
+    // Original single-step generation logic
     try {
         console.log(`Generating API - Skip Analysis: ${skipAnalysis}, Mode: ${generationMode}`);
         console.log('generateAPI called with message:', message);
@@ -611,9 +617,7 @@ async function generateAPI(message, userId, skipAnalysis = true) {
         // Update generation progress text if it exists
         const progressText = document.getElementById('generationProgressText');
         if (progressText) {
-            const genModeText = generationMode === 'multi-step' ? 
-                `Generating your API... (Multi-step)` : 
-                'Generating your API... (Single-step)';
+            const genModeText = 'Generating your API... (Single-step)';
             progressText.textContent = genModeText;
         }
         
@@ -627,7 +631,7 @@ async function generateAPI(message, userId, skipAnalysis = true) {
                 prompt: message,
                 user_id: userId,
                 skip_analysis: skipAnalysis,
-                use_multi_step: generationMode === 'multi-step',
+                use_multi_step: false, // Force single-step for this path
                 pipeline_name: 'full_pipeline',
                 proposal_id: currentProposalId,
                 // Extract sample input/output from proposal if available
@@ -678,6 +682,328 @@ async function generateAPI(message, userId, skipAnalysis = true) {
     } catch (error) {
         hideTypingIndicator();
         addMessage('assistant', `❌ Network error: ${error.message}`);
+    }
+}
+
+// New streaming API generation function with real-time chat updates
+async function generateAPIStream(message, userId, skipAnalysis = true) {
+    try {
+        console.log(`Starting streaming API generation - Mode: ${generationMode}`);
+        
+        // Clear any existing typing indicator
+        hideTypingIndicator();
+        
+        // Initial greeting is now handled by the streaming step messages
+        
+        const response = await fetch('/generate-api-stream', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+            },
+            body: JSON.stringify({
+                prompt: message,
+                user_id: userId,
+                skip_analysis: skipAnalysis,
+                pipeline_name: 'full_pipeline',
+                proposal_id: currentProposalId,
+                // Extract sample input/output from proposal if available
+                sample_input: currentProposal?.proposal?.input_format?.example || null,
+                expected_output: currentProposal?.proposal?.output_format?.example || null,
+                api_name: `api-${Date.now()}` // Generate a unique name
+            })
+        });
+
+        // Check for rate limiting or other HTTP errors
+        if (response.status === 429) {
+            const errorData = await response.json();
+            addMessage('assistant', `❌ Rate limit exceeded: ${errorData.detail}`);
+            return;
+        } else if (!response.ok) {
+            const errorData = await response.json();
+            addMessage('assistant', `❌ Error: ${errorData.detail || 'Request failed'}`);
+            return;
+        }
+
+        // Handle the streaming response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            
+            // Keep the last incomplete line in the buffer
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const eventData = JSON.parse(line.slice(6));
+                        await handleStreamEvent(eventData);
+                    } catch (e) {
+                        console.warn('Failed to parse SSE data:', line, e);
+                    }
+                }
+            }
+        }
+
+    } catch (error) {
+        console.error('Streaming generation error:', error);
+        addMessage('assistant', `❌ Connection error: ${error.message}`);
+    }
+}
+
+// Handle different types of streaming events
+async function handleStreamEvent(event) {
+    const { type, timestamp, data } = event;
+
+    switch (type) {
+        case 'chat_message':
+            handleChatMessage(data);
+            break;
+        
+        case 'step_start':
+            handleStepStart(data);
+            break;
+        
+        case 'step_phase':
+            handleStepPhase(data);
+            break;
+        
+        case 'step_complete':
+            handleStepComplete(data);
+            break;
+        
+        case 'step_error':
+            handleStepError(data);
+            break;
+        
+        case 'session_complete':
+            handleSessionComplete(data);
+            break;
+        
+        case 'generation_complete':
+            handleGenerationComplete(data);
+            break;
+        
+        case 'error':
+            addMessage('assistant', `❌ ${data.message}`);
+            break;
+        
+        default:
+            console.log('Unknown stream event type:', type, data);
+    }
+}
+
+// Handle chat message events
+function handleChatMessage(data) {
+    const { message, phase, typing_delay, message_type } = data;
+    
+    // Add typing effect for AI messages
+    if (typing_delay && typing_delay > 0) {
+        showTypingIndicator(message);
+        setTimeout(() => {
+            hideTypingIndicator();
+            addStreamingMessage(message, message_type || phase);
+        }, typing_delay * 1000);
+    } else {
+        addStreamingMessage(message, message_type || phase);
+    }
+}
+
+// Handle step start events
+function handleStepStart(data) {
+    console.log('Step started:', data);
+    
+    if (data.message) {
+        addStreamingMessage(data.message, 'step_start');
+    }
+    
+    // Update any progress indicators if they exist
+    updateStepProgress(data);
+}
+
+// Handle step phase updates
+function handleStepPhase(data) {
+    console.log('Step phase:', data);
+    
+    // Update progress indicators
+    updateStepProgress(data);
+}
+
+// Handle step completion
+function handleStepComplete(data) {
+    console.log('Step completed:', data);
+    
+    if (data.message) {
+        addStreamingMessage(data.message, 'step_complete');
+    }
+    
+    // Update progress indicators
+    updateStepProgress(data);
+}
+
+// Handle step errors
+function handleStepError(data) {
+    console.log('Step error:', data);
+    
+    if (data.message) {
+        addStreamingMessage(data.message, 'step_error');
+    }
+}
+
+// Handle session completion
+function handleSessionComplete(data) {
+    console.log('Session completed:', data);
+    
+    if (data.message) {
+        addStreamingMessage(data.message, 'session_complete');
+    }
+}
+
+// Handle final generation completion with results
+function handleGenerationComplete(data) {
+    console.log('Generation completed:', data);
+    
+    if (data.success) {
+        // Update conversation state
+        conversationState = 'code_generated';
+        currentApiData = data;
+        
+        // Add the API result
+        addAPIResultMessage(data);
+        addMessage('system', '🎉 API generated successfully! You can now test and deploy your API using the interface above.');
+    } else {
+        addMessage('assistant', `❌ Generation failed: ${data.message}`);
+    }
+}
+
+// Add streaming message with enhanced styling
+function addStreamingMessage(message, messageType = 'default') {
+    const messagesContainer = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message-animation streaming-message';
+    
+    // Remember if user was at bottom before adding message
+    const wasAtBottom = messagesContainer.scrollTop + messagesContainer.clientHeight >= messagesContainer.scrollHeight - 50;
+    
+    // Get appropriate styling based on message type
+    const styling = getStreamingMessageStyling(messageType);
+    
+    messageDiv.innerHTML = `
+        <div class="flex items-start space-x-3 w-full">
+            <div class="w-8 h-8 ${styling.avatarBg} rounded-full flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    ${styling.icon}
+                </svg>
+            </div>
+            <div class="glass-card rounded-2xl p-4 flex-1 min-w-0 ${styling.cardBg}">
+                <div class="text-white text-sm ${styling.textStyle}">
+                    ${formatStreamingMessage(message)}
+                </div>
+                ${messageType !== 'default' ? `<div class="text-xs text-slate-400 mt-1">${formatMessageType(messageType)}</div>` : ''}
+            </div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    
+    // Auto-scroll if user was at bottom
+    if (wasAtBottom) {
+        setTimeout(() => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }, 100);
+    }
+    
+    // Store in conversation history
+    currentConversation.push({ type: 'assistant', content: message, messageType });
+}
+
+// Get styling for different message types
+function getStreamingMessageStyling(messageType) {
+    const styles = {
+        greeting: {
+            avatarBg: 'bg-gradient-to-r from-green-500 to-emerald-600',
+            cardBg: 'border-green-500/30 bg-gradient-to-r from-green-600/10 to-emerald-600/10',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10m0 0V6a2 2 0 00-2-2H9a2 2 0 00-2 2v2m0 0v10a2 2 0 002 2h6a2 2 0 002-2V8M9 12h6"></path>',
+            textStyle: 'font-medium'
+        },
+        step_start: {
+            avatarBg: 'bg-gradient-to-r from-blue-500 to-cyan-600',
+            cardBg: 'border-blue-500/30 bg-gradient-to-r from-blue-600/10 to-cyan-600/10',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>',
+            textStyle: 'font-medium'
+        },
+        step_complete: {
+            avatarBg: 'bg-gradient-to-r from-green-500 to-emerald-600',
+            cardBg: 'border-green-500/30 bg-gradient-to-r from-green-600/10 to-emerald-600/10',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>',
+            textStyle: 'font-medium'
+        },
+        step_error: {
+            avatarBg: 'bg-gradient-to-r from-red-500 to-pink-600',
+            cardBg: 'border-red-500/30 bg-gradient-to-r from-red-600/10 to-pink-600/10',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>',
+            textStyle: 'font-medium'
+        },
+        ai_processing: {
+            avatarBg: 'bg-gradient-to-r from-purple-500 to-indigo-600',
+            cardBg: 'border-purple-500/30 bg-gradient-to-r from-purple-600/10 to-indigo-600/10',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>',
+            textStyle: 'italic'
+        },
+        default: {
+            avatarBg: 'bg-gradient-to-r from-slate-500 to-gray-600',
+            cardBg: 'border-slate-500/30',
+            icon: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>',
+            textStyle: ''
+        }
+    };
+    
+    return styles[messageType] || styles.default;
+}
+
+// Format streaming message content
+function formatStreamingMessage(message) {
+    return message
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code class="bg-black/20 px-1 py-0.5 rounded text-xs">$1</code>');
+}
+
+// Format message type for display
+function formatMessageType(messageType) {
+    const typeMap = {
+        greeting: '🤖 AI Assistant',
+        step_start: '🚀 Step Started',
+        step_complete: '✅ Step Complete',
+        step_error: '❌ Step Error',
+        ai_processing: '🧠 AI Processing',
+        template_loading: '📝 Loading Template',
+        prompt_preparation: '🔧 Preparing Prompts',
+        response_processing: '⚡ Processing Response',
+        code_extraction: '🔍 Code Extraction',
+        finalization: '✨ Finalizing',
+        default: '💬 Status Update'
+    };
+    
+    return typeMap[messageType] || typeMap.default;
+}
+
+// Update step progress (placeholder for future progress UI)
+function updateStepProgress(data) {
+    // This can be enhanced to show actual progress bars
+    console.log('Progress update:', data);
+    
+    // Update generation progress text if it exists
+    const progressText = document.getElementById('generationProgressText');
+    if (progressText && data.description) {
+        progressText.textContent = data.description;
     }
 }
 

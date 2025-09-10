@@ -85,6 +85,11 @@ class StreamEvent:
     SESSION_COMPLETE = "session_complete"
     SESSION_ERROR = "session_error"
     HEARTBEAT = "heartbeat"
+    # New chat message events
+    CHAT_MESSAGE = "chat_message"
+    STEP_PHASE = "step_phase"
+    LLM_THINKING = "llm_thinking"
+    CODE_PROCESSING = "code_processing"
 
 class MultiStepGenerationService:
     """Service for multi-step code generation with streaming support"""
@@ -808,13 +813,13 @@ class MultiStepGenerationService:
                 })
                 return
             
-            # Send session start event
+            # Send session start event (no message, handled by frontend)
             yield self._format_sse_event(StreamEvent.STEP_START, {
                 "session_id": session_id,
                 "mode": "streaming",
                 "pipeline": session.pipeline_name,
                 "total_steps": len(steps_config),
-                "message": "🚀 Starting multi-step code generation..."
+                "message": None
             })
             
             # Execute all steps with streaming updates
@@ -823,18 +828,28 @@ class MultiStepGenerationService:
             
             for i, step_config in enumerate(steps_config):
                 try:
-                    # Send step start event
+                    # Send step start event (no message, handled by streaming function)
                     yield self._format_sse_event(StreamEvent.STEP_START, {
                         "step_id": step_config["id"],
                         "step_name": step_config["name"],
                         "step_number": i + 1,
                         "total_steps": len(steps_config),
-                        "message": step_config.get("streaming_message", f"Processing {step_config['name']}...")
+                        "message": None
                     })
                     
-                    # Execute the step
-                    step_result = await self._execute_step(session, step_config, step_outputs)
-                    session.steps_completed.append(step_result)
+                    # Execute the step with streaming chat messages
+                    step_result = None
+                    async for message, result in self._execute_step_with_streaming(session, step_config, step_outputs):
+                        if message:
+                            # It's a chat message, yield it
+                            yield message
+                        if result:
+                            # It's the step result
+                            step_result = result
+                            break
+                    
+                    if step_result:
+                        session.steps_completed.append(step_result)
                     
                     # Send step complete/error event
                     if step_result.success:
@@ -1034,6 +1049,308 @@ class MultiStepGenerationService:
                 "message": f"❌ Generation failed due to unexpected error"
             })
     
+    async def _execute_step_with_streaming(
+        self, 
+        session: GenerationSession, 
+        step_config: Dict[str, Any], 
+        previous_outputs: Dict[str, str]
+    ) -> AsyncGenerator[Tuple[str, Optional[StepResult]], None]:
+        """Execute a single generation step with streaming chat messages"""
+        
+        start_time = time.time()
+        step_id = step_config.get("id", "unknown_step")
+        step_name = step_config.get("name", "Unknown Step")
+        step_type = step_config.get("type", "unknown")
+        
+        # Get step-specific chat messages
+        chat_messages = self._get_step_chat_messages(step_id, step_name)
+        
+        try:
+            # Phase 1: Starting step - single message only
+            yield (self._format_chat_message(
+                chat_messages["starting"], 
+                step_id=step_id, 
+                phase="initialization"
+            ), None)
+            
+            # Validation phase
+            if not step_id:
+                raise StepExecutionError(
+                    "Step configuration missing required 'id' field",
+                    user_id=session.user_id,
+                    session_id=session.session_id,
+                    details={"step_config": step_config}
+                )
+            
+            prompt_template_name = step_config.get("prompt_template")
+            if not prompt_template_name:
+                raise StepExecutionError(
+                    f"Step {step_id} missing prompt_template configuration",
+                    user_id=session.user_id,
+                    session_id=session.session_id,
+                    step_id=step_id,
+                    details={"step_config": step_config}
+                )
+            
+            # Skip template loading message - too verbose
+            
+            # Load prompt template
+            try:
+                prompt_config = load_claude_prompt(prompt_template_name)
+                if not prompt_config:
+                    raise TemplateProcessingError(
+                        f"Failed to load prompt template: {prompt_template_name}",
+                        user_id=session.user_id,
+                        session_id=session.session_id,
+                        step_id=step_id,
+                        details={"template_name": prompt_template_name}
+                    )
+            except FileNotFoundError as e:
+                raise TemplateProcessingError(
+                    f"Prompt template not found: {prompt_template_name}",
+                    user_id=session.user_id,
+                    session_id=session.session_id,
+                    step_id=step_id,
+                    details={"template_name": prompt_template_name, "error": str(e)}
+                )
+            except Exception as e:
+                raise TemplateProcessingError(
+                    f"Error loading prompt template {prompt_template_name}: {str(e)}",
+                    user_id=session.user_id,
+                    session_id=session.session_id,
+                    step_id=step_id,
+                    details={"template_name": prompt_template_name, "error": str(e)}
+                )
+            
+            # Skip prompt preparation message - combine with AI call
+            
+            # Prepare template variables
+            try:
+                template_vars = {
+                    "prompt": session.prompt or "",
+                    "original_prompt": session.prompt or "",
+                    "sample_input_section": f"\nSample Input: {session.sample_input}" if session.sample_input else "",
+                    "expected_output_section": f"\nExpected Output: {session.expected_output}" if session.expected_output else "",
+                }
+                
+                # Add previous step outputs
+                for output_id, output_content in previous_outputs.items():
+                    if output_content:
+                        # Create both the cleaned name and keep the original
+                        cleaned_name = output_id.replace("step", "").replace("_", "")
+                        template_vars[cleaned_name] = output_content
+                        template_vars[output_id] = output_content  # Keep original key too
+                    
+                # Special handling for specific steps
+                if step_id == "step1_analysis_design":
+                    # First step, no special handling needed
+                    pass
+                elif step_id == "step2_implementation":
+                    template_vars["analysis_design"] = previous_outputs.get("step1_analysis_design",
+                        f"Basic requirements analysis and design based on: {session.prompt}")
+                elif step_id == "step3_testing":
+                    # Testing step needs specific variable names
+                    template_vars["implemented_code"] = previous_outputs.get("step2_implementation",
+                        "async def run(file_bytes=None, input_data=None):\n    return {'result': 'API implementation', 'message': 'success'}")
+                    template_vars["structure_design"] = previous_outputs.get("step1_analysis_design",
+                        f"Basic requirements analysis and design based on: {session.prompt}")
+                    template_vars["requirements_analysis"] = previous_outputs.get("step1_analysis_design",
+                        f"Requirements analysis: {session.prompt}")
+                    template_vars["original_prompt"] = session.prompt or ""
+                        
+            except Exception as e:
+                raise TemplateProcessingError(
+                    f"Error preparing template variables for step {step_id}: {str(e)}",
+                    user_id=session.user_id,
+                    session_id=session.session_id,
+                    step_id=step_id,
+                    details={"error": str(e)}
+                )
+            
+            # Format prompts
+            try:
+                system_prompt, user_prompt = format_claude_prompt(prompt_config, **template_vars)
+                
+                if not system_prompt or not user_prompt:
+                    raise PromptBuildError(
+                        f"Empty prompts generated for step {step_id}",
+                        user_id=session.user_id,
+                        request_id=session.session_id,
+                        api_slug=f"multi_step_{step_id}",
+                        model_name="claude",
+                        details={"template_name": prompt_template_name}
+                    )
+                    
+            except KeyError as e:
+                raise TemplateProcessingError(
+                    f"Missing template variable for step {step_id}: {str(e)}",
+                    user_id=session.user_id,
+                    session_id=session.session_id,
+                    step_id=step_id,
+                    details={
+                        "missing_variable": str(e),
+                        "available_variables": list(template_vars.keys()),
+                        "template_name": prompt_template_name
+                    }
+                )
+            except Exception as e:
+                raise PromptBuildError(
+                    f"Error formatting prompts for step {step_id}: {str(e)}",
+                    user_id=session.user_id,
+                    request_id=session.session_id,
+                    api_slug=f"multi_step_{step_id}",
+                    model_name="claude",
+                    details={"template_name": prompt_template_name, "error": str(e)}
+                )
+            
+            # Phase 2: AI Processing - single message with thinking
+            yield (self._format_chat_message(
+                chat_messages["calling_ai"], 
+                step_id=step_id, 
+                phase="ai_processing",
+                typing_delay=1.0
+            ), None)
+            
+            # Make Claude API call
+            try:
+                api_start_time = time.time()
+                response = await claude_service._make_claude_request(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    user_id=session.user_id,
+                    api_key_id=session.api_key_id,
+                    operation_type=step_config.get("operation_type", "multi_step_generation"),
+                    api_slug=f"multi_step_{step_id}"
+                )
+                api_duration = (time.time() - api_start_time) * 1000
+                
+                if not response:
+                    raise LLMAPIError(
+                        f"Empty response from Claude API for step {step_id}",
+                        user_id=session.user_id,
+                        request_id=session.session_id,
+                        api_slug=f"multi_step_{step_id}",
+                        model_name="claude"
+                    )
+                
+            except LLMAPIError:
+                raise
+            except Exception as e:
+                raise LLMAPIError(
+                    f"Claude API request failed for step {step_id}: {str(e)}",
+                    user_id=session.user_id,
+                    request_id=session.session_id,
+                    api_slug=f"multi_step_{step_id}",
+                    model_name="claude",
+                    details={"error": str(e), "error_type": type(e).__name__}
+                )
+            
+            # Phase 3: Processing response - only for implementation steps
+            if step_id == "step2_implementation":
+                yield (self._format_chat_message(
+                    chat_messages["processing_response"], 
+                    step_id=step_id, 
+                    phase="response_processing"
+                ), None)
+            
+            execution_time = time.time() - start_time
+            tokens_used = len(response) // 4
+            
+            # For implementation steps, extract code
+            content = response
+            if step_id == "step2_implementation":
+                yield (self._format_chat_message(
+                    "🔍 Extracting and validating the generated code...", 
+                    step_id=step_id, 
+                    phase="code_extraction"
+                ), None)
+                
+                try:
+                    extracted_code = claude_service._extract_code_from_response(response)
+                    if extracted_code:
+                        content = extracted_code
+                        yield (self._format_chat_message(
+                            f"✅ Successfully extracted {len(extracted_code)} characters of clean code!", 
+                            step_id=step_id, 
+                            phase="code_validation"
+                        ), None)
+                    else:
+                        content = response
+                        yield (self._format_chat_message(
+                            "⚠️ Using raw response as no specific code blocks were found", 
+                            step_id=step_id, 
+                            phase="code_validation"
+                        ), None)
+                except Exception as e:
+                    content = response
+                    yield (self._format_chat_message(
+                        f"⚠️ Code extraction failed: {str(e)}, using raw response", 
+                        step_id=step_id, 
+                        phase="code_validation"
+                    ), None)
+            
+            # Phase 4: Completion - single message
+            yield (self._format_chat_message(
+                chat_messages["completing"], 
+                step_id=step_id, 
+                phase="finalization"
+            ), None)
+            
+            # Log successful step
+            await logging_service.log_system_event(
+                level=LogLevel.INFO,
+                category=LogCategory.SYSTEM_EVENT,
+                message=f"Step execution completed: {step_name}",
+                details={
+                    "session_id": session.session_id,
+                    "step_id": step_id,
+                    "step_name": step_name,
+                    "step_type": step_type,
+                    "execution_time": execution_time,
+                    "response_length": len(response),
+                    "tokens_used": tokens_used,
+                    "success": True
+                },
+                user_id=session.user_id,
+                session_id=session.session_id,
+                duration_ms=int(execution_time * 1000)
+            )
+            
+            result = StepResult(
+                step_id=step_id,
+                step_name=step_name,
+                step_type=step_type,
+                success=True,
+                content=content,
+                execution_time=execution_time,
+                tokens_used=tokens_used
+            )
+            
+            yield ("", result)
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            error_msg = str(e)
+            
+            yield (self._format_chat_message(
+                f"❌ {step_name} failed: {error_msg}", 
+                step_id=step_id, 
+                phase="error"
+            ), None)
+            
+            result = StepResult(
+                step_id=step_id,
+                step_name=step_name,
+                step_type=step_type,
+                success=False,
+                content="",
+                error=error_msg,
+                execution_time=execution_time,
+                tokens_used=0
+            )
+            
+            yield ("", result)
+
     async def _execute_step(
         self, 
         session: GenerationSession, 
@@ -1133,10 +1450,13 @@ class MultiStepGenerationService:
                     "expected_output_section": f"\nExpected Output: {session.expected_output}" if session.expected_output else "",
                 }
                 
-                # Add previous step outputs to template vars
+                # Add previous step outputs to template vars  
                 for output_id, output_content in previous_outputs.items():
                     if output_content:  # Only add non-empty outputs
-                        template_vars[output_id.replace("step", "").replace("_", "")] = output_content
+                        # Create both the cleaned name and keep the original
+                        cleaned_name = output_id.replace("step", "").replace("_", "")
+                        template_vars[cleaned_name] = output_content
+                        template_vars[output_id] = output_content  # Keep original key too
                     
                 # Special handling for specific steps with fallbacks
                 if step_id == "step1_analysis_design":
@@ -1145,11 +1465,15 @@ class MultiStepGenerationService:
                 elif step_id == "step2_implementation":
                     template_vars["analysis_design"] = previous_outputs.get("step1_analysis_design",
                         f"Basic requirements analysis and design based on: {session.prompt}")
-                # elif step_id == "step3_testing":
-                #     template_vars["implemented_code"] = previous_outputs.get("step2_implementation",
-                #         "async def run(file_bytes=None, input_data=None):\n    return {'result': 'API implementation', 'message': 'success'}")
-                #     template_vars["analysis_design"] = previous_outputs.get("step1_analysis_design",
-                #         f"Basic requirements analysis and design based on: {session.prompt}")
+                elif step_id == "step3_testing":
+                    # Testing step needs specific variable names
+                    template_vars["implemented_code"] = previous_outputs.get("step2_implementation",
+                        "async def run(file_bytes=None, input_data=None):\n    return {'result': 'API implementation', 'message': 'success'}")
+                    template_vars["structure_design"] = previous_outputs.get("step1_analysis_design",
+                        f"Basic requirements analysis and design based on: {session.prompt}")
+                    template_vars["requirements_analysis"] = previous_outputs.get("step1_analysis_design",
+                        f"Requirements analysis: {session.prompt}")
+                    template_vars["original_prompt"] = session.prompt or ""
                         
             except Exception as e:
                 raise TemplateProcessingError(
@@ -1486,6 +1810,77 @@ class MultiStepGenerationService:
             "data": data
         }
         return f"data: {json.dumps(event_data)}\n\n"
+    
+    def _format_chat_message(self, message: str, step_id: str = None, phase: str = None, typing_delay: float = 1.0) -> str:
+        """Format a chat message event with typing indicator simulation"""
+        chat_data = {
+            "message": message,
+            "step_id": step_id,
+            "phase": phase,
+            "typing_delay": typing_delay,
+            "is_ai": True,
+            "message_type": "status_update"
+        }
+        return self._format_sse_event(StreamEvent.CHAT_MESSAGE, chat_data)
+    
+    def _format_step_phase(self, step_id: str, phase: str, description: str, progress: float = None) -> str:
+        """Format a step phase update event"""
+        phase_data = {
+            "step_id": step_id,
+            "phase": phase,
+            "description": description,
+            "progress": progress,
+            "timestamp": datetime.now().isoformat()
+        }
+        return self._format_sse_event(StreamEvent.STEP_PHASE, phase_data)
+    
+    def _get_step_chat_messages(self, step_id: str, step_name: str) -> Dict[str, str]:
+        """Get chat messages for different phases of step execution"""
+        
+        # Default messages that work for any step
+        default_messages = {
+            "starting": f"🚀 Starting {step_name}...",
+            "loading_template": "📝 Loading prompt template and configuration...",
+            "preparing_prompts": "🔧 Preparing AI prompts with your requirements...",
+            "calling_ai": "🤖 Sending request to AI model...",
+            "thinking": "🧠 AI is analyzing and processing your request...",
+            "processing_response": "⚡ Processing AI response...",
+            "completing": f"✅ {step_name} completed successfully!",
+        }
+        
+        # Step-specific chat messages - simplified
+        step_specific_messages = {
+            "step1_analysis_design": {
+                "starting": "🔍 Analyzing your requirements and designing API structure...",
+                "calling_ai": "🧠 AI is analyzing your requirements and designing the optimal structure...",
+                "processing_response": "📊 Processing analysis and design...",
+                "completing": "✅ Analysis and design completed!",
+            },
+            "step2_implementation": {
+                "starting": "⚡ Implementing your API based on the design...",
+                "calling_ai": "🤖 AI is generating your API implementation code...",
+                "processing_response": "🔧 Processing and validating the generated code...",
+                "completing": "✅ API implementation completed!",
+            },
+            "step3_testing": {
+                "starting": "📚 Generating comprehensive tests and documentation...",
+                "calling_ai": "🧪 AI is creating tests and documentation for your API...",
+                "processing_response": "📋 Processing tests and documentation...",
+                "completing": "✅ Tests and documentation completed!",
+            },
+            "step4_optimization": {
+                "starting": "⚡ Optimizing your API for performance and security...",
+                "calling_ai": "🔧 AI is optimizing your API...",
+                "processing_response": "⚡ Processing optimizations...",
+                "completing": "✅ API optimization completed!",
+            }
+        }
+        
+        # Return step-specific messages if available, otherwise use defaults
+        if step_id in step_specific_messages:
+            return step_specific_messages[step_id]
+        else:
+            return default_messages
     
     def get_session_status(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get current status of a generation session"""

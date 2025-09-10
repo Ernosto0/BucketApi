@@ -11,6 +11,7 @@ import requests
 import time
 import base64
 import uuid
+import json
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 import logging
@@ -1340,6 +1341,275 @@ async def modify_proposal(
             detail=f"Failed to modify proposal: {str(e)}"
         )
 
+
+@app.post("/generate-api-stream")
+async def generate_api_stream(
+    api_request: APIGenerationRequest,
+    request: Request,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key_hybrid)
+):
+    """
+    Generate a new API with real-time streaming chat messages.
+    
+    This endpoint provides real-time updates and chat messages during the API generation process,
+    giving users visibility into what's happening at each step.
+    """
+    from fastapi.responses import StreamingResponse
+    
+    # Extract user and API key info
+    current_user, api_key_id = user_and_key
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    logger.info(f"Starting streaming API generation for user {current_user.id}")
+    
+    # Check usage limits before proceeding
+    try:
+        limits = await usage_service.check_usage_limits(
+            user_id=current_user.id,
+            api_key_id=api_key_id,
+            tokens_to_use=2000  # Estimated tokens for code generation
+        )
+        
+        if limits.is_over_limit:
+            logger.warning(f"Rate limit exceeded for user {current_user.id}: {limits.limit_exceeded_reason}")
+            raise HTTPException(
+                status_code=429,
+                detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Usage service unavailable: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Usage tracking service temporarily unavailable. Please try again later."
+        )
+    
+    async def generate_stream():
+        """Generator function for streaming API generation"""
+        try:
+            # Send initial status message
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "🚀 Starting multi-step API generation...",
+                    "is_ai": True,
+                    "message_type": "greeting"
+                }
+            }) + "\n\n"
+            
+            # Start multi-step generation
+            session_id = await multi_step_generation_service.start_generation(
+                prompt=api_request.prompt,
+                user_id=current_user.id,
+                sample_input=api_request.sample_input,
+                expected_output=api_request.expected_output,
+                api_key_id=api_key_id,
+                pipeline_name=api_request.pipeline_name or "full_pipeline",
+                mode=GenerationMode("streaming")
+            )
+            
+            # Skip session started message - handled by step messages
+            
+            # Execute streaming generation and yield all messages
+            final_result = None
+            async for event in multi_step_generation_service.generate_streaming_mode(session_id):
+                yield event
+                
+                # Check if this is the final result
+                if '"type": "session_complete"' in event:
+                    try:
+                        event_data = json.loads(event.replace("data: ", ""))
+                        if event_data.get("type") == "session_complete":
+                            final_result = event_data.get("data", {})
+                    except:
+                        pass
+            
+            # Process the final result for saving and documentation
+            if final_result and final_result.get("final_code"):
+                try:
+                    yield "data: " + json.dumps({
+                        "type": "chat_message",
+                        "timestamp": datetime.now().isoformat(),
+                        "data": {
+                            "message": "🔍 Now I'm validating the code for security and saving your API...",
+                            "is_ai": True,
+                            "message_type": "post_processing"
+                        }
+                    }) + "\n\n"
+                    
+                    raw_code = final_result["final_code"]
+                    
+                    # Debug and fix the generated code
+                    code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
+                        raw_code, api_request.prompt, current_user.id, api_key_id
+                    )
+                    
+                    if issues_found:
+                        yield "data: " + json.dumps({
+                            "type": "chat_message",
+                            "timestamp": datetime.now().isoformat(),
+                            "data": {
+                                "message": f"🔧 Found and fixed {len(issues_found)} code issues: {', '.join(issues_found)}",
+                                "is_ai": True,
+                                "message_type": "code_fixing"
+                            }
+                        }) + "\n\n"
+                    
+                    # Validate code for security
+                    is_safe, violations = security_service.validate_code(code)
+                    if not is_safe:
+                        yield "data: " + json.dumps({
+                            "type": "error",
+                            "timestamp": datetime.now().isoformat(),
+                            "data": {
+                                "message": f"❌ Code failed security validation: {'; '.join(violations)}",
+                                "error_type": "SecurityValidationError"
+                            }
+                        }) + "\n\n"
+                        return
+                    
+                    yield "data: " + json.dumps({
+                        "type": "chat_message",
+                        "timestamp": datetime.now().isoformat(),
+                        "data": {
+                            "message": "✅ Code passed security validation! Saving your API...",
+                            "is_ai": True,
+                            "message_type": "security_check"
+                        }
+                    }) + "\n\n"
+                    
+                    # Generate API slug and save
+                    api_slug = file_service.generate_api_slug(
+                        user_id=current_user.id,
+                        api_name=api_request.api_name
+                    )
+                    clean_slug = api_slug.replace(f"{current_user.id}_", "")
+                    
+                    await file_service.save_api_code(api_slug, code)
+                    
+                    yield "data: " + json.dumps({
+                        "type": "chat_message",
+                        "timestamp": datetime.now().isoformat(),
+                        "data": {
+                            "message": "📚 Generating comprehensive documentation...",
+                            "is_ai": True,
+                            "message_type": "documentation"
+                        }
+                    }) + "\n\n"
+                    
+                    # Generate documentation
+                    documentation, openapi_spec, curl_example = await openai_service.generate_documentation(
+                        code=code, 
+                        prompt=api_request.prompt,
+                        user_id=current_user.id,
+                        api_key_id=api_key_id,
+                        api_slug=clean_slug
+                    )
+                    
+                    # Build endpoint URL
+                    endpoint_url = f"{settings.API_PREFIX}/{current_user.id}/{clean_slug}"
+                    
+                    # Update curl example with actual endpoint
+                    if "your-endpoint-url" in curl_example:
+                        curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
+                    
+                    # Save API metadata
+                    try:
+                        complexity = 'simple'
+                        if len(code) > 2000 or "class" in code or "async def" in code:
+                            complexity = 'complex'
+                        elif len(code) > 1000 or "try:" in code or "except:" in code:
+                            complexity = 'medium'
+                        
+                        estimated_input_tokens, estimated_output_tokens = usage_service.calculate_estimated_tokens(
+                            model_name=settings.CLAUDE_MODEL,
+                            system_prompt="",
+                            user_prompt=api_request.prompt,
+                            response_length=len(code),
+                            success=True
+                        )
+                        
+                        await api_pricing_service.save_api_metadata(
+                            api_slug=clean_slug,
+                            user_id=current_user.id,
+                            ai_model_used=settings.CLAUDE_MODEL,
+                            estimated_tokens_per_call=estimated_input_tokens + estimated_output_tokens,
+                            base_complexity=complexity
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to save API metadata: {e}")
+                    
+                    # Send final success message with results
+                    yield "data: " + json.dumps({
+                        "type": "generation_complete",
+                        "timestamp": datetime.now().isoformat(),
+                        "data": {
+                            "success": True,
+                            "message": "🎉 Your API has been generated successfully!",
+                            "endpoint_url": endpoint_url,
+                            "documentation": documentation,
+                            "curl_example": curl_example,
+                            "api_slug": clean_slug,
+                            "user_id": current_user.id,
+                            "generated_at": datetime.now().isoformat(),
+                            "debug_info": {
+                                "issues_found": issues_found,
+                                "fixes_applied": fixes_applied,
+                                "code_quality": "high" if not issues_found else "improved"
+                            }
+                        }
+                    }) + "\n\n"
+                    
+                except Exception as e:
+                    logger.error(f"Error in post-processing: {str(e)}", exc_info=True)
+                    yield "data: " + json.dumps({
+                        "type": "error",
+                        "timestamp": datetime.now().isoformat(),
+                        "data": {
+                            "message": f"❌ Error during post-processing: {str(e)}",
+                            "error_type": type(e).__name__
+                        }
+                    }) + "\n\n"
+            else:
+                yield "data: " + json.dumps({
+                    "type": "error",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "message": "❌ Generation completed but no code was produced",
+                        "error_type": "GenerationError"
+                    }
+                }) + "\n\n"
+            
+            # Cleanup session
+            try:
+                await multi_step_generation_service.cleanup_session(session_id)
+            except Exception as e:
+                logger.warning(f"Failed to cleanup session {session_id}: {e}")
+                
+        except Exception as e:
+            logger.error(f"Streaming generation error: {str(e)}", exc_info=True)
+            yield "data: " + json.dumps({
+                "type": "error",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": f"❌ Generation failed: {str(e)}",
+                    "error_type": type(e).__name__
+                }
+            }) + "\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 @app.post("/generate-api", response_model=APIGenerationResponse)
 async def generate_api(
