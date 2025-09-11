@@ -399,4 +399,210 @@
     height: calc(100vh - 2rem) !important;
     max-height: calc(100vh - 2rem) !important;
     padding-bottom: 3rem;
+}
+
+/* ===========================================
+   STREAMING CHAT ENHANCEMENTS
+   =========================================== */
+
+/* Streaming message animations */
+.streaming-message {
+    animation: streamMessageAppear 0.4s ease-out;
+}
+
+@keyframes streamMessageAppear {
+    from {
+        opacity: 0;
+        transform: translateY(15px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Enhanced streaming message styles */
+.streaming-message .glass-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.streaming-message .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: shimmer 2s ease-in-out;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Step indicator styles */
+.step-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-top: 4px;
+}
+
+.step-indicator.step-start {
+    border-color: rgba(59, 130, 246, 0.3);
+    background: rgba(59, 130, 246, 0.1);
+    color: #93c5fd;
+}
+
+.step-indicator.step-complete {
+    border-color: rgba(34, 197, 94, 0.3);
+    background: rgba(34, 197, 94, 0.1);
+    color: #86efac;
+}
+
+.step-indicator.step-error {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.1);
+    color: #fca5a5;
+}
+
+/* Enhanced typing indicator for streaming */
+.typing-indicator.streaming {
+    background: rgba(76, 29, 149, 0.1);
+    border: 1px solid rgba(147, 51, 234, 0.2);
+}
+
+.typing-indicator.streaming .typing-dots .typing-dot {
+    background: linear-gradient(90deg, #8b5cf6, #a855f7);
+}
+
+/* Progress bar for streaming steps */
+.streaming-progress {
+    margin-top: 8px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.streaming-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    animation: progressPulse 2s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Message type badges */
+.message-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    opacity: 0.8;
+    margin-top: 4px;
+}
+
+/* Special styling for different message phases */
+.streaming-message[data-phase="greeting"] .glass-card {
+    border-color: rgba(34, 197, 94, 0.4);
+    background: rgba(34, 197, 94, 0.05);
+}
+
+.streaming-message[data-phase="ai_processing"] .glass-card {
+    border-color: rgba(147, 51, 234, 0.4);
+    background: rgba(147, 51, 234, 0.05);
+}
+
+.streaming-message[data-phase="step_start"] .glass-card {
+    border-color: rgba(59, 130, 246, 0.4);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.streaming-message[data-phase="step_complete"] .glass-card {
+    border-color: rgba(34, 197, 94, 0.4);
+    background: rgba(34, 197, 94, 0.05);
+}
+
+.streaming-message[data-phase="step_error"] .glass-card {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+/* Pulse animation for active processing */
+.streaming-message.processing {
+    animation: processingPulse 2s ease-in-out infinite;
+}
+
+@keyframes processingPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+/* Code block styling in streaming messages */
+.streaming-message code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.8em;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Emphasis styling in streaming messages */
+.streaming-message strong {
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.streaming-message em {
+    color: #e2e8f0;
+    font-style: italic;
+}
+
+/* Responsive design for streaming messages */
+@media (max-width: 768px) {
+    .streaming-message .glass-card {
+        padding: 12px;
+    }
+    
+    .step-indicator {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+    }
+    
+    .message-type-badge {
+        font-size: 0.65rem;
+        padding: 1px 6px;
+    }
 } 
