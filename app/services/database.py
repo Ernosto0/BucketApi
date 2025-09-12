@@ -48,6 +48,18 @@ class UserDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login = Column(DateTime, nullable=True)
 
+class UserSessionDB(Base):
+    __tablename__ = "user_sessions"
+
+    session_id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_accessed = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    ip_address = Column(String, nullable=True)
+    user_agent = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
 class SavedAPIDB(Base):
     __tablename__ = "saved_apis"
 

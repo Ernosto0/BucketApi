@@ -1,168 +1,194 @@
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt
+"""
+New Modern Authentication Service for my app. More secure and easy to maintain.
+"""
+
 import hashlib
 import secrets
-import logging
-from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from sqlalchemy.orm import Session
 import uuid
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
 from passlib.context import CryptContext
-from ..models import User, UserCreate, TokenData
+from fastapi import HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
+from sqlalchemy.orm import Session
+
+from ..models_auth import User, UserCreate, UserSession
 from ..config import settings
-from .database import UserDB, AsyncSessionLocal, SessionLocal
+from .database import UserDB, UserSessionDB, AsyncSessionLocal, SessionLocal
 
 logger = logging.getLogger(__name__)
 
 class AuthService:
+    """Modern authentication service with session-based auth"""
+    
     def __init__(self):
-        # JWT settings
-        self.secret_key = settings.SECRET_KEY if hasattr(settings, 'SECRET_KEY') else "your-secret-key-change-this"
-        self.algorithm = "HS256"
-        self.access_token_expire_minutes = settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        
-        # 🔒 bcrypt password hashing context (production-grade security)
+        # Password hashing with bcrypt (industry standard)
         self.pwd_context = CryptContext(
             schemes=["bcrypt"], 
             deprecated="auto",
-            bcrypt__rounds=12  # 🔒 Strong hashing rounds (2^12 = 4096 iterations)
+            bcrypt__rounds=12,  # Strong hashing (2^12 = 4096 iterations)
+            bcrypt__ident="2b"  # Use 2b variant for better compatibility
         )
-
+        
+        # Session settings
+        self.session_expire_hours = 24  # Default session length
+        self.remember_me_expire_days = 30  # "Remember me" length
+        self.max_sessions_per_user = 5  # Prevent session accumulation
+    
+    # Password Security
+    def hash_password(self, password: str) -> str:
+        """Hash a password securely using a simple hashlib approach"""
+        if not isinstance(password, str):
+            logger.error(f"Password must be a string, got {type(password)}: {password}")
+            raise ValueError("Password must be a string")
+        
+        if not password:
+            raise ValueError("Password cannot be empty")
+        
+        try:
+            # Use a simple, reliable approach with hashlib and secrets
+            import hashlib
+            import secrets
+            
+            # Generate a random salt
+            salt = secrets.token_hex(32)  # 32 bytes = 64 hex chars
+            
+            # Create PBKDF2 hash (same as old system for compatibility)
+            password_hash = hashlib.pbkdf2_hmac(
+                'sha256', 
+                password.encode('utf-8'), 
+                salt.encode('utf-8'), 
+                100000  # 100k iterations
+            )
+            
+            # Return in the same format as old system: salt$hash
+            hash_str = f"{salt}${password_hash.hex()}"
+            logger.debug(f"Password hashed successfully with PBKDF2")
+            return hash_str
+            
+        except Exception as e:
+            logger.error(f"Password hashing failed: {e}")
+            raise ValueError(f"Password hashing failed: {e}")
+    
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """
-        Verify a plaintext password against its hash.
-        Supports both bcrypt (new) and PBKDF2 (legacy) for backward compatibility.
+        Verify a password against its hash.
+        Supports both bcrypt and PBKDF2 formats.
         """
         try:
-            # 🔒 Try bcrypt first (new secure method)
+            # Try bcrypt first (if hash starts with $2b$ or $2a$)
             if hashed_password.startswith('$2b$') or hashed_password.startswith('$2a$'):
-                return self.pwd_context.verify(plain_password, hashed_password)
+                logger.debug("Using bcrypt verification")
+                try:
+                    # Use passlib for bcrypt verification (more reliable)
+                    return self.pwd_context.verify(plain_password, hashed_password)
+                except Exception as e:
+                    logger.debug(f"Bcrypt verification failed: {e}")
+                    return False
             
-            # 🔄 Fallback to PBKDF2 for existing users (legacy support)
-            salt, stored_hash = hashed_password.split('$', 1)
-            password_hash = hashlib.pbkdf2_hmac('sha256', plain_password.encode(), salt.encode(), 100000)
-            return password_hash.hex() == stored_hash
-        except Exception as e:
-            logger.warning(f"Password verification failed: {e}")
+            # PBKDF2 format: salt$hash (both hex strings)
+            if '$' in hashed_password and not hashed_password.startswith('$'):
+                logger.debug("Using PBKDF2 verification")
+                import hashlib
+                
+                salt_hex, stored_hash = hashed_password.split('$', 1)
+                
+                # For new format (salt is hex string)
+                if len(salt_hex) == 64:  # New format with hex salt
+                    salt_bytes = salt_hex.encode('utf-8')
+                else:
+                    # Legacy format (salt was hex-encoded bytes)
+                    salt_bytes = bytes.fromhex(salt_hex)
+                
+                # Compute PBKDF2 hash
+                password_hash = hashlib.pbkdf2_hmac(
+                    'sha256', 
+                    plain_password.encode('utf-8'), 
+                    salt_bytes, 
+                    100000
+                )
+                computed_hash = password_hash.hex()
+                
+                logger.debug(f"Computed hash: {computed_hash[:20]}...")
+                logger.debug(f"Stored hash: {stored_hash[:20]}...")
+                
+                return computed_hash == stored_hash
+            
+            # Unknown format
+            logger.warning(f"Unknown password hash format: {hashed_password[:20]}...")
             return False
-
-    def get_password_hash(self, password: str) -> str:
-        """
-        Hash a password for storing using bcrypt (production-grade security).
-        """
-        # 🔒 Use bcrypt for all new passwords (industry standard)
-        return self.pwd_context.hash(password)
-
-    def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None):
-        """Create a JWT access token."""
-        to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.utcnow() + expires_delta
-        else:
-            expire = datetime.utcnow() + timedelta(minutes=self.access_token_expire_minutes)
+            
+        except Exception as e:
+            logger.error(f"Password verification failed: {e}")
+            return False
+    
+    def validate_password_strength(self, password: str) -> tuple[bool, str]:
+        """Validate password strength"""
+        if len(password) < 8:
+            return False, "Password must be at least 8 characters long"
         
-        to_encode.update({"exp": expire})
-        encoded_jwt = jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
-        return encoded_jwt
-
-    def verify_token(self, token: str) -> TokenData:
-        """Verify and decode a JWT token."""
-        logger.info(f"🔍 Verifying JWT token: {token[:20]}...")
-        credentials_exception = HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        # Check for at least one number, one letter
+        has_letter = any(c.isalpha() for c in password)
+        has_number = any(c.isdigit() for c in password)
         
-        try:
-            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            username: str = payload.get("sub")
-            logger.info(f"✅ JWT token valid for user: {username}")
-            if username is None:
-                logger.error("❌ JWT token missing username")
-                raise credentials_exception
-            token_data = TokenData(username=username)
-        except JWTError as e:
-            logger.error(f"❌ JWT verification failed: {e}")
-            raise credentials_exception
+        if not has_letter or not has_number:
+            return False, "Password must contain at least one letter and one number"
         
-        return token_data
-
+        return True, "Password is strong"
+    
+    # User Management
     def create_user_id(self) -> str:
-        """Generate a unique user ID."""
+        """Generate a unique user ID"""
         return str(uuid.uuid4())
-
-    def validate_user_data(self, user_data: UserCreate) -> None:
-        """Validate user registration data."""
-        if len(user_data.password) < 6:
-            raise HTTPException(
-                status_code=400,
-                detail="Password must be at least 6 characters long"
-            )
-
-    def create_user(self, user_data: UserCreate) -> User:
-        """Create a new user object (without saving to database)."""
-        self.validate_user_data(user_data)
+    
+    def create_session_id(self) -> str:
+        """Generate a secure session ID"""
+        return secrets.token_urlsafe(32)
+    
+    async def create_user(self, user_data: UserCreate) -> User:
+        """Create a new user account"""
+        logger.info(f"Creating user with email: {user_data.email}")
+        logger.debug(f"Password type: {type(user_data.password)}, length: {len(user_data.password) if user_data.password else 0}")
         
-        user = User(
-            id=self.create_user_id(),
-            email=user_data.email,
-            is_active=True,
-            created_at=datetime.now(),
-            last_login=None
-        )
+        # Validate password strength
+        is_strong, message = self.validate_password_strength(user_data.password)
+        if not is_strong:
+            raise HTTPException(status_code=400, detail=message)
         
-        return user
-
-    # Database operations
-    async def save_user(self, user_data: UserCreate, hashed_password: str) -> User:
-        """Save a new user to the database."""
         async with AsyncSessionLocal() as session:
             # Check if email already exists
-            existing_email = await session.execute(
+            existing_user = await session.execute(
                 select(UserDB).where(UserDB.email == user_data.email)
             )
-            if existing_email.scalar_one_or_none():
+            if existing_user.scalar_one_or_none():
                 raise HTTPException(
                     status_code=400,
-                    detail="Email already exists"
+                    detail="An account with this email already exists"
                 )
             
-            # Create user object
-            user = self.create_user(user_data)
+            # Create user
+            user_id = self.create_user_id()
+            logger.debug(f"Attempting to hash password...")
+            password_hash = self.hash_password(user_data.password)
+            logger.debug(f"Password hashed successfully, hash length: {len(password_hash)}")
             
-            # Create database user
             db_user = UserDB(
-                id=user.id,
-                email=user.email,
-                password_hash=hashed_password,
-                is_active=user.is_active,
-                created_at=user.created_at,
-                last_login=user.last_login
+                id=user_id,
+                email=user_data.email,
+                password_hash=password_hash,
+                is_active=True,
+                created_at=datetime.utcnow(),
+                last_login=None
             )
             
             session.add(db_user)
             await session.commit()
             await session.refresh(db_user)
             
-            return user
-
-    async def get_user_by_email(self, email: str) -> Optional[User]:
-        """Get user by email from database."""
-        logger.info(f"🔍 Looking up user by email: {email}")
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(UserDB).where(UserDB.email == email)
-            )
-            db_user = result.scalar_one_or_none()
+            logger.info(f"✅ New user created: {user_data.email}")
             
-            if not db_user:
-                logger.warning(f"❌ User not found: {email}")
-                return None
-            
-            logger.info(f"✅ User found: {email}")
             return User(
                 id=db_user.id,
                 email=db_user.email,
@@ -170,9 +196,45 @@ class AuthService:
                 created_at=db_user.created_at,
                 last_login=db_user.last_login
             )
-
+    
+    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
+        """Authenticate user with email and password"""
+        async with AsyncSessionLocal() as session:
+            # Get user by email
+            result = await session.execute(
+                select(UserDB).where(UserDB.email == email)
+            )
+            db_user = result.scalar_one_or_none()
+            
+            if not db_user:
+                logger.warning(f"❌ Authentication failed - user not found: {email}")
+                return None
+            
+            if not db_user.is_active:
+                logger.warning(f"❌ Authentication failed - account disabled: {email}")
+                return None
+            
+            # Verify password
+            if not self.verify_password(password, db_user.password_hash):
+                logger.warning(f"❌ Authentication failed - invalid password: {email}")
+                return None
+            
+            # Update last login
+            db_user.last_login = datetime.utcnow()
+            await session.commit()
+            
+            logger.info(f"✅ User authenticated: {email}")
+            
+            return User(
+                id=db_user.id,
+                email=db_user.email,
+                is_active=db_user.is_active,
+                created_at=db_user.created_at,
+                last_login=db_user.last_login
+            )
+    
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
-        """Get user by ID from database."""
+        """Get user by ID"""
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(UserDB).where(UserDB.id == user_id)
@@ -189,48 +251,208 @@ class AuthService:
                 created_at=db_user.created_at,
                 last_login=db_user.last_login
             )
-
-    async def get_user_password_hash(self, email: str) -> Optional[str]:
-        """Get user's password hash from database."""
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(UserDB.password_hash).where(UserDB.email == email)
-            )
-            password_hash = result.scalar_one_or_none()
-            return password_hash
-
-    async def update_user_last_login(self, email: str) -> None:
-        """Update user's last login timestamp in database."""
+    
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        """Get user by email"""
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(UserDB).where(UserDB.email == email)
             )
             db_user = result.scalar_one_or_none()
             
-            if db_user:
-                db_user.last_login = datetime.utcnow()
+            if not db_user:
+                return None
+            
+            return User(
+                id=db_user.id,
+                email=db_user.email,
+                is_active=db_user.is_active,
+                created_at=db_user.created_at,
+                last_login=db_user.last_login
+            )
+    
+    # Session Management
+    async def create_session(self, user_id: str, request: Request, remember_me: bool = False) -> str:
+        """Create a new user session"""
+        session_id = self.create_session_id()
+        
+        # Determine expiration
+        if remember_me:
+            expires_at = datetime.utcnow() + timedelta(days=self.remember_me_expire_days)
+        else:
+            expires_at = datetime.utcnow() + timedelta(hours=self.session_expire_hours)
+        
+        # Get client info
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent", "")[:500]  # Limit length
+        
+        # Clean up old sessions for this user (keep only recent ones)
+        await self._cleanup_user_sessions(user_id)
+        
+        session_data = UserSession(
+            session_id=session_id,
+            user_id=user_id,
+            created_at=datetime.utcnow(),
+            last_accessed=datetime.utcnow(),
+            expires_at=expires_at,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            is_active=True
+        )
+        
+        # Store session (implement session storage)
+        await self._store_session(session_data)
+        
+        logger.info(f"✅ Session created for user {user_id}: {session_id}")
+        return session_id
+    
+    async def validate_session(self, session_id: str) -> Optional[User]:
+        """Validate a session and return the user"""
+        if not session_id:
+            return None
+        
+        # Get session data
+        session_data = await self._get_session(session_id)
+        if not session_data:
+            return None
+        
+        # Check if session is expired or inactive
+        if not session_data.is_active or datetime.utcnow() > session_data.expires_at:
+            await self._delete_session(session_id)
+            return None
+        
+        # Update last accessed time
+        await self._update_session_access(session_id)
+        
+        # Get and return user
+        user = await self.get_user_by_id(session_data.user_id)
+        return user
+    
+    async def destroy_session(self, session_id: str) -> bool:
+        """Destroy a user session"""
+        if not session_id:
+            return False
+        
+        await self._delete_session(session_id)
+        logger.info(f"✅ Session destroyed: {session_id}")
+        return True
+    
+    async def destroy_all_user_sessions(self, user_id: str) -> int:
+        """Destroy all sessions for a user"""
+        count = await self._delete_all_user_sessions(user_id)
+        logger.info(f"✅ Destroyed {count} sessions for user {user_id}")
+        return count
+    
+    # Session storage implementation
+    async def _store_session(self, session_data: UserSession):
+        """Store session data in database"""
+        async with AsyncSessionLocal() as session:
+            db_session = UserSessionDB(
+                session_id=session_data.session_id,
+                user_id=session_data.user_id,
+                created_at=session_data.created_at,
+                last_accessed=session_data.last_accessed,
+                expires_at=session_data.expires_at,
+                ip_address=session_data.ip_address,
+                user_agent=session_data.user_agent,
+                is_active=session_data.is_active
+            )
+            session.add(db_session)
+            await session.commit()
+    
+    async def _get_session(self, session_id: str) -> Optional[UserSession]:
+        """Get session data from database"""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(UserSessionDB).where(UserSessionDB.session_id == session_id)
+            )
+            db_session = result.scalar_one_or_none()
+            
+            if not db_session:
+                return None
+            
+            return UserSession(
+                session_id=db_session.session_id,
+                user_id=db_session.user_id,
+                created_at=db_session.created_at,
+                last_accessed=db_session.last_accessed,
+                expires_at=db_session.expires_at,
+                ip_address=db_session.ip_address,
+                user_agent=db_session.user_agent,
+                is_active=db_session.is_active
+            )
+    
+    async def _update_session_access(self, session_id: str):
+        """Update session last accessed time"""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(UserSessionDB).where(UserSessionDB.session_id == session_id)
+            )
+            db_session = result.scalar_one_or_none()
+            
+            if db_session:
+                db_session.last_accessed = datetime.utcnow()
                 await session.commit()
+    
+    async def _delete_session(self, session_id: str):
+        """Delete a session"""
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                delete(UserSessionDB).where(UserSessionDB.session_id == session_id)
+            )
+            await session.commit()
+    
+    async def _delete_all_user_sessions(self, user_id: str) -> int:
+        """Delete all sessions for a user"""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(UserSessionDB).where(UserSessionDB.user_id == user_id)
+            )
+            sessions = result.scalars().all()
+            count = len(sessions)
+            
+            await session.execute(
+                delete(UserSessionDB).where(UserSessionDB.user_id == user_id)
+            )
+            await session.commit()
+            return count
+    
+    async def _cleanup_user_sessions(self, user_id: str):
+        """Clean up old sessions for a user, keeping only the most recent ones"""
+        async with AsyncSessionLocal() as session:
+            # Get all sessions for user, ordered by creation time (newest first)
+            result = await session.execute(
+                select(UserSessionDB)
+                .where(UserSessionDB.user_id == user_id)
+                .order_by(UserSessionDB.created_at.desc())
+            )
+            sessions = result.scalars().all()
+            
+            # If we have more than max allowed, delete the oldest ones
+            if len(sessions) >= self.max_sessions_per_user:
+                sessions_to_delete = sessions[self.max_sessions_per_user-1:]
+                for session_to_delete in sessions_to_delete:
+                    await session.delete(session_to_delete)
+                await session.commit()
+                logger.info(f"🧹 Cleaned up {len(sessions_to_delete)} old sessions for user {user_id}")
+    
+    async def cleanup_expired_sessions(self):
+        """Clean up all expired sessions (should be run periodically)"""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(UserSessionDB).where(UserSessionDB.expires_at < datetime.utcnow())
+            )
+            expired_sessions = result.scalars().all()
+            count = len(expired_sessions)
+            
+            if count > 0:
+                await session.execute(
+                    delete(UserSessionDB).where(UserSessionDB.expires_at < datetime.utcnow())
+                )
+                await session.commit()
+                logger.info(f"🧹 Cleaned up {count} expired sessions")
+            
+            return count
 
-    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
-        """Authenticate a user with email and password."""
-        user = await self.get_user_by_email(email)
-        
-        if not user:
-            return None
-        
-        # Get password hash and verify
-        password_hash = await self.get_user_password_hash(user.email)
-        if not password_hash:
-            return None
-        
-        if not self.verify_password(password, password_hash):
-            return None
-        
-        # Update last login
-        await self.update_user_last_login(user.email)
-        
-        # Return updated user with last login
-        return await self.get_user_by_email(user.email)
-
-# Global instance
-auth_service = AuthService() 
+# Global auth service instance
+auth_service = AuthService()

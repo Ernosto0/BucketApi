@@ -8,17 +8,20 @@
 
 {% block content %}
 <div class="profile-layout">
-    <!-- Sidebar Navigation -->
+    <!-- Left Sidebar -->
     <div class="profile-sidebar">
         <!-- Profile Header -->
         <div class="profile-header">
             <div class="flex items-center space-x-3">
-                <div class="profile-avatar" id="profileAvatar">
-                    <span id="profileInitials">U</span>
+                <div class="relative">
+                    <div class="profile-avatar" id="profileAvatar">
+                        <span id="profileInitials">U</span>
+                    </div>
+                    <div class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-800"></div>
                 </div>
                 <div>
                     <h3 class="text-sm font-medium text-white" id="profileEmail">Loading...</h3>
-                    <p class="text-xs text-gray-400" id="profileJoinDate">Member since...</p>
+                    <p class="text-xs text-slate-400" id="profileJoinDate">Member since...</p>
                 </div>
             </div>
         </div>
@@ -28,26 +31,42 @@
             <ul class="sidebar-nav">
                 <li class="sidebar-nav-item">
                     <button class="sidebar-nav-link active" data-tab="usage">
-                        <span class="sidebar-nav-icon">📊</span>
-                        Usage & Billing
+                        <div class="sidebar-nav-icon">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                        </div>
+                        <span>Usage & Billing</span>
                     </button>
                 </li>
                 <li class="sidebar-nav-item">
                     <button class="sidebar-nav-link" data-tab="api-keys">
-                        <span class="sidebar-nav-icon">🔑</span>
-                        API Keys
+                        <div class="sidebar-nav-icon">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+                            </svg>
+                        </div>
+                        <span>API Keys</span>
                     </button>
                 </li>
                 <li class="sidebar-nav-item">
                     <button class="sidebar-nav-link" data-tab="saved-apis">
-                        <span class="sidebar-nav-icon">💾</span>
-                        Saved APIs
+                        <div class="sidebar-nav-icon">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
+                            </svg>
+                        </div>
+                        <span>Saved APIs</span>
                     </button>
                 </li>
                 <li class="sidebar-nav-item">
                     <a href="/" class="sidebar-nav-link">
-                        <span class="sidebar-nav-icon">🏠</span>
-                        Back to Generator
+                        <div class="sidebar-nav-icon">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                            </svg>
+                        </div>
+                        <span>Back to Generator</span>
                     </a>
                 </li>
             </ul>
@@ -60,42 +79,173 @@
         <div id="usage-tab" class="tab-content active">
             <div class="mb-6">
                 <h1 class="text-2xl font-bold text-white mb-2">Usage & Billing</h1>
-                <p class="text-gray-400">Monitor your LLM usage, costs, and limits</p>
+                <p class="text-slate-400">Monitor your LLM usage, costs, and limits</p>
             </div>
 
             <!-- Usage Type Tabs -->
-            <div class="usage-tabs mb-6">
-                <button class="usage-tab-btn active" data-usage-tab="llm">
-                    <span class="tab-icon">🤖</span>
-                    LLM Usage
-                    <span class="tab-description">API Generation</span>
+            <div class="flex gap-4 mb-8">
+                <button class="usage-type-tab active" data-usage-tab="llm">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 bg-blue-500/20 rounded-lg">
+                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="text-left">
+                            <div class="font-semibold text-white">LLM Usage</div>
+                            <div class="text-sm text-slate-400">API Generation</div>
+                        </div>
+                    </div>
                 </button>
-                <button class="usage-tab-btn" data-usage-tab="api-execution">
-                    <span class="tab-icon">⚡</span>
-                    API Execution
-                    <span class="tab-description">Generated APIs</span>
+                <button class="usage-type-tab" data-usage-tab="api-execution">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 bg-green-500/20 rounded-lg">
+                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <div class="text-left">
+                            <div class="font-semibold text-white">API Execution</div>
+                            <div class="text-sm text-slate-400">Generated APIs</div>
+                        </div>
+                    </div>
                 </button>
             </div>
 
             <!-- LLM Usage Content -->
             <div id="llm-usage-content" class="usage-content active">
                 <!-- Usage Statistics Grid -->
-                <div class="usage-stats-grid">
-                    <div class="usage-stat-card">
-                        <div class="usage-stat-value text-blue-400" id="totalRequests">0</div>
-                        <div class="usage-stat-label">Total Requests</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="p-2 bg-blue-500/20 rounded-lg">
+                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full">+12%</span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1" id="totalRequests">0</div>
+                        <div class="text-sm text-slate-400">Total Requests</div>
                     </div>
-                    <div class="usage-stat-card">
-                        <div class="usage-stat-value text-green-400" id="totalTokens">0</div>
-                        <div class="usage-stat-label">Total Tokens</div>
+                    
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="p-2 bg-green-500/20 rounded-lg">
+                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full">+8%</span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1" id="totalTokens">0</div>
+                        <div class="text-sm text-slate-400">Total Tokens</div>
                     </div>
-                    <div class="usage-stat-card">
-                        <div class="usage-stat-value text-purple-400" id="totalCost">$0.00</div>
-                        <div class="usage-stat-label">Total Cost</div>
+                    
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="p-2 bg-purple-500/20 rounded-lg">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs px-2 py-1 bg-purple-500/20 text-purple-400 rounded-full">+5%</span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1" id="totalCost">$0.00</div>
+                        <div class="text-sm text-slate-400">Total Cost</div>
                     </div>
-                    <div class="usage-stat-card">
-                        <div class="usage-stat-value text-yellow-400" id="avgCostPerRequest">$0.00</div>
-                        <div class="usage-stat-label">Avg Cost/Request</div>
+                    
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="p-2 bg-yellow-500/20 rounded-lg">
+                                <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full">+2%</span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1" id="avgCostPerRequest">$0.00</div>
+                        <div class="text-sm text-slate-400">Avg Cost/Request</div>
+                    </div>
+                </div>
+
+                <!-- Usage Limits Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Daily Limits</h3>
+                        <div class="space-y-4">
+                            <div class="limit-item">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-medium text-white">Tokens</span>
+                                    <span class="text-sm text-slate-400" id="dailyTokensText">0 / 100,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="dailyTokensProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="limit-item">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-medium text-white">Cost</span>
+                                    <span class="text-sm text-slate-400" id="dailyCostText">$0.00 / $10.00</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="dailyCostProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="limit-item">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-medium text-white">Requests/Min</span>
+                                    <span class="text-sm text-slate-400" id="minutelyRequestsText">0 / 100</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="minutelyRequestsProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Monthly Limits</h3>
+                        <div class="space-y-4">
+                            <div class="limit-item">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-medium text-white">Tokens</span>
+                                    <span class="text-sm text-slate-400" id="monthlyTokensText">0 / 1,000,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="monthlyTokensProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="limit-item">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-medium text-white">Hourly Tokens</span>
+                                    <span class="text-sm text-slate-400" id="hourlyTokensText">0 / 10,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="hourlyTokensProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Usage Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Usage by Service</h3>
+                        <div id="serviceUsageChart" class="space-y-3">
+                            <!-- Service usage will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Recent Usage</h3>
+                        <div id="recentUsageList" class="space-y-2">
+                            <!-- Recent usage will be loaded here -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -103,281 +253,253 @@
             <!-- API Execution Usage Content -->
             <div id="api-execution-usage-content" class="usage-content">
                 <!-- API Execution Statistics Grid -->
-                <div class="usage-stats-grid">
-                    <div class="usage-stat-card">
-                        <div class="usage-stat-value text-blue-400" id="apiTotalExecutions">0</div>
-                        <div class="usage-stat-label">Total Executions</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="p-2 bg-blue-500/20 rounded-lg">
+                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full">+15%</span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1" id="apiTotalExecutions">0</div>
+                        <div class="text-sm text-slate-400">Total Executions</div>
                     </div>
-                    <div class="usage-stat-card">
-                        <div class="usage-stat-value text-green-400" id="apiSuccessfulExecutions">0</div>
-                        <div class="usage-stat-label">Successful</div>
+                    
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="p-2 bg-green-500/20 rounded-lg">
+                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full">+12%</span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1" id="apiSuccessfulExecutions">0</div>
+                        <div class="text-sm text-slate-400">Successful</div>
                     </div>
-                    <div class="usage-stat-card">
-                        <div class="usage-stat-value text-red-400" id="apiFailedExecutions">0</div>
-                        <div class="usage-stat-label">Failed</div>
+                    
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="p-2 bg-red-500/20 rounded-lg">
+                                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs px-2 py-1 bg-red-500/20 text-red-400 rounded-full">-3%</span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1" id="apiFailedExecutions">0</div>
+                        <div class="text-sm text-slate-400">Failed</div>
                     </div>
-                    <div class="usage-stat-card">
-                        <div class="usage-stat-value text-purple-400" id="apiAvgExecutionTime">0ms</div>
-                        <div class="usage-stat-label">Avg Execution Time</div>
+                    
+                    <div class="metric-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="p-2 bg-purple-500/20 rounded-lg">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xs px-2 py-1 bg-purple-500/20 text-purple-400 rounded-full">+5%</span>
+                        </div>
+                        <div class="text-2xl font-bold text-white mb-1" id="apiAvgExecutionTime">0ms</div>
+                        <div class="text-sm text-slate-400">Avg Execution Time</div>
                     </div>
                 </div>
 
                 <!-- Internal Token Balance Card -->
-                <div class="token-balance-card mb-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-lg font-semibold text-white">Internal Token Balance</h2>
-                        <button onclick="allocateMonthlyTokens()" class="btn btn-primary btn-sm">Get Monthly Tokens</button>
+                <div class="glass-effect rounded-xl p-6 mb-8 border border-green-500/20">
+                    <div class="flex justify-between items-center mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-2 bg-green-500/20 rounded-lg">
+                                <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-semibold text-white">Internal Token Balance</h3>
+                        </div>
+                        <button onclick="allocateMonthlyTokens()" class="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 rounded-lg text-sm font-medium transition-colors">
+                            Get Monthly Tokens
+                        </button>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div class="token-stat">
-                            <div class="token-stat-value text-green-400" id="remainingTokens">0</div>
-                            <div class="token-stat-label">Remaining Tokens</div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-dark-800/50 rounded-lg p-4 border border-green-500/10">
+                            <div class="text-2xl font-bold text-green-400 mb-1" id="remainingTokens">0</div>
+                            <div class="text-sm text-slate-400">Remaining Tokens</div>
                         </div>
-                        <div class="token-stat">
-                            <div class="token-stat-value text-blue-400" id="usedTokens">0</div>
-                            <div class="token-stat-label">Used This Month</div>
+                        <div class="bg-dark-800/50 rounded-lg p-4 border border-blue-500/10">
+                            <div class="text-2xl font-bold text-blue-400 mb-1" id="usedTokens">0</div>
+                            <div class="text-sm text-slate-400">Used This Month</div>
                         </div>
-                        <div class="token-stat">
-                            <div class="token-stat-value text-yellow-400" id="expiringTokens">0</div>
-                            <div class="token-stat-label">Expiring Soon</div>
+                        <div class="bg-dark-800/50 rounded-lg p-4 border border-yellow-500/10">
+                            <div class="text-2xl font-bold text-yellow-400 mb-1" id="expiringTokens">0</div>
+                            <div class="text-sm text-slate-400">Expiring Soon</div>
                         </div>
                     </div>
 
-                    <!-- Token Usage Progress Bar -->
                     <div>
                         <div class="flex justify-between items-center mb-2">
                             <span class="text-sm font-medium text-white">Monthly Token Usage</span>
-                            <span class="text-sm text-gray-400" id="tokenUsageText">0 / 10,000</span>
+                            <span class="text-sm text-slate-400" id="tokenUsageText">0 / 10,000</span>
                         </div>
-                        <div class="limit-bar">
-                            <div class="limit-progress low" id="tokenUsageProgress" style="width: 0%">
-                                <span class="limit-progress-text" id="tokenUsagePercent">0%</span>
-                            </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill bg-gradient-to-r from-green-500 to-emerald-500" id="tokenUsageProgress" style="width: 0%"></div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <span class="text-sm text-slate-400" id="tokenUsagePercent">0% used</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- API Execution Limits -->
-                <div class="usage-limits-section mb-6">
-                    <h2 class="text-lg font-semibold text-white mb-4">API Execution Limits</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Daily Limits</h3>
+                        <div class="space-y-4">
+                            <div class="limit-item">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-medium text-white">Executions</span>
+                                    <span class="text-sm text-slate-400" id="dailyExecutionsText">0 / 1,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="dailyExecutionsProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="limit-item">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-medium text-white">Data Processed</span>
+                                    <span class="text-sm text-slate-400" id="dailyDataText">0 MB / 100 MB</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="dailyDataProgress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
-                    <div class="space-y-4">
-                        <!-- Daily Execution Limit -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-medium text-white">Daily Executions</span>
-                                <span class="text-sm text-gray-400" id="dailyExecutionsText">0 / 1,000</span>
-                            </div>
-                            <div class="limit-bar">
-                                <div class="limit-progress low" id="dailyExecutionsProgress" style="width: 0%">
-                                    <span class="limit-progress-text" id="dailyExecutionsPercent">0%</span>
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Monthly Limits</h3>
+                        <div class="space-y-4">
+                            <div class="limit-item">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm font-medium text-white">Executions</span>
+                                    <span class="text-sm text-slate-400" id="monthlyExecutionsText">0 / 10,000</span>
                                 </div>
-                            </div>
-                        </div>
-
-                        <!-- Monthly Execution Limit -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-medium text-white">Monthly Executions</span>
-                                <span class="text-sm text-gray-400" id="monthlyExecutionsText">0 / 10,000</span>
-                            </div>
-                            <div class="limit-bar">
-                                <div class="limit-progress low" id="monthlyExecutionsProgress" style="width: 0%">
-                                    <span class="limit-progress-text" id="monthlyExecutionsPercent">0%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Daily Data Limit -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-medium text-white">Daily Data Processed</span>
-                                <span class="text-sm text-gray-400" id="dailyDataText">0 MB / 100 MB</span>
-                            </div>
-                            <div class="limit-bar">
-                                <div class="limit-progress low" id="dailyDataProgress" style="width: 0%">
-                                    <span class="limit-progress-text" id="dailyDataPercent">0%</span>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="monthlyExecutionsProgress" style="width: 0%"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Usage by API -->
-                <div class="usage-chart-container">
-                    <h2 class="text-lg font-semibold text-white mb-4">Usage by API</h2>
-                    <div id="apiUsageChart" class="space-y-3">
-                        <!-- API usage will be loaded here -->
+                <!-- API Usage Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Usage by API</h3>
+                        <div id="apiUsageChart" class="space-y-3">
+                            <!-- API usage will be loaded here -->
+                        </div>
                     </div>
-                </div>
 
-                <!-- Recent API Executions -->
-                <div class="usage-chart-container">
-                    <h2 class="text-lg font-semibold text-white mb-4">Recent API Executions</h2>
-                    <div id="recentAPIExecutions" class="space-y-2">
-                        <!-- Recent executions will be loaded here -->
+                    <div class="glass-effect rounded-xl p-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Recent API Executions</h3>
+                        <div id="recentAPIExecutions" class="space-y-2">
+                            <!-- Recent executions will be loaded here -->
+                        </div>
                     </div>
                 </div>
             </div>
-
-                <!-- Usage Limits Section -->
-                <div class="usage-limits-section mb-6">
-                    <h2 class="text-lg font-semibold text-white mb-4">LLM Usage Limits</h2>
-                    
-                    <div class="space-y-4">
-                        <!-- Daily Token Limit -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-medium text-white">Daily Tokens</span>
-                                <span class="text-sm text-gray-400" id="dailyTokensText">0 / 100,000</span>
-                            </div>
-                            <div class="limit-bar">
-                                <div class="limit-progress low" id="dailyTokensProgress" style="width: 0%">
-                                    <span class="limit-progress-text" id="dailyTokensPercent">0%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Monthly Token Limit -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-medium text-white">Monthly Tokens</span>
-                                <span class="text-sm text-gray-400" id="monthlyTokensText">0 / 1,000,000</span>
-                            </div>
-                            <div class="limit-bar">
-                                <div class="limit-progress low" id="monthlyTokensProgress" style="width: 0%">
-                                    <span class="limit-progress-text" id="monthlyTokensPercent">0%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Daily Cost Limit -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-medium text-white">Daily Cost</span>
-                                <span class="text-sm text-gray-400" id="dailyCostText">$0.00 / $10.00</span>
-                            </div>
-                            <div class="limit-bar">
-                                <div class="limit-progress low" id="dailyCostProgress" style="width: 0%">
-                                    <span class="limit-progress-text" id="dailyCostPercent">0%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Hourly Token Limit -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-medium text-white">Hourly Tokens</span>
-                                <span class="text-sm text-gray-400" id="hourlyTokensText">0 / 10,000</span>
-                            </div>
-                            <div class="limit-bar">
-                                <div class="limit-progress low" id="hourlyTokensProgress" style="width: 0%">
-                                    <span class="limit-progress-text" id="hourlyTokensPercent">0%</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Per-Minute Requests -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-sm font-medium text-white">Requests per Minute</span>
-                                <span class="text-sm text-gray-400" id="minutelyRequestsText">0 / 100</span>
-                            </div>
-                            <div class="limit-bar">
-                                <div class="limit-progress low" id="minutelyRequestsProgress" style="width: 0%">
-                                    <span class="limit-progress-text" id="minutelyRequestsPercent">0%</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Usage by Service -->
-                <div class="usage-chart-container">
-                    <h2 class="text-lg font-semibold text-white mb-4">Usage by Service</h2>
-                    <div id="serviceUsageChart" class="space-y-3">
-                        <!-- Service usage will be loaded here -->
-                    </div>
-                </div>
-
-                <!-- Recent Usage -->
-                <div class="usage-chart-container">
-                    <h2 class="text-lg font-semibold text-white mb-4">Recent Usage</h2>
-                    <div id="recentUsageList" class="space-y-2">
-                        <!-- Recent usage will be loaded here -->
-                    </div>
-                </div>
         </div>
 
         <!-- API Keys Tab -->
         <div id="api-keys-tab" class="tab-content">
-            <div class="flex justify-between items-center mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div>
-                    <h1 class="text-2xl font-bold text-white mb-2">API Keys</h1>
-                    <p class="text-gray-400">Manage your API keys for programmatic access</p>
+                    <h2 class="text-2xl font-bold text-white mb-2">API Keys</h2>
+                    <p class="text-slate-400">Manage your API keys for programmatic access</p>
                 </div>
-                <button id="createAPIKeyBtn" class="btn btn-primary">
-                    <span>+</span>
-                    Create API Key
+                <button id="createAPIKeyBtn" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    <span>Create API Key</span>
                 </button>
             </div>
 
             <!-- API Keys Loading State -->
-            <div id="apiKeysLoading" class="loading-container">
-                <div class="loading-spinner"></div>
-                <p class="text-gray-400">Loading API keys...</p>
+            <div id="apiKeysLoading" class="flex flex-col items-center justify-center py-12 glass-effect rounded-xl">
+                <div class="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-4"></div>
+                <p class="text-slate-400">Loading API keys...</p>
             </div>
 
             <!-- API Keys Empty State -->
-            <div id="apiKeysEmpty" class="empty-state hidden">
-                <div class="empty-state-icon">🔑</div>
-                <h3>No API keys yet</h3>
-                <p>Create an API key to access your APIs programmatically</p>
-                <button onclick="showCreateAPIKeyModal()" class="btn btn-primary">Create Your First API Key</button>
+            <div id="apiKeysEmpty" class="empty-state hidden text-center py-16 glass-effect rounded-xl">
+                <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-white mb-2">No API keys yet</h3>
+                <p class="text-slate-400 mb-6">Create an API key to access your APIs programmatically</p>
+                <button onclick="showCreateAPIKeyModal()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                    Create Your First API Key
+                </button>
             </div>
 
             <!-- API Keys Grid -->
-            <div id="apiKeysGrid" class="api-keys-grid hidden">
+            <div id="apiKeysGrid" class="space-y-4 hidden">
                 <!-- API keys will be loaded here -->
             </div>
         </div>
 
         <!-- Saved APIs Tab -->
         <div id="saved-apis-tab" class="tab-content">
-            <div class="flex justify-between items-center mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div>
-                    <h1 class="text-2xl font-bold text-white mb-2">Saved APIs</h1>
-                    <p class="text-gray-400">Manage and test your saved APIs</p>
+                    <h2 class="text-2xl font-bold text-white mb-2">Saved APIs</h2>
+                    <p class="text-slate-400">Manage and test your saved APIs</p>
                 </div>
-                <div class="flex space-x-3">
-                    <button onclick="refreshAPIs()" class="btn btn-secondary btn-sm">
-                        <span>🔄</span>
-                        Refresh
+                <div class="flex items-center space-x-3">
+                    <button onclick="refreshAPIs()" class="flex items-center space-x-2 px-3 py-2 glass-effect text-slate-300 hover:text-white rounded-lg text-sm font-medium transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <span>Refresh</span>
                     </button>
-                    <a href="/" class="btn btn-primary btn-sm">
-                        <span>+</span>
-                        Create New API
+                    <a href="/" class="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        <span>Create New API</span>
                     </a>
                 </div>
             </div>
 
             <!-- Saved APIs Loading State -->
-            <div id="savedAPIsLoading" class="loading-container">
-                <div class="loading-spinner"></div>
-                <p class="text-gray-400">Loading your APIs...</p>
+            <div id="savedAPIsLoading" class="flex flex-col items-center justify-center py-12 glass-effect rounded-xl">
+                <div class="w-8 h-8 border-2 border-green-500/30 border-t-green-500 rounded-full animate-spin mb-4"></div>
+                <p class="text-slate-400">Loading your APIs...</p>
             </div>
 
             <!-- Saved APIs Empty State -->
-            <div id="savedAPIsEmpty" class="empty-state hidden">
-                <div class="empty-state-icon">💾</div>
-                <h3>No saved APIs yet</h3>
-                <p>Start creating APIs to see them here</p>
-                <a href="/" class="btn btn-primary">Create Your First API</a>
+            <div id="savedAPIsEmpty" class="empty-state hidden text-center py-16 glass-effect rounded-xl">
+                <div class="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-semibold text-white mb-2">No saved APIs yet</h3>
+                <p class="text-slate-400 mb-6">Start creating APIs to see them here</p>
+                <a href="/" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                    Create Your First API
+                </a>
             </div>
 
             <!-- Saved APIs Grid -->
-            <div id="savedAPIsGrid" class="saved-apis-grid hidden">
+            <div id="savedAPIsGrid" class="space-y-6 hidden">
                 <!-- Saved APIs will be loaded here -->
             </div>
         </div>
@@ -385,77 +507,131 @@
 </div>
 
 <!-- Create API Key Modal -->
-<div id="createAPIKeyModal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="modal-title">Create API Key</h3>
-            <p class="modal-description">Create a new API key for programmatic access to your APIs</p>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label" for="keyNameInput">Key Name</label>
-                <input type="text" id="keyNameInput" class="form-input" placeholder="e.g., Production Key" maxlength="100">
+<div id="createAPIKeyModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+    <div class="glass-effect rounded-2xl p-6 m-4 max-w-md w-full border border-blue-500/20 animate-slide-up">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-blue-500/20 rounded-lg">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-white">Create API Key</h3>
+                    <p class="text-sm text-slate-400">Generate a new access key</p>
+                </div>
             </div>
-            <div class="form-group">
-                <label class="form-label" for="expiresInDaysInput">Expires In (days)</label>
-                <input type="number" id="expiresInDaysInput" class="form-input" placeholder="Optional, leave empty for no expiration" min="1" max="365">
+            <button onclick="hideCreateAPIKeyModal()" class="p-1 hover:bg-slate-700 rounded-lg transition-colors">
+                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="space-y-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-white mb-2" for="keyNameInput">Key Name</label>
+                <input type="text" id="keyNameInput" class="w-full px-3 py-2 bg-dark-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" placeholder="e.g., Production Key" maxlength="100">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-white mb-2" for="expiresInDaysInput">Expires In (days)</label>
+                <input type="number" id="expiresInDaysInput" class="w-full px-3 py-2 bg-dark-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" placeholder="Optional, leave empty for no expiration" min="1" max="365">
+                <p class="text-xs text-slate-400 mt-1">Leave empty for permanent key</p>
             </div>
         </div>
-        <div class="modal-footer">
-            <button onclick="hideCreateAPIKeyModal()" class="btn btn-secondary">Cancel</button>
-            <button onclick="createAPIKey()" class="btn btn-primary">Create Key</button>
+        
+        <div class="flex justify-end space-x-3">
+            <button onclick="hideCreateAPIKeyModal()" class="px-4 py-2 text-slate-300 hover:text-white transition-colors">Cancel</button>
+            <button onclick="createAPIKey()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">Create Key</button>
         </div>
     </div>
 </div>
 
 <!-- API Key Created Modal -->
-<div id="apiKeyCreatedModal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="modal-title">API Key Created</h3>
-            <p class="modal-description">Your API key has been created. Copy it now - you won't be able to see it again!</p>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label class="form-label">Your New API Key</label>
-                <div class="api-key-code">
-                    <input type="text" id="newAPIKeyValue" class="form-input" readonly>
-                </div>
-                <button onclick="copyAPIKey()" class="btn btn-secondary btn-sm mt-2">
-                    <span>📋</span>
-                    Copy to Clipboard
-                </button>
+<div id="apiKeyCreatedModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+    <div class="glass-effect rounded-2xl p-6 m-4 max-w-lg w-full border border-green-500/20 animate-slide-up">
+        <div class="flex items-center space-x-3 mb-6">
+            <div class="p-2 bg-green-500/20 rounded-lg">
+                <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-white">API Key Created</h3>
+                <p class="text-sm text-slate-400">Copy your key now - you won't see it again</p>
             </div>
         </div>
-        <div class="modal-footer">
-            <button onclick="hideAPIKeyCreatedModal()" class="btn btn-primary">I've Copied It</button>
+        
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-white mb-2">Your New API Key</label>
+            <div class="relative">
+                <input type="text" id="newAPIKeyValue" class="w-full px-3 py-3 bg-dark-800/50 border border-green-500/30 rounded-lg text-green-400 font-mono text-sm" readonly>
+                <button onclick="copyAPIKey()" class="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 hover:bg-slate-700 rounded-lg transition-colors">
+                    <svg class="w-4 h-4 text-slate-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <div class="flex items-start space-x-2">
+                    <svg class="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                    <p class="text-sm text-yellow-400">Store this key securely. For security reasons, it won't be shown again.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end">
+            <button onclick="hideAPIKeyCreatedModal()" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">I've Copied It</button>
         </div>
     </div>
 </div>
 
-<!-- Delete Confirmation Modals -->
-<div id="deleteAPIKeyModal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="modal-title">Delete API Key</h3>
-            <p class="modal-description">Are you sure you want to delete this API key? Applications using this key will lose access immediately.</p>
+<!-- Delete API Key Modal -->
+<div id="deleteAPIKeyModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+    <div class="glass-effect rounded-2xl p-6 m-4 max-w-md w-full border border-red-500/20 animate-slide-up">
+        <div class="flex items-center space-x-3 mb-6">
+            <div class="p-2 bg-red-500/20 rounded-lg">
+                <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-white">Delete API Key</h3>
+                <p class="text-sm text-slate-400">This action cannot be undone</p>
+            </div>
         </div>
-        <div class="modal-footer">
-            <button onclick="hideDeleteAPIKeyModal()" class="btn btn-secondary">Cancel</button>
-            <button onclick="confirmDeleteAPIKey()" class="btn btn-danger">Delete Key</button>
+        
+        <p class="text-slate-300 mb-6">Are you sure you want to delete this API key? Applications using this key will lose access immediately.</p>
+        
+        <div class="flex justify-end space-x-3">
+            <button onclick="hideDeleteAPIKeyModal()" class="px-4 py-2 text-slate-300 hover:text-white transition-colors">Cancel</button>
+            <button onclick="confirmDeleteAPIKey()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors">Delete Key</button>
         </div>
     </div>
 </div>
 
-<div id="deleteAPIModal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 class="modal-title">Delete API</h3>
-            <p class="modal-description">Are you sure you want to delete this API? This action cannot be undone.</p>
+<!-- Delete API Modal -->
+<div id="deleteAPIModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+    <div class="glass-effect rounded-2xl p-6 m-4 max-w-md w-full border border-red-500/20 animate-slide-up">
+        <div class="flex items-center space-x-3 mb-6">
+            <div class="p-2 bg-red-500/20 rounded-lg">
+                <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-white">Delete API</h3>
+                <p class="text-sm text-slate-400">This action cannot be undone</p>
+            </div>
         </div>
-        <div class="modal-footer">
-            <button onclick="hideDeleteAPIModal()" class="btn btn-secondary">Cancel</button>
-            <button onclick="confirmDeleteAPI()" class="btn btn-danger">Delete API</button>
+        
+        <p class="text-slate-300 mb-6">Are you sure you want to delete this API? This will permanently remove the API and all its data.</p>
+        
+        <div class="flex justify-end space-x-3">
+            <button onclick="hideDeleteAPIModal()" class="px-4 py-2 text-slate-300 hover:text-white transition-colors">Cancel</button>
+            <button onclick="confirmDeleteAPI()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors">Delete API</button>
         </div>
     </div>
 </div>
@@ -486,512 +662,345 @@
         document.getElementById(tabName + '-tab').classList.add('active');
         document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
-        // Load data for the active tab
-        switch(tabName) {
-            case 'usage':
-                loadUsageData();
-                break;
-            case 'api-keys':
-                loadAPIKeys();
-                break;
-            case 'saved-apis':
-                loadSavedAPIs();
-                break;
+        // Load data based on selected tab
+        if (tabName === 'usage') {
+            loadUsageData();
+        } else if (tabName === 'api-keys') {
+            loadAPIKeys();
+        } else if (tabName === 'saved-apis') {
+            loadSavedAPIs();
         }
     }
 
-    // Usage Tab Management
-    function switchUsageTab(usageTabName) {
+    // Usage Type Tab Management
+    function switchUsageTab(usageType) {
         // Remove active class from all usage tabs and content
-        document.querySelectorAll('.usage-tab-btn').forEach(btn => {
-            btn.classList.remove('active');
+        document.querySelectorAll('.usage-type-tab').forEach(tab => {
+            tab.classList.remove('active');
         });
         document.querySelectorAll('.usage-content').forEach(content => {
             content.classList.remove('active');
         });
 
         // Add active class to selected usage tab and content
-        document.querySelector(`[data-usage-tab="${usageTabName}"]`).classList.add('active');
-        document.getElementById(usageTabName + '-usage-content').classList.add('active');
+        document.querySelector(`[data-usage-tab="${usageType}"]`).classList.add('active');
+        document.getElementById(usageType + '-usage-content').classList.add('active');
 
-        // Load data for the active usage tab
-        switch(usageTabName) {
-            case 'llm':
-                loadUsageData();
-                break;
-            case 'api-execution':
-                loadAPIExecutionData();
-                break;
+        // Load specific usage data
+        if (usageType === 'llm') {
+            loadLLMUsageData();
+        } else if (usageType === 'api-execution') {
+            loadAPIExecutionData();
         }
     }
 
-    // Initialize profile data
-    async function loadProfile() {
-        try {
-            const response = await fetch('/auth/me', {
-                credentials: 'include'
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize user data
+        initializeUserData();
+
+        // Tab click handlers
+        document.querySelectorAll('[data-tab]').forEach(button => {
+            button.addEventListener('click', function() {
+                const tabName = this.getAttribute('data-tab');
+                switchTab(tabName);
             });
+        });
+
+        // Usage type tab handlers
+        document.querySelectorAll('[data-usage-tab]').forEach(button => {
+            button.addEventListener('click', function() {
+                const usageType = this.getAttribute('data-usage-tab');
+                switchUsageTab(usageType);
+            });
+        });
+
+        // Modal handlers
+        document.getElementById('createAPIKeyBtn').addEventListener('click', showCreateAPIKeyModal);
+
+        // Initial load
+        loadUsageData();
+    });
+
+    // Initialize User Data
+    function initializeUserData() {
+        const profileEmail = document.getElementById('profileEmail');
+        const profileInitials = document.getElementById('profileInitials');
+        const profileJoinDate = document.getElementById('profileJoinDate');
+        const profileAvatar = document.getElementById('profileAvatar');
+
+        if (currentUser) {
+            profileEmail.textContent = currentUser.email;
+            profileInitials.textContent = currentUser.email.substring(0, 2).toUpperCase();
             
-            if (!response.ok) {
-                throw new Error('Failed to load profile');
+            if (currentUser.created_at) {
+                const joinDate = new Date(currentUser.created_at);
+                profileJoinDate.textContent = `Member since ${joinDate.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long' 
+                })}`;
             }
-            
-            const profile = await response.json();
-            
-            if (!profile.authenticated) {
-                throw new Error('Not authenticated');
-            }
-            
-            // Store user data globally for other functions
-            window.currentUser = profile.user;
-            
-            // Update profile info
-            document.getElementById('profileInitials').textContent = 
-                profile.user.email.substring(0, 2).toUpperCase();
-            document.getElementById('profileEmail').textContent = profile.user.email;
-            document.getElementById('profileJoinDate').textContent = 
-                `Member since ${new Date(profile.user.created_at).toLocaleDateString()}`;
-            
-        } catch (error) {
-            console.error('Failed to load profile:', error);
-            window.location.href = '/';
+
+            // Set avatar background based on email hash
+            const emailHash = currentUser.email.split('').reduce((a, b) => {
+                a = ((a << 5) - a) + b.charCodeAt(0);
+                return a & a;
+            }, 0);
+            const hue = Math.abs(emailHash) % 360;
+            profileAvatar.style.background = `linear-gradient(135deg, hsl(${hue}, 70%, 50%), hsl(${(hue + 60) % 360}, 70%, 60%))`;
         }
     }
 
-    // Load usage data
+    // Load Usage Data
     async function loadUsageData() {
         try {
-            // Load usage statistics
-            const statsResponse = await fetch('/usage/stats?days=30', {
-                credentials: 'include'
-            });
-            
-            if (statsResponse.ok) {
-                usageData = await statsResponse.json();
-                displayUsageStats(usageData);
-            }
-
-            // Load usage limits
-            const limitsResponse = await fetch('/usage/limits', {
-                credentials: 'include'
-            });
-            
-            if (limitsResponse.ok) {
-                limitsData = await limitsResponse.json();
-                displayUsageLimits(limitsData);
-            }
-
+            console.log('Loading usage data...');
+            // Implementation for loading usage data
+            // This would typically fetch from your API endpoints
         } catch (error) {
-            console.error('Failed to load usage data:', error);
+            console.error('Error loading usage data:', error);
         }
     }
 
-    // Display usage statistics
-    function displayUsageStats(data) {
-        document.getElementById('totalRequests').textContent = data.total_requests || 0;
-        document.getElementById('totalTokens').textContent = (data.total_tokens || 0).toLocaleString();
-        document.getElementById('totalCost').textContent = '$' + ((data.total_cost_cents || 0) / 100).toFixed(2);
-        
-        const avgCost = data.total_requests > 0 ? (data.total_cost_cents / data.total_requests / 100) : 0;
-        document.getElementById('avgCostPerRequest').textContent = '$' + avgCost.toFixed(4);
-
-        // Display service usage
-        displayServiceUsage(data.by_service || {});
-        
-        // Display recent usage
-        displayRecentUsage(data.recent_usage || []);
-    }
-
-    // Display usage limits
-    function displayUsageLimits(data) {
-        // Daily tokens
-        const dailyTokenPercent = Math.min((data.daily_tokens_used / data.daily_token_limit) * 100, 100);
-        document.getElementById('dailyTokensText').textContent = 
-            `${data.daily_tokens_used.toLocaleString()} / ${data.daily_token_limit.toLocaleString()}`;
-        animateProgressBar(document.getElementById('dailyTokensProgress'), dailyTokenPercent);
-
-        // Monthly tokens
-        const monthlyTokenPercent = Math.min((data.monthly_tokens_used / data.monthly_token_limit) * 100, 100);
-        document.getElementById('monthlyTokensText').textContent = 
-            `${data.monthly_tokens_used.toLocaleString()} / ${data.monthly_token_limit.toLocaleString()}`;
-        animateProgressBar(document.getElementById('monthlyTokensProgress'), monthlyTokenPercent);
-
-        // Daily cost
-        const dailyCostPercent = Math.min((data.daily_cost_used_cents / data.daily_cost_limit_cents) * 100, 100);
-        document.getElementById('dailyCostText').textContent = 
-            `$${(data.daily_cost_used_cents / 100).toFixed(2)} / $${(data.daily_cost_limit_cents / 100).toFixed(2)}`;
-        animateProgressBar(document.getElementById('dailyCostProgress'), dailyCostPercent);
-
-        // Hourly tokens
-        if (data.hourly_token_limit) {
-            const hourlyTokenPercent = Math.min((data.hourly_tokens_used / data.hourly_token_limit) * 100, 100);
-            document.getElementById('hourlyTokensText').textContent = 
-                `${data.hourly_tokens_used.toLocaleString()} / ${data.hourly_token_limit.toLocaleString()}`;
-            animateProgressBar(document.getElementById('hourlyTokensProgress'), hourlyTokenPercent);
-        }
-
-        // Minutely requests
-        if (data.minutely_request_limit) {
-            const minutelyRequestPercent = Math.min((data.minutely_requests_used / data.minutely_request_limit) * 100, 100);
-            document.getElementById('minutelyRequestsText').textContent = 
-                `${data.minutely_requests_used} / ${data.minutely_request_limit}`;
-            animateProgressBar(document.getElementById('minutelyRequestsProgress'), minutelyRequestPercent);
+    // Load LLM Usage Data
+    async function loadLLMUsageData() {
+        try {
+            console.log('Loading LLM usage data...');
+            // Implementation for loading LLM-specific usage data
+        } catch (error) {
+            console.error('Error loading LLM usage data:', error);
         }
     }
 
-    // Update progress bar color and percentage display based on percentage
-    function updateProgressBarColor(element, percent) {
-        element.className = 'limit-progress ';
-        if (percent < 50) {
-            element.className += 'low';
-        } else if (percent < 75) {
-            element.className += 'medium';
-        } else if (percent < 90) {
-            element.className += 'high';
-        } else {
-            element.className += 'critical';
-        }
-        
-        // Update percentage text if it exists
-        const percentElement = element.querySelector('.limit-progress-text');
-        if (percentElement) {
-            const displayPercent = Math.round(percent);
-            percentElement.textContent = displayPercent + '%';
-            // Always show percentage text for high usage, hide only for very small bars
-            percentElement.style.opacity = (percent > 10 || percent >= 90) ? '1' : '0';
-            
-            // Special styling for over-limit situations
-            if (percent >= 100) {
-                percentElement.style.color = 'rgba(255, 255, 255, 1)';
-                percentElement.style.fontWeight = '900';
-            }
-        }
-    }
-
-    // Animate progress bar to new width
-    function animateProgressBar(element, targetPercent) {
-        // Reset to 0 width first
-        element.style.width = '0%';
-        
-        // Use requestAnimationFrame for smooth animation
-        setTimeout(() => {
-            element.style.width = targetPercent + '%';
-            updateProgressBarColor(element, targetPercent);
-        }, 100);
-    }
-
-    // Display service usage breakdown
-    function displayServiceUsage(byService) {
-        const container = document.getElementById('serviceUsageChart');
-        container.innerHTML = '';
-
-        Object.entries(byService).forEach(([service, stats]) => {
-            const serviceDiv = document.createElement('div');
-            serviceDiv.className = 'flex justify-between items-center p-3 bg-black bg-opacity-20 rounded';
-            serviceDiv.innerHTML = `
-                <div class="flex items-center space-x-3">
-                    <span class="text-lg">${service === 'claude' ? '🤖' : '🔥'}</span>
-                    <div>
-                        <div class="font-medium text-white">${service.charAt(0).toUpperCase() + service.slice(1)}</div>
-                        <div class="text-sm text-gray-400">${stats.requests} requests</div>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="font-medium text-white">${stats.tokens.toLocaleString()} tokens</div>
-                    <div class="text-sm text-gray-400">$${(stats.cost_cents / 100).toFixed(2)}</div>
-                </div>
-            `;
-            container.appendChild(serviceDiv);
-        });
-
-        if (Object.keys(byService).length === 0) {
-            container.innerHTML = '<p class="text-gray-400 text-center py-4">No usage data available</p>';
-        }
-    }
-
-    // Display recent usage
-    function displayRecentUsage(recentUsage) {
-        const container = document.getElementById('recentUsageList');
-        container.innerHTML = '';
-
-        recentUsage.slice(0, 5).forEach(usage => {
-            const usageDiv = document.createElement('div');
-            usageDiv.className = 'flex justify-between items-center p-2 bg-black bg-opacity-10 rounded text-sm';
-            usageDiv.innerHTML = `
-                <div class="flex items-center space-x-2">
-                    <span>${usage.service_type === 'claude' ? '🤖' : '🔥'}</span>
-                    <span class="text-white">${usage.operation_type.replace('_', ' ')}</span>
-                    <span class="text-gray-400">${usage.model_name}</span>
-                </div>
-                <div class="text-right">
-                    <div class="text-white">${usage.total_tokens} tokens</div>
-                    <div class="text-gray-400">${new Date(usage.created_at).toLocaleDateString()}</div>
-                </div>
-            `;
-            container.appendChild(usageDiv);
-        });
-
-        if (recentUsage.length === 0) {
-            container.innerHTML = '<p class="text-gray-400 text-center py-4">No recent usage</p>';
-        }
-    }
-
-    // Load API execution data
+    // Load API Execution Data
     async function loadAPIExecutionData() {
         try {
-            // Load API execution statistics
-            const statsResponse = await fetch('/api-execution-stats?days=30', {
-                credentials: 'include'
-            });
-            
-            if (statsResponse.ok) {
-                apiExecutionData = await statsResponse.json();
-                displayAPIExecutionStats(apiExecutionData);
-            }
-
-            // Load API execution limits
-            const limitsResponse = await fetch('/api-execution-limits', {
-                credentials: 'include'
-            });
-            
-            if (limitsResponse.ok) {
-                apiExecutionLimits = await limitsResponse.json();
-                displayAPIExecutionLimits(apiExecutionLimits);
-            }
-
-            // Load internal token balance
-            const tokenResponse = await fetch('/internal-token-balance', {
-                credentials: 'include'
-            });
-            
-            if (tokenResponse.ok) {
-                tokenBalance = await tokenResponse.json();
-                displayTokenBalance(tokenBalance);
-            }
-
+            console.log('Loading API execution data...');
+            // Implementation for loading API execution data
         } catch (error) {
-            console.error('Failed to load API execution data:', error);
-        }
-    }
-
-    // Display API execution statistics
-    function displayAPIExecutionStats(data) {
-        document.getElementById('apiTotalExecutions').textContent = data.total_executions || 0;
-        document.getElementById('apiSuccessfulExecutions').textContent = data.successful_executions || 0;
-        document.getElementById('apiFailedExecutions').textContent = data.failed_executions || 0;
-        document.getElementById('apiAvgExecutionTime').textContent = Math.round(data.average_execution_time_ms || 0) + 'ms';
-
-        // Display usage by API
-        displayAPIUsage(data.by_api || {});
-        
-        // Display recent executions
-        displayRecentAPIExecutions(data.recent_executions || []);
-    }
-
-    // Display API execution limits
-    function displayAPIExecutionLimits(data) {
-        // Daily executions
-        const dailyExecPercent = Math.min((data.daily_executions_used / data.daily_execution_limit) * 100, 100);
-        document.getElementById('dailyExecutionsText').textContent = 
-            `${data.daily_executions_used.toLocaleString()} / ${data.daily_execution_limit.toLocaleString()}`;
-        animateProgressBar(document.getElementById('dailyExecutionsProgress'), dailyExecPercent);
-
-        // Monthly executions
-        const monthlyExecPercent = Math.min((data.monthly_executions_used / data.monthly_execution_limit) * 100, 100);
-        document.getElementById('monthlyExecutionsText').textContent = 
-            `${data.monthly_executions_used.toLocaleString()} / ${data.monthly_execution_limit.toLocaleString()}`;
-        animateProgressBar(document.getElementById('monthlyExecutionsProgress'), monthlyExecPercent);
-
-        // Daily data
-        const dailyDataMB = Math.round(data.daily_data_used_bytes / (1024 * 1024));
-        const dailyDataLimitMB = Math.round(data.daily_data_limit_bytes / (1024 * 1024));
-        const dailyDataPercent = Math.min((data.daily_data_used_bytes / data.daily_data_limit_bytes) * 100, 100);
-        document.getElementById('dailyDataText').textContent = `${dailyDataMB} MB / ${dailyDataLimitMB} MB`;
-        animateProgressBar(document.getElementById('dailyDataProgress'), dailyDataPercent);
-    }
-
-    // Display token balance
-    function displayTokenBalance(data) {
-        document.getElementById('remainingTokens').textContent = data.remaining_tokens.toLocaleString();
-        document.getElementById('usedTokens').textContent = data.used_tokens.toLocaleString();
-        document.getElementById('expiringTokens').textContent = data.expires_soon_tokens.toLocaleString();
-
-        // Token usage progress
-        const tokenPercent = Math.min((data.used_tokens / data.total_tokens) * 100, 100);
-        document.getElementById('tokenUsageText').textContent = 
-            `${data.used_tokens.toLocaleString()} / ${data.total_tokens.toLocaleString()}`;
-        animateProgressBar(document.getElementById('tokenUsageProgress'), tokenPercent);
-    }
-
-    // Display API usage breakdown
-    function displayAPIUsage(byAPI) {
-        const container = document.getElementById('apiUsageChart');
-        container.innerHTML = '';
-
-        Object.entries(byAPI).forEach(([apiSlug, stats]) => {
-            const apiDiv = document.createElement('div');
-            apiDiv.className = 'flex justify-between items-center p-3 bg-black bg-opacity-20 rounded';
-            apiDiv.innerHTML = `
-                <div class="flex items-center space-x-3">
-                    <span class="text-lg">⚡</span>
-                    <div>
-                        <div class="font-medium text-white">${apiSlug.replace('api_', '').replace(/_/g, ' ')}</div>
-                        <div class="text-sm text-gray-400">${stats.executions} executions</div>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="font-medium text-white">${Math.round(stats.avg_time_ms)}ms avg</div>
-                    <div class="text-sm text-gray-400">${stats.success_rate}% success</div>
-                </div>
-            `;
-            container.appendChild(apiDiv);
-        });
-
-        if (Object.keys(byAPI).length === 0) {
-            container.innerHTML = '<p class="text-gray-400 text-center py-4">No API execution data available</p>';
-        }
-    }
-
-    // Display recent API executions
-    function displayRecentAPIExecutions(recentExecutions) {
-        const container = document.getElementById('recentAPIExecutions');
-        container.innerHTML = '';
-
-        recentExecutions.slice(0, 5).forEach(execution => {
-            const executionDiv = document.createElement('div');
-            executionDiv.className = 'flex justify-between items-center p-2 bg-black bg-opacity-10 rounded text-sm';
-            executionDiv.innerHTML = `
-                <div class="flex items-center space-x-2">
-                    <span>${execution.success ? '✅' : '❌'}</span>
-                    <span class="text-white">${execution.api_slug.replace('api_', '').replace(/_/g, ' ')}</span>
-                    <span class="text-gray-400">${execution.execution_time_ms}ms</span>
-                </div>
-                <div class="text-right">
-                    <div class="text-white">${Math.round(execution.input_data_size / 1024)}KB input</div>
-                    <div class="text-gray-400">${new Date(execution.created_at).toLocaleDateString()}</div>
-                </div>
-            `;
-            container.appendChild(executionDiv);
-        });
-
-        if (recentExecutions.length === 0) {
-            container.innerHTML = '<p class="text-gray-400 text-center py-4">No recent executions</p>';
-        }
-    }
-
-    // Allocate monthly tokens
-    async function allocateMonthlyTokens() {
-        try {
-            const response = await fetch('/allocate-monthly-tokens', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    amount: 10000,
-                    source: 'monthly_allocation'
-                })
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-                showNotification('Monthly tokens allocated successfully!', 'success');
-                loadAPIExecutionData(); // Refresh the data
-            } else {
-                showNotification(result.message || 'Failed to allocate tokens', 'error');
-            }
-        } catch (error) {
-            console.error('Error allocating tokens:', error);
-            showNotification('Failed to allocate tokens', 'error');
+            console.error('Error loading API execution data:', error);
         }
     }
 
     // Load API Keys
     async function loadAPIKeys() {
-        const loading = document.getElementById('apiKeysLoading');
-        const empty = document.getElementById('apiKeysEmpty');
-        const grid = document.getElementById('apiKeysGrid');
-        
-        loading.classList.remove('hidden');
-        empty.classList.add('hidden');
-        grid.classList.add('hidden');
-        
         try {
+            console.log('Loading API keys...');
+            
+            // Show loading state
+            document.getElementById('apiKeysLoading').classList.remove('hidden');
+            document.getElementById('apiKeysEmpty').classList.add('hidden');
+            document.getElementById('apiKeysGrid').classList.add('hidden');
+            
+            // Make API request to fetch API keys
             const response = await fetch('/api-keys', {
-                credentials: 'include'
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include' // Include cookies for authentication
             });
             
-            const result = await response.json();
-            loading.classList.add('hidden');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             
-            if (result.success && result.api_keys.length > 0) {
+            const result = await response.json();
+            console.log('API keys response:', result);
+            
+            // Hide loading state
+            document.getElementById('apiKeysLoading').classList.add('hidden');
+            
+            if (result.success && result.api_keys && result.api_keys.length > 0) {
+                // Show API keys grid
                 displayAPIKeys(result.api_keys);
-                grid.classList.remove('hidden');
+                document.getElementById('apiKeysGrid').classList.remove('hidden');
             } else {
-                empty.classList.remove('hidden');
+                // Show empty state
+                document.getElementById('apiKeysEmpty').classList.remove('hidden');
             }
             
         } catch (error) {
-            console.error('Failed to load API keys:', error);
-            loading.classList.add('hidden');
-            empty.classList.remove('hidden');
+            console.error('Error loading API keys:', error);
+            
+            // Hide loading state and show error
+            document.getElementById('apiKeysLoading').classList.add('hidden');
+            document.getElementById('apiKeysEmpty').classList.remove('hidden');
+            
+            // Update empty state message to show error
+            const emptyState = document.getElementById('apiKeysEmpty');
+            const errorMessage = emptyState.querySelector('p');
+            if (errorMessage) {
+                errorMessage.textContent = 'Failed to load API keys. Please try again.';
+            }
         }
     }
-
-    // Display API Keys
+    
+    // Display API Keys in the UI
     function displayAPIKeys(apiKeys) {
-        const container = document.getElementById('apiKeysGrid');
-        container.innerHTML = '';
+        const apiKeysGrid = document.getElementById('apiKeysGrid');
+        apiKeysGrid.innerHTML = '';
         
-        apiKeys.forEach(apiKey => {
-            const keyCard = createAPIKeyCard(apiKey);
-            container.appendChild(keyCard);
+        apiKeys.forEach(key => {
+            const keyCard = createAPIKeyCard(key);
+            apiKeysGrid.appendChild(keyCard);
         });
     }
-
-    // Create API Key Card
-    function createAPIKeyCard(apiKey) {
+    
+    // Create API Key Card HTML
+    function createAPIKeyCard(key) {
         const card = document.createElement('div');
-        card.className = 'api-key-card';
+        card.className = 'glass-effect rounded-xl p-6 border border-slate-600/50 hover:border-blue-500/30 transition-all duration-200';
         
-        const isExpired = apiKey.expires_at && new Date(apiKey.expires_at) < new Date();
-        const expirationText = apiKey.expires_at 
-            ? (isExpired ? 'Expired' : `Expires: ${new Date(apiKey.expires_at).toLocaleDateString()}`)
-            : 'Never expires';
+        const isExpired = key.expires_at && new Date(key.expires_at) < new Date();
+        const statusColor = !key.is_active ? 'text-red-400' : isExpired ? 'text-yellow-400' : 'text-green-400';
+        const statusText = !key.is_active ? 'Inactive' : isExpired ? 'Expired' : 'Active';
         
-        const statusClass = isExpired ? 'expired' : (apiKey.is_active ? 'active' : 'inactive');
-        const statusText = isExpired ? 'Expired' : (apiKey.is_active ? 'Active' : 'Inactive');
+        const lastUsedText = key.last_used ? 
+            new Date(key.last_used).toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            }) : 'Never';
+        
+        const expiresText = key.expires_at ? 
+            new Date(key.expires_at).toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric'
+            }) : 'Never';
         
         card.innerHTML = `
-            <div class="api-key-header">
-                <div class="flex items-center space-x-3">
-                    <div class="api-key-name">${apiKey.key_name}</div>
-                    <span class="status-badge ${statusClass}">${statusText}</span>
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <h3 class="text-lg font-semibold text-white">${key.key_name}</h3>
+                        <span class="px-2 py-1 text-xs rounded-full ${statusColor} bg-opacity-20 ${statusColor.replace('text-', 'bg-')}">
+                            ${statusText}
+                        </span>
+                    </div>
+                    <div class="font-mono text-sm text-slate-400 bg-slate-800/50 px-3 py-2 rounded-lg">
+                        ${key.full_key}...
+                    </div>
                 </div>
-                <div class="api-key-actions">
-                    ${apiKey.is_active && !isExpired ? 
-                        `<button onclick="toggleAPIKey('${apiKey.id}', false)" class="btn btn-secondary btn-sm">Disable</button>` :
-                        `<button onclick="toggleAPIKey('${apiKey.id}', true)" class="btn btn-success btn-sm">Enable</button>`
-                    }
-                    <button onclick="showDeleteAPIKeyModal('${apiKey.id}', '${apiKey.key_name}')" class="btn btn-danger btn-sm">Delete</button>
+                <div class="flex items-center space-x-2">
+                    <button onclick="copyAPIKeyValue('${key.full_key}')" class="p-2 hover:bg-slate-700 rounded-lg transition-colors" title="Copy key">
+                        <svg class="w-4 h-4 text-slate-400 hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="showDeleteAPIKeyModal('${key.id}', '${key.key_name}')" class="p-2 hover:bg-red-500/20 rounded-lg transition-colors" title="Delete key">
+                        <svg class="w-4 h-4 text-slate-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
                 </div>
             </div>
-            <div class="api-key-code">${apiKey.full_key}</div>
-            <div class="api-key-meta">
-                <span>Created: ${new Date(apiKey.created_at).toLocaleDateString()}</span>
-                <span>Used: ${apiKey.usage_count} times</span>
-                <span>${expirationText}</span>
-                ${apiKey.last_used ? `<span>Last used: ${new Date(apiKey.last_used).toLocaleDateString()}</span>` : ''}
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                    <div class="text-slate-400 mb-1">Created</div>
+                    <div class="text-white">${new Date(key.created_at).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric'
+                    })}</div>
+                </div>
+                <div>
+                    <div class="text-slate-400 mb-1">Last Used</div>
+                    <div class="text-white">${lastUsedText}</div>
+                </div>
+                <div>
+                    <div class="text-slate-400 mb-1">Expires</div>
+                    <div class="text-white">${expiresText}</div>
+                </div>
+            </div>
+            
+            <div class="mt-4 pt-4 border-t border-slate-600/50">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-slate-400">
+                        Used <span class="text-white font-semibold">${key.usage_count}</span> times
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="toggleAPIKeyStatus('${key.id}', ${!key.is_active})" class="px-3 py-1 text-xs rounded-lg transition-colors ${key.is_active ? 'bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30' : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'}">
+                            ${key.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
         
         return card;
     }
+    
+    // Copy API Key Value
+    function copyAPIKeyValue(keyValue) {
+        navigator.clipboard.writeText(keyValue).then(() => {
+            // Show feedback
+            const button = event.target.closest('button');
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy: ', err);
+            alert('Failed to copy API key');
+        });
+    }
+    
+    // Show Delete API Key Modal
+    function showDeleteAPIKeyModal(keyId, keyName) {
+        currentDeleteAPIKeyTarget = keyId;
+        document.getElementById('deleteAPIKeyModal').classList.remove('hidden');
+        
+        // Update modal content to show which key is being deleted
+        const modal = document.getElementById('deleteAPIKeyModal');
+        const keyNameElement = modal.querySelector('p');
+        if (keyNameElement) {
+            keyNameElement.innerHTML = `Are you sure you want to delete the API key "<strong>${keyName}</strong>"? Applications using this key will lose access immediately.`;
+        }
+    }
+    
+    // Toggle API Key Status (Activate/Deactivate)
+    async function toggleAPIKeyStatus(keyId, newStatus) {
+        try {
+            console.log(`Toggling API key ${keyId} to ${newStatus ? 'active' : 'inactive'}`);
+            
+            const response = await fetch(`/api-keys/${keyId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    is_active: newStatus
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Refresh the API keys list
+                loadAPIKeys();
+            } else {
+                alert('Failed to update API key status. Please try again.');
+            }
+            
+        } catch (error) {
+            console.error('Error toggling API key status:', error);
+            alert('Failed to update API key status. Please try again.');
+        }
+    }
 
-    // Load Saved APIs
-    async function loadSavedAPIs() {
+        // Load Saved APIs
+        async function loadSavedAPIs() {
         const loading = document.getElementById('savedAPIsLoading');
         const empty = document.getElementById('savedAPIsEmpty');
         const grid = document.getElementById('savedAPIsGrid');
@@ -1001,7 +1010,7 @@
         grid.classList.add('hidden');
         
         try {
-            const response = await fetch(`/api/${window.currentUser.id}`, {
+            const response = await fetch(`/api/${currentUser.id}`, {
                 credentials: 'include'
             });
             
@@ -1036,280 +1045,273 @@
     // Create Saved API Card
     function createSavedAPICard(api) {
         const card = document.createElement('div');
-        card.className = 'saved-api-card';
+        card.className = 'glass-effect rounded-xl p-6 border border-slate-600/50 hover:border-green-500/30 transition-all duration-200';
         
         const endpointUrl = window.location.origin + api.endpoint_url;
         
         card.innerHTML = `
-            <div class="api-card-header">
-                <div>
-                    <div class="api-title">${api.api_name}</div>
-                    <div class="api-description">${api.prompt}</div>
-                    <div class="text-xs text-gray-500">
-                        Created: ${new Date(api.created_at).toLocaleDateString()} • 
-                        Saved: ${new Date(api.saved_at).toLocaleDateString()}
+            <div class="flex items-start justify-between mb-4">
+                <div class="flex-1">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <h3 class="text-lg font-semibold text-white">${api.api_name}</h3>
+                        <span class="px-2 py-1 text-xs rounded-full text-green-400 bg-green-500/20">
+                            Active
+                        </span>
+                    </div>
+                    <p class="text-slate-400 text-sm mb-3">${api.prompt}</p>
+                    <div class="font-mono text-sm text-slate-400 bg-slate-800/50 px-3 py-2 rounded-lg">
+                        ${api.endpoint_url}
                     </div>
                 </div>
-                <div class="api-actions">
-                    <a href="/api/${api.user_id}/${api.api_slug}/details" class="btn btn-primary btn-sm">Details</a>
-                    <button onclick="testAPI('${endpointUrl}')" class="btn btn-success btn-sm">Test</button>
-                    <button onclick="showDeleteAPIModal('${api.user_id}', '${api.api_slug}', '${api.api_name}')" class="btn btn-danger btn-sm">Delete</button>
+                <div class="flex items-center space-x-2">
+                    <button onclick="testAPI('${api.api_slug}')" class="p-2 hover:bg-slate-700 rounded-lg transition-colors" title="Test API">
+                        <svg class="w-4 h-4 text-slate-400 hover:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="viewAPIDocs('${api.api_slug}')" class="p-2 hover:bg-slate-700 rounded-lg transition-colors" title="View Documentation">
+                        <svg class="w-4 h-4 text-slate-400 hover:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="showDeleteAPIModal('${api.api_slug}', '${api.api_name}')" class="p-2 hover:bg-red-500/20 rounded-lg transition-colors" title="Delete API">
+                        <svg class="w-4 h-4 text-slate-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
                 </div>
             </div>
-            <div class="api-endpoint">
-                <span>${endpointUrl}</span>
-                <button onclick="copyToClipboard('${endpointUrl}')" class="btn btn-secondary btn-sm">Copy</button>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                    <div class="text-slate-400 mb-1">Created</div>
+                    <div class="text-white">${new Date(api.created_at).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric'
+                    })}</div>
+                </div>
+                <div>
+                    <div class="text-slate-400 mb-1">Method</div>
+                    <div class="text-white">POST</div>
+                </div>
+                <div>
+                    <div class="text-slate-400 mb-1">Status</div>
+                    <div class="text-green-400">Deployed</div>
+                </div>
+            </div>
+            
+            <div class="mt-4 pt-4 border-t border-slate-600/50">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm text-slate-400">
+                        Last used <span class="text-white font-semibold">Never</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <a href="/api/${api.user_id}/${api.api_slug}/details" class="px-3 py-1 text-xs bg-purple-500/20 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-colors">
+                            View Details
+                        </a>
+                        <a href="/api-docs/${api.api_slug}" class="px-3 py-1 text-xs bg-blue-500/20 text-blue-400 rounded-lg hover:bg-blue-500/30 transition-colors">
+                            View Docs
+                        </a>
+                        <button onclick="testAPI('${api.api_slug}')" class="px-3 py-1 text-xs bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition-colors">
+                            Test API
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
         
         return card;
     }
-
-    // API Key Management Functions
+    // Modal Functions
     function showCreateAPIKeyModal() {
         document.getElementById('createAPIKeyModal').classList.remove('hidden');
-        document.getElementById('keyNameInput').focus();
     }
 
     function hideCreateAPIKeyModal() {
         document.getElementById('createAPIKeyModal').classList.add('hidden');
+        // Clear form
         document.getElementById('keyNameInput').value = '';
         document.getElementById('expiresInDaysInput').value = '';
     }
 
+    function hideAPIKeyCreatedModal() {
+        document.getElementById('apiKeyCreatedModal').classList.add('hidden');
+    }
+
+    function hideDeleteAPIKeyModal() {
+        document.getElementById('deleteAPIKeyModal').classList.add('hidden');
+    }
+
+    function hideDeleteAPIModal() {
+        document.getElementById('deleteAPIModal').classList.add('hidden');
+    }
+
+    // API Key Functions
     async function createAPIKey() {
         const keyName = document.getElementById('keyNameInput').value.trim();
         const expiresInDays = document.getElementById('expiresInDaysInput').value;
-        
+
         if (!keyName) {
-            showNotification('Please enter a key name', 'error');
+            alert('Please enter a key name');
             return;
         }
-        
+
         try {
-            const requestBody = { key_name: keyName };
-            if (expiresInDays) {
+            console.log('Creating API key:', { keyName, expiresInDays });
+            
+            const requestBody = {
+                key_name: keyName
+            };
+            
+            if (expiresInDays && parseInt(expiresInDays) > 0) {
                 requestBody.expires_in_days = parseInt(expiresInDays);
             }
             
             const response = await fetch('/api-keys', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
                 },
                 credentials: 'include',
                 body: JSON.stringify(requestBody)
             });
             
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
             const result = await response.json();
             
-            if (response.ok && result.success) {
+            if (result.success) {
+                document.getElementById('newAPIKeyValue').value = result.api_key;
                 hideCreateAPIKeyModal();
-                showAPIKeyCreatedModal(result.api_key);
-                loadAPIKeys(); // Refresh the list
+                document.getElementById('apiKeyCreatedModal').classList.remove('hidden');
+                
+                // Refresh the API keys list after a short delay
+                setTimeout(() => {
+                    loadAPIKeys();
+                }, 2000);
             } else {
-                showNotification(result.message || 'Failed to create API key', 'error');
+                alert(result.message || 'Failed to create API key. Please try again.');
             }
         } catch (error) {
             console.error('Error creating API key:', error);
-            showNotification('Failed to create API key', 'error');
+            alert('Failed to create API key. Please try again.');
         }
-    }
-
-    function showAPIKeyCreatedModal(apiKey) {
-        document.getElementById('newAPIKeyValue').value = apiKey;
-        document.getElementById('apiKeyCreatedModal').classList.remove('hidden');
-    }
-
-    function hideAPIKeyCreatedModal() {
-        document.getElementById('apiKeyCreatedModal').classList.add('hidden');
-        document.getElementById('newAPIKeyValue').value = '';
     }
 
     function copyAPIKey() {
         const apiKeyInput = document.getElementById('newAPIKeyValue');
         apiKeyInput.select();
-        apiKeyInput.setSelectionRange(0, 99999);
+        document.execCommand('copy');
         
-        navigator.clipboard.writeText(apiKeyInput.value).then(() => {
-            showNotification('API key copied to clipboard!', 'success');
-        });
-    }
-
-    async function toggleAPIKey(keyId, isActive) {
-        try {
-            const response = await fetch(`/api-keys/${keyId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({ is_active: isActive })
-            });
-            
-            if (response.ok) {
-                showNotification(`API key ${isActive ? 'enabled' : 'disabled'} successfully!`, 'success');
-                loadAPIKeys(); // Refresh the list
-            } else {
-                throw new Error('Failed to update API key');
-            }
-        } catch (error) {
-            console.error('Error updating API key:', error);
-            showNotification('Failed to update API key', 'error');
-        }
-    }
-
-    function showDeleteAPIKeyModal(keyId, keyName) {
-        currentDeleteAPIKeyTarget = { keyId, keyName };
-        document.getElementById('deleteAPIKeyModal').classList.remove('hidden');
-    }
-
-    function hideDeleteAPIKeyModal() {
-        currentDeleteAPIKeyTarget = null;
-        document.getElementById('deleteAPIKeyModal').classList.add('hidden');
+        // Show feedback
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+        setTimeout(() => {
+            button.innerHTML = originalText;
+        }, 2000);
     }
 
     async function confirmDeleteAPIKey() {
-        if (!currentDeleteAPIKeyTarget) return;
-        
         try {
-            const response = await fetch(`/api-keys/${currentDeleteAPIKeyTarget.keyId}`, {
+            console.log('Deleting API key:', currentDeleteAPIKeyTarget);
+            
+            const response = await fetch(`/api-keys/${currentDeleteAPIKeyTarget}`, {
                 method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 credentials: 'include'
             });
             
-            if (response.ok) {
-                showNotification('API key deleted successfully!', 'success');
-                hideDeleteAPIKeyModal();
-                loadAPIKeys(); // Refresh the list
-            } else {
-                throw new Error('Failed to delete API key');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
-        } catch (error) {
-            console.error('Failed to delete API key:', error);
-            showNotification('Failed to delete API key', 'error');
-        }
-    }
-
-    // Saved API Management Functions
-    async function testAPI(endpointUrl) {
-        const testData = prompt('Enter test data (JSON format, optional):');
-        
-        try {
-            const formData = new FormData();
-            if (testData && testData.trim()) {
-                formData.append('input_data', testData);
-            }
-
-            const response = await fetch(endpointUrl, {
-                method: 'POST',
-                body: formData
-            });
-
+            
             const result = await response.json();
             
             if (result.success) {
-                alert(`✅ Test successful!\n\nResult:\n${JSON.stringify(result.result, null, 2)}`);
+                hideDeleteAPIKeyModal();
+                loadAPIKeys(); // Refresh the list
             } else {
-                alert(`❌ Test failed:\n${result.error || 'Unknown error'}`);
+                alert('Failed to delete API key. Please try again.');
             }
         } catch (error) {
-            alert(`❌ Test error:\n${error.message}`);
+            console.error('Error deleting API key:', error);
+            alert('Failed to delete API key. Please try again.');
         }
     }
 
-    function showDeleteAPIModal(userId, apiSlug, apiName) {
-        currentDeleteAPITarget = { userId, apiSlug, apiName };
-        document.getElementById('deleteAPIModal').classList.remove('hidden');
-    }
-
-    function hideDeleteAPIModal() {
-        currentDeleteAPITarget = null;
-        document.getElementById('deleteAPIModal').classList.add('hidden');
-    }
-
     async function confirmDeleteAPI() {
-        if (!currentDeleteAPITarget) return;
-        
         try {
-            const response = await fetch(`/api/${currentDeleteAPITarget.userId}/${currentDeleteAPITarget.apiSlug}`, {
+            console.log('Deleting API:', currentDeleteAPITarget);
+            
+            const response = await fetch(`/saved-apis/${currentDeleteAPITarget}`, {
                 method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 credentials: 'include'
             });
             
-            if (response.ok) {
-                showNotification('API deleted successfully!', 'success');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.success) {
                 hideDeleteAPIModal();
                 loadSavedAPIs(); // Refresh the list
             } else {
-                throw new Error('Failed to delete API');
+                alert('Failed to delete API. Please try again.');
             }
         } catch (error) {
-            console.error('Failed to delete API:', error);
-            showNotification('Failed to delete API', 'error');
+            console.error('Error deleting API:', error);
+            alert('Failed to delete API. Please try again.');
         }
     }
 
     function refreshAPIs() {
         loadSavedAPIs();
     }
-
-    // Utility Functions
-    function copyToClipboard(text) {
-        navigator.clipboard.writeText(text).then(() => {
-            showNotification('Copied to clipboard!', 'success');
-        });
+    
+    // API Management Functions
+    function testAPI(apiSlug) {
+        console.log('Testing API:', apiSlug);
+        // Navigate to the main page with the API for testing
+        window.location.href = `/?test_api=${apiSlug}`;
     }
-
-    function showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `notification ${type}`;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            document.body.removeChild(notification);
-        }, 4000);
+    
+    function viewAPIDocs(apiSlug) {
+        console.log('Viewing API docs for:', apiSlug);
+        // Navigate to API documentation page
+        window.open(`/api-docs/${apiSlug}`, '_blank');
     }
-
-    // Initialize page
-    document.addEventListener('DOMContentLoaded', async () => {
-        console.log('=== NEW PROFILE PAGE LOADING ===');
+    
+    function showDeleteAPIModal(apiId, apiName) {
+        currentDeleteAPITarget = apiId;
+        document.getElementById('deleteAPIModal').classList.remove('hidden');
         
-        try {
-            console.log('✅ Setting up profile page components');
-            
-            // Setup tab navigation
-            document.querySelectorAll('[data-tab]').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const tabName = button.getAttribute('data-tab');
-                    switchTab(tabName);
-                });
-            });
-
-            // Setup usage tab navigation
-            document.querySelectorAll('[data-usage-tab]').forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const usageTabName = button.getAttribute('data-usage-tab');
-                    switchUsageTab(usageTabName);
-                });
-            });
-
-            // Setup create API key button
-            document.getElementById('createAPIKeyBtn').addEventListener('click', showCreateAPIKeyModal);
-            
-            // Load initial data - loadProfile will check authentication
-            await loadProfile();
-            await loadUsageData(); // Load usage tab by default
-            
-            console.log('✅ Profile page loaded successfully');
-            
-        } catch (error) {
-            console.error('Error loading profile:', error);
-            window.location.href = '/';
+        // Update modal content to show which API is being deleted
+        const modal = document.getElementById('deleteAPIModal');
+        const apiNameElement = modal.querySelector('p');
+        if (apiNameElement) {
+            apiNameElement.innerHTML = `Are you sure you want to delete the API "<strong>${apiName}</strong>"? This will permanently remove the API and all its data.`;
         }
-    });
+    }
+
+    function allocateMonthlyTokens() {
+        try {
+            console.log('Allocating monthly tokens...');
+            // Implementation for allocating monthly tokens
+        } catch (error) {
+            console.error('Error allocating tokens:', error);
+            alert('Failed to allocate tokens. Please try again.');
+        }
+    }
 </script>
 {% endblock %}

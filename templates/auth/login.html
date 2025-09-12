@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Login - AI API Generator{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', path='auth.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">
+                    🔐
+                </div>
+                <h1 class="auth-title">Welcome Back</h1>
+                <p class="auth-subtitle">Sign in to your AI API Generator account</p>
+            </div>
+
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email Address</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="email" 
+                            id="email" 
+                            name="email"
+                            class="form-input" 
+                            placeholder="Enter your email address"
+                            required
+                            autocomplete="email"
+                        >
+                        <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password"
+                            class="form-input" 
+                            placeholder="Enter your password"
+                            required
+                            autocomplete="current-password"
+                        >
+                        <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="form-checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="remember_me" name="remember_me" class="checkbox-input">
+                        <span class="checkbox-custom"></span>
+                        <span class="checkbox-text">Keep me logged in for 30 days</span>
+                    </label>
+                </div>
+
+                <!-- Error message container -->
+                <div id="errorMessage" class="error-message hidden" role="alert"></div>
+                
+                <!-- Success message container -->
+                <div id="successMessage" class="success-message hidden" role="alert"></div>
+
+                <button type="submit" class="auth-button auth-button-primary" id="loginButton">
+                    <span class="button-text">Sign In</span>
+                    <div class="button-spinner hidden"></div>
+                </button>
+            </form>
+
+            <div class="auth-footer">
+                <p class="auth-link-text">
+                    Don't have an account? 
+                    <a href="/register" class="auth-link">Create account</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const loginForm = document.getElementById('loginForm');
+    const loginButton = document.getElementById('loginButton');
+    const buttonText = loginButton.querySelector('.button-text');
+    const buttonSpinner = loginButton.querySelector('.button-spinner');
+    const errorMessage = document.getElementById('errorMessage');
+    const successMessage = document.getElementById('successMessage');
+
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.classList.remove('hidden');
+        successMessage.classList.add('hidden');
+    }
+
+    function showSuccess(message) {
+        successMessage.textContent = message;
+        successMessage.classList.remove('hidden');
+        errorMessage.classList.add('hidden');
+    }
+
+    function hideMessages() {
+        errorMessage.classList.add('hidden');
+        successMessage.classList.add('hidden');
+    }
+
+    function setLoading(loading) {
+        if (loading) {
+            loginButton.disabled = true;
+            buttonText.textContent = 'Signing In...';
+            buttonSpinner.classList.remove('hidden');
+        } else {
+            loginButton.disabled = false;
+            buttonText.textContent = 'Sign In';
+            buttonSpinner.classList.add('hidden');
+        }
+    }
+
+    loginForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        hideMessages();
+        setLoading(true);
+
+        const formData = new FormData(loginForm);
+        const data = {
+            email: formData.get('email'),
+            password: formData.get('password'),
+            remember_me: formData.get('remember_me') === 'on'
+        };
+
+        try {
+            const response = await fetch('/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showSuccess('Login successful! Redirecting...');
+                setTimeout(() => {
+                    window.location.href = '/dashboard';
+                }, 1000);
+            } else {
+                showError(result.detail || 'Login failed. Please try again.');
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            showError('Network error. Please check your connection and try again.');
+        } finally {
+            setLoading(false);
+        }
+    });
+
+    // Add input validation feedback
+    const inputs = loginForm.querySelectorAll('input[required]');
+    inputs.forEach(input => {
+        input.addEventListener('blur', function() {
+            if (this.value.trim() === '') {
+                this.classList.add('error');
+            } else {
+                this.classList.remove('error');
+            }
+        });
+
+        input.addEventListener('input', function() {
+            this.classList.remove('error');
+            hideMessages();
+        });
+    });
+});
+</script>
+{% endblock %}
+
+

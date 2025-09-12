@@ -2,53 +2,9 @@ from pydantic import BaseModel, Field, EmailStr, model_validator
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-# Authentication Models
-class UserCreate(BaseModel):
-    email: EmailStr = Field(..., description="Valid email address")
-    password: str = Field(..., min_length=6, description="Password must be at least 6 characters")
-    password_confirm: str = Field(..., description="Password confirmation")
-
-    @model_validator(mode='after')
-    def validate_passwords_match(self):
-        if self.password != self.password_confirm:
-            raise ValueError('Passwords do not match')
-        return self
-
-class UserLogin(BaseModel):
-    email: EmailStr = Field(..., description="Email address")
-    password: str = Field(..., description="Password")
-
-class User(BaseModel):
-    id: str
-    email: str
-    is_active: bool = True
-    created_at: datetime
-    last_login: Optional[datetime] = None
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    user: User
-
-class RegisterResponse(BaseModel):
-    success: bool
-    message: str
-    user: User
-
-class LoginResponse(BaseModel):
-    success: bool
-    message: str
-    token: Token
-
-class TokenData(BaseModel):
-    username: Optional[str] = None
-
-class UserProfile(BaseModel):
-    user: User
-    total_apis: int
-    saved_apis: List['SavedAPI']
-    recent_activity: List[Dict[str, Any]]
+# Authentication Models (moved to models_auth.py for new system)
+# Import new auth models
+from .models_auth import User, UserCreate, UserLogin, RegisterResponse, LoginResponse, UserProfile, AuthResponse
 
 # API Generation Models
 class ProposalRequest(BaseModel):
@@ -206,20 +162,7 @@ class ListAPIsResponse(BaseModel):
     count: int
 
 # Authentication Response Models
-class AuthResponse(BaseModel):
-    success: bool
-    message: str
-    user: Optional[User] = None
-
-class LoginResponse(BaseModel):
-    success: bool
-    message: str
-    token: Optional[Token] = None
-
-class RegisterResponse(BaseModel):
-    success: bool
-    message: str
-    user: Optional[User] = None 
+# Auth response models moved to models_auth.py 
 
 # Chat Models
 class ChatMessage(BaseModel):

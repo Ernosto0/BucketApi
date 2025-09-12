@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Register - AI API Generator{% endblock %}
+
+{% block extra_head %}
+    <link rel="stylesheet" href="{{ url_for('static', path='auth.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">
+                    🚀
+                </div>
+                <h1 class="auth-title">Join Our Platform</h1>
+                <p class="auth-subtitle">Create your AI API Generator account and start building powerful APIs</p>
+            </div>
+
+            <form id="registerForm" class="auth-form">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email Address</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="email" 
+                            id="email" 
+                            name="email"
+                            class="form-input" 
+                            placeholder="Enter your email address"
+                            required
+                            autocomplete="email"
+                        >
+                        <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"></path>
+                        </svg>
+                    </div>
+                    <div class="input-hint">We'll never share your email with anyone else</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password"
+                            class="form-input" 
+                            placeholder="Create a strong password"
+                            required
+                            minlength="8"
+                            autocomplete="new-password"
+                        >
+                        <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                        </svg>
+                    </div>
+                    <div class="password-strength" id="passwordStrength"></div>
+                    <div class="input-hint">Minimum 8 characters with at least one letter and one number</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password_confirm" class="form-label">Confirm Password</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="password" 
+                            id="password_confirm" 
+                            name="password_confirm"
+                            class="form-input" 
+                            placeholder="Confirm your password"
+                            required
+                            autocomplete="new-password"
+                        >
+                        <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="password-match" id="passwordMatch"></div>
+                </div>
+
+                <!-- Error message container -->
+                <div id="errorMessage" class="error-message hidden" role="alert"></div>
+                
+                <!-- Success message container -->
+                <div id="successMessage" class="success-message hidden" role="alert"></div>
+
+                <button type="submit" class="auth-button auth-button-primary" id="registerButton">
+                    <span class="button-text">Create Account</span>
+                    <div class="button-spinner hidden"></div>
+                </button>
+
+                <div class="auth-info">
+                    <div class="info-item">
+                        <span class="info-icon">🎁</span>
+                        <span class="info-text">Get 1,000 free tokens to test your APIs</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">⚡</span>
+                        <span class="info-text">Generate APIs instantly with AI</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">🔒</span>
+                        <span class="info-text">Your data is secure and private</span>
+                    </div>
+                </div>
+            </form>
+
+            <div class="auth-footer">
+                <p class="auth-link-text">
+                    Already have an account? 
+                    <a href="/login" class="auth-link">Sign in</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const registerForm = document.getElementById('registerForm');
+    const registerButton = document.getElementById('registerButton');
+    const buttonText = registerButton.querySelector('.button-text');
+    const buttonSpinner = registerButton.querySelector('.button-spinner');
+    const errorMessage = document.getElementById('errorMessage');
+    const successMessage = document.getElementById('successMessage');
+    const passwordInput = document.getElementById('password');
+    const passwordConfirmInput = document.getElementById('password_confirm');
+    const passwordStrength = document.getElementById('passwordStrength');
+    const passwordMatch = document.getElementById('passwordMatch');
+
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.classList.remove('hidden');
+        successMessage.classList.add('hidden');
+    }
+
+    function showSuccess(message) {
+        successMessage.textContent = message;
+        successMessage.classList.remove('hidden');
+        errorMessage.classList.add('hidden');
+    }
+
+    function hideMessages() {
+        errorMessage.classList.add('hidden');
+        successMessage.classList.add('hidden');
+    }
+
+    function setLoading(loading) {
+        if (loading) {
+            registerButton.disabled = true;
+            buttonText.textContent = 'Creating Account...';
+            buttonSpinner.classList.remove('hidden');
+        } else {
+            registerButton.disabled = false;
+            buttonText.textContent = 'Create Account';
+            buttonSpinner.classList.add('hidden');
+        }
+    }
+
+    function checkPasswordStrength(password) {
+        const hasLetter = /[a-zA-Z]/.test(password);
+        const hasNumber = /\d/.test(password);
+        const hasMinLength = password.length >= 8;
+        
+        let strength = 0;
+        let strengthText = '';
+        let strengthClass = '';
+        
+        if (hasMinLength) strength++;
+        if (hasLetter) strength++;
+        if (hasNumber) strength++;
+        
+        if (password.length === 0) {
+            passwordStrength.textContent = '';
+            return;
+        }
+        
+        switch (strength) {
+            case 1:
+                strengthText = 'Weak password';
+                strengthClass = 'weak';
+                break;
+            case 2:
+                strengthText = 'Good password';
+                strengthClass = 'good';
+                break;
+            case 3:
+                strengthText = 'Strong password';
+                strengthClass = 'strong';
+                break;
+            default:
+                strengthText = 'Very weak password';
+                strengthClass = 'very-weak';
+        }
+        
+        passwordStrength.textContent = strengthText;
+        passwordStrength.className = `password-strength ${strengthClass}`;
+    }
+
+    function checkPasswordMatch() {
+        const password = passwordInput.value;
+        const confirmPassword = passwordConfirmInput.value;
+        
+        if (confirmPassword.length === 0) {
+            passwordMatch.textContent = '';
+            return;
+        }
+        
+        if (password === confirmPassword) {
+            passwordMatch.textContent = 'Passwords match';
+            passwordMatch.className = 'password-match match';
+        } else {
+            passwordMatch.textContent = 'Passwords do not match';
+            passwordMatch.className = 'password-match no-match';
+        }
+    }
+
+    passwordInput.addEventListener('input', function() {
+        checkPasswordStrength(this.value);
+        if (passwordConfirmInput.value) {
+            checkPasswordMatch();
+        }
+    });
+
+    passwordConfirmInput.addEventListener('input', checkPasswordMatch);
+
+    registerForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        hideMessages();
+        setLoading(true);
+
+        const formData = new FormData(registerForm);
+        const data = {
+            email: formData.get('email'),
+            password: formData.get('password'),
+            password_confirm: formData.get('password_confirm')
+        };
+
+        // Client-side validation
+        if (data.password !== data.password_confirm) {
+            showError('Passwords do not match');
+            setLoading(false);
+            return;
+        }
+
+        if (data.password.length < 8) {
+            showError('Password must be at least 8 characters long');
+            setLoading(false);
+            return;
+        }
+
+        try {
+            const response = await fetch('/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                showSuccess('Account created successfully! Redirecting to login...');
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 2000);
+            } else {
+                showError(result.detail || 'Registration failed. Please try again.');
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            showError('Network error. Please check your connection and try again.');
+        } finally {
+            setLoading(false);
+        }
+    });
+
+    // Add input validation feedback
+    const inputs = registerForm.querySelectorAll('input[required]');
+    inputs.forEach(input => {
+        input.addEventListener('blur', function() {
+            if (this.value.trim() === '') {
+                this.classList.add('error');
+            } else {
+                this.classList.remove('error');
+            }
+        });
+
+        input.addEventListener('input', function() {
+            this.classList.remove('error');
+            hideMessages();
+        });
+    });
+});
+</script>
+{% endblock %}
+
+

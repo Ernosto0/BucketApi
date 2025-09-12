@@ -16,12 +16,12 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple
 import logging
 from .models import (
-    User, UserCreate, UserLogin, UserProfile, Token, TokenData,
+    User, UserCreate, UserLogin, RegisterResponse, LoginResponse, UserProfile, AuthResponse,
     ProposalRequest, ProposalResponse, ProposalModificationRequest, ProposalModificationResponse,
     APIGenerationRequest, APIGenerationResponse, APIModificationRequest, APIModificationResponse,
     APIExecutionRequest, APIExecutionResponse, SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
     ChatAnalysisRequest, ChatAnalysisResponse, MessageIntentRequest, MessageIntentResponse, HealthResponse, ChatMessage,
-    RegisterResponse, LoginResponse, TestRequest, TestResponse,
+    TestRequest, TestResponse,
     APIKey, CreateAPIKeyRequest, CreateAPIKeyResponse, ListAPIKeysResponse, 
     UpdateAPIKeyRequest, DeleteAPIKeyResponse, APIInputData,
     UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest,
@@ -46,7 +46,8 @@ from .services.usage_service import usage_service
 from .services.api_execution_usage_service import api_execution_usage_service
 from .services.api_pricing_service import api_pricing_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
-from .services.database import init_database, UserDB, SavedAPIDB, APIKeyDB, AsyncSessionLocal
+from .services.database import init_database, UserDB, UserSessionDB, SavedAPIDB, APIKeyDB, AsyncSessionLocal
+from .routes.auth_routes import router as auth_router, get_current_user, require_auth, require_active_user
 from sqlalchemy import select
 from .services.test_service import test_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
@@ -132,227 +133,35 @@ app.add_middleware(RequestContextMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Authentication setup
-security = HTTPBearer(auto_error=False)
+# Include authentication routes
+app.include_router(auth_router)
 
-# 🔒 Simple rate limiting (in-memory for basic protection)
-rate_limit_storage = defaultdict(list)
-RATE_LIMIT_REQUESTS = 100  # requests per minute per IP
-RATE_LIMIT_WINDOW = 60  # seconds
-
-def check_rate_limit_auth(request: Request) -> bool:
-    """Simple rate limiting by IP address."""
-    if settings.ENVIRONMENT != "production":
-        return True  # Skip rate limiting in development
-    
-    client_ip = request.client.host if request.client else "unknown"
-    current_time = time.time()
-    
-    # Clean old entries
-    rate_limit_storage[client_ip] = [
-        timestamp for timestamp in rate_limit_storage[client_ip] 
-        if current_time - timestamp < RATE_LIMIT_WINDOW
-    ]
-    
-    # Check if rate limit exceeded
-    if len(rate_limit_storage[client_ip]) >= RATE_LIMIT_REQUESTS:
-        return False
-    
-    # Add current request
-    rate_limit_storage[client_ip].append(current_time)
-    return True
-
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
-    """Get current authenticated user from API key only (JWT removed for simplicity)."""
-    logger.info(f"🔍 get_current_user called, credentials: {bool(credentials)}")
-    if not credentials:
-        logger.warning("🔍 No credentials provided")
-        return None
-    
-    logger.info(f"🔍 Processing credentials: {credentials.credentials[:20]}...")
-    try:
-        # Only try API key authentication (JWT removed)
-        api_key_info = await api_key_service.validate_api_key(credentials.credentials)
-        if api_key_info:
-            user = await auth_service.get_user_by_id(api_key_info.user_id)
-            logger.info(f"✅ User authenticated via API key: {user.email if user else 'None'}")
-            return user
-    except Exception as e:
-        logger.error(f"❌ API key authentication failed: {str(e)}")
-        return None
-    
-    logger.warning("❌ No valid API key found")
-    return None
-
-async def get_current_user_from_cookie(request: Request) -> Optional[User]:
-    """Get current authenticated user from JWT token stored in HTTP-only cookie."""
-    logger.info(f"🍪 get_current_user_from_cookie called")
-    
-    # Get token from cookie
-    token = request.cookies.get("access_token")
-    if not token:
-        logger.warning("🍪 No access_token cookie found")
-        return None
-    
-    logger.info(f"🔍 Processing cookie token: {token[:20]}...")
-    try:
-        token_data = auth_service.verify_token(token)
-        logger.info(f"🎫 Token verified successfully, username: {token_data.username}")
-        # The token contains email in the 'sub' field (stored as username for compatibility)
-        user = await auth_service.get_user_by_email(token_data.username)
-        logger.info(f"✅ User authenticated from cookie: {user.email if user else 'None'}")
-        return user
-    except HTTPException as e:
-        logger.error(f"❌ Cookie authentication failed: {e.detail}")
-        return None
-    except Exception as e:
-        logger.error(f"❌ Unexpected cookie authentication error: {str(e)}")
-        return None
-
-async def get_current_user_and_api_key_legacy(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Tuple[Optional[User], Optional[str]]:
-    """DEPRECATED: Legacy function for JWT + API key auth. Use get_current_user_and_api_key_hybrid instead."""
-    if not credentials:
-        return None, None
-    
-    # Only try API key authentication (JWT tokens removed)
-    try:
-        api_key_info = await api_key_service.validate_api_key(credentials.credentials)
-        if api_key_info:
-            # Get user by user_id from API key
-            user = await auth_service.get_user_by_id(api_key_info.user_id)
-            return user, api_key_info.id  # Return both user and API key ID
-    except Exception:
-        pass
-    
-    return None, None
-
-async def get_current_user_and_api_key_hybrid(
-    request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
-) -> Tuple[Optional[User], Optional[str]]:
-    """
-    Hybrid authentication: Cookie for web interface, API key for external clients.
-    
-    Authentication priority:
-    1. API Key (for external API clients)
-    2. Cookie (for web interface)
-    
-    JWT tokens have been removed for simplicity.
-    """
-    logger.info(f"🔍 get_current_user_and_api_key_hybrid called, credentials: {bool(credentials)}")
-    
-    # First try API key authentication if Bearer token is provided
-    if credentials:
-        logger.info(f"🔍 Trying API key authentication with: {credentials.credentials[:20]}...")
-        try:
-            api_key_info = await api_key_service.validate_api_key(credentials.credentials)
-            if api_key_info:
-                # Get user by user_id from API key
-                user = await auth_service.get_user_by_id(api_key_info.user_id)
-                logger.info(f"✅ User authenticated via API key: {user.email if user else 'None'}")
-                return user, api_key_info.id  # Return both user and API key ID
-        except Exception as e:
-            logger.info(f"❌ API key authentication failed: {str(e)}")
-            pass
-    else:
-        logger.info("🔍 No credentials provided, skipping API key auth")
-    
-    # Fallback to cookie authentication (for web interface)
-    logger.info("🔍 Trying cookie authentication...")
-    try:
-        user = await get_current_user_from_cookie(request)
-        if user:
-            logger.info(f"✅ User authenticated via cookie: {user.email}")
-            return user, None  # No API key for cookie auth
-        else:
-            logger.info("❌ Cookie authentication returned None")
-    except Exception as e:
-        logger.error(f"❌ Cookie authentication failed with exception: {str(e)}")
-        pass
-    
-    logger.warning("❌ No valid authentication found (API key or cookie)")
-    return None, None
-
-async def get_current_user_or_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[User]:
-    """DEPRECATED: Get current authenticated user from API key only (JWT removed)."""
-    user, _ = await get_current_user_and_api_key_legacy(credentials)
-    return user
-
-async def get_current_user_cookie_only(request: Request) -> Optional[User]:
-    """Get current authenticated user from cookie only (for web interface)."""
-    return await get_current_user_from_cookie(request)
-
-async def get_current_user_hybrid(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Optional[User]:
-    """Get current authenticated user using hybrid auth (API key or cookie)."""
-    user, _ = await get_current_user_and_api_key_hybrid(request, credentials)
-    return user
-
-async def require_auth(current_user: User = Depends(get_current_user)) -> User:
-    """Require authentication for protected endpoints."""
-    logger.info(f"🔐 require_auth called, user: {current_user.email if current_user else 'None'}")
-    if not current_user:
-        logger.warning("❌ Authentication failed - no current user")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return current_user
-
-async def require_auth_cookie(request: Request) -> User:
-    """Require authentication for page routes using cookies."""
-    user = await get_current_user_from_cookie(request)
-    logger.info(f"🔐 require_auth_cookie called, user: {user.email if user else 'None'}")
+# Temporary stub functions for backward compatibility (to be replaced)
+async def require_auth_hybrid(request: Request) -> User:
+    """Temporary stub - use new auth system"""
+    user = await get_current_user(request)
     if not user:
-        logger.warning("❌ Cookie authentication failed - no current user")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
+        raise HTTPException(status_code=401, detail="Authentication required")
     return user
 
-async def require_auth_or_api_key(current_user: User = Depends(get_current_user_or_api_key)) -> User:
-    """Require authentication via JWT token or API key for API endpoints."""
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required (Bearer token or API key)",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return current_user
+async def get_current_user_and_api_key_hybrid(request: Request) -> Tuple[Optional[User], Optional[str]]:
+    """Temporary stub - use new auth system"""
+    user = await get_current_user(request)
+    return user, None
 
-async def require_auth_hybrid(
-    request: Request,
-    current_user: Optional[User] = Depends(get_current_user_hybrid)
-) -> User:
-    """Require authentication via Bearer token, API key, or cookie (for web interface)."""
-    if not current_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required (Bearer token, API key, or session cookie)",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return current_user
+async def get_current_user_or_api_key(request: Request) -> Optional[User]:
+    """Temporary stub - use new auth system"""
+    return await get_current_user(request)
+
+async def require_auth_or_api_key(request: Request) -> User:
+    """Temporary stub - use new auth system"""
+    return await require_auth(request)
 
 async def require_admin_auth(request: Request) -> User:
-    """Require admin authentication for admin panel routes."""
-    user = await get_current_user_from_cookie(request)
-    logger.info(f"🔐 require_admin_auth called, user: {user.email if user else 'None'}")
-    if not user:
-        logger.warning("❌ Admin authentication failed - no current user")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-        )
-    
-    # Check if user is admin (for now, check if email contains 'admin' or is a specific admin email)
-    # You can modify this logic based on your admin user identification strategy
+    """Temporary stub - use new auth system"""
+    user = await require_auth(request)
     if not is_admin_user(user.email):
-        logger.warning(f"❌ Admin access denied for user: {user.email}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
+        raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
 def is_admin_user(email: str) -> bool:
@@ -379,81 +188,109 @@ def get_or_create_session_id(request: Request) -> str:
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Serve the main frontend page for authenticated users, redirect to landing for non-authenticated."""
-    try:
-        # Check if user is authenticated via cookie
-        user = await require_auth_cookie(request)
-        # If we get here, user is authenticated
+    user = await get_current_user(request)
+    if user:
         return templates.TemplateResponse("index.html", {"request": request, "user": user})
-    except HTTPException:
-        # User is not authenticated, redirect to landing page
+    else:
         return RedirectResponse(url="/landing", status_code=302)
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_page(request: Request):
+    """Serve the main dashboard page for authenticated users."""
+    user = await get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    return templates.TemplateResponse("index.html", {"request": request, "user": user})
 
 @app.get("/landing", response_class=HTMLResponse)
 async def landing_page(request: Request):
     """Serve the landing page for non-authenticated users."""
-    return templates.TemplateResponse("landing.html", {"request": request})
+    # Check if user is already authenticated
+    user = await get_current_user(request)
+    return templates.TemplateResponse("landing.html", {"request": request, "user": user})
+
+@app.get("/logout", response_class=HTMLResponse)
+async def logout_web(request: Request):
+    """Web logout endpoint that redirects to landing page"""
+    # Create response that redirects to landing
+    response = RedirectResponse(url="/landing", status_code=302)
+    
+    # Get session ID from cookie and destroy session
+    session_id = request.cookies.get("session_id")
+    if session_id:
+        try:
+            await auth_service.destroy_session(session_id)
+        except Exception as e:
+            logger.warning(f"Session destruction failed during web logout: {e}")
+    
+    # Clear session cookie
+    response.delete_cookie("session_id")
+    
+    return response
 
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Serve the login page."""
-    return templates.TemplateResponse("login.html", {"request": request})
+    # Check if user is already logged in
+    user = await get_current_user(request)
+    if user:
+        return RedirectResponse(url="/dashboard", status_code=302)
+    return templates.TemplateResponse("auth/login.html", {"request": request})
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     """Serve the register page."""
-    return templates.TemplateResponse("register.html", {"request": request})
+    # Check if user is already logged in
+    user = await get_current_user(request)
+    if user:
+        return RedirectResponse(url="/dashboard", status_code=302)
+    return templates.TemplateResponse("auth/register.html", {"request": request})
 
 @app.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request):
     """Serve the profile page."""
-    try:
-        # Check if user is authenticated via cookie
-        user = await require_auth_cookie(request)
-        # If we get here, user is authenticated
-        return templates.TemplateResponse("profile.html", {"request": request, "user": user})
-    except HTTPException:
-        # User is not authenticated, redirect to landing page
-        return RedirectResponse(url="/landing", status_code=302)
+    user = await get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    return templates.TemplateResponse("profile.html", {"request": request, "user": user})
     
 
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_dashboard_page(request: Request):
     """Serve the logs dashboard page (requires authentication)."""
-    try:
-        # Check if user is authenticated via cookie
-        user = await require_auth_cookie(request)
-        # If we get here, user is authenticated
-        return templates.TemplateResponse("logs_dashboard.html", {"request": request, "user": user})
-    except HTTPException:
-        # User is not authenticated, redirect to landing page
-        return RedirectResponse(url="/landing", status_code=302)
+    user = await get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    return templates.TemplateResponse("logs_dashboard.html", {"request": request, "user": user})
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_panel_page(request: Request):
     """Serve the admin panel page (requires admin authentication)."""
-    try:
-        # Check if user is authenticated and is admin
-        user = await require_admin_auth(request)
-        # If we get here, user is authenticated and is admin
-        return templates.TemplateResponse("admin_panel.html", {"request": request, "user": user})
-    except HTTPException as e:
-        if e.status_code == 403:
-            # User is authenticated but not admin
-            return RedirectResponse(url="/", status_code=302)
-        else:
-            # User is not authenticated, redirect to landing page
-            return RedirectResponse(url="/landing", status_code=302)
+    user = await get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    
+    # Check if user is admin
+    if not is_admin_user(user.email):
+        return RedirectResponse(url="/dashboard", status_code=302)
+    
+    return templates.TemplateResponse("admin_panel.html", {"request": request, "user": user})
 
 @app.get("/api/{user_id}/{api_slug}/details", response_class=HTMLResponse)
 async def api_details_page(request: Request, user_id: str, api_slug: str):
     """Serve the API details page."""
+    user = await get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+    
     return templates.TemplateResponse("api_details.html", {
         "request": request,
+        "user": user,
         "user_id": user_id,
         "api_slug": api_slug
     })
-
+   
 @app.get("/api/{user_id}/{api_slug}/docs", response_class=HTMLResponse)
 async def api_documentation_page(request: Request, user_id: str, api_slug: str):
     """Serve the enhanced API documentation page."""
@@ -464,8 +301,14 @@ async def api_documentation_page(request: Request, user_id: str, api_slug: str):
         # Build the base URL for the API
         base_url = f"{settings.API_PREFIX}/{user_id}/{api_slug}"
         
+        # Get current user for authentication
+        user = await get_current_user(request)
+        if not user:
+            return RedirectResponse(url="/login", status_code=302)
+        
         return templates.TemplateResponse("api_documentation.html", {
             "request": request,
+            "user": user,
             "user_id": user_id,
             "api_slug": api_slug,
             "api_name": api_details.get('api_name', f"API {api_slug}"),
@@ -489,155 +332,9 @@ async def health_check():
         version="1.0.0"
     )
 
-# Authentication Endpoints
-@app.post("/auth/register", response_model=RegisterResponse)
-async def register(user_data: UserCreate, request: Request):
-    """Register a new user."""
-    # 🔒 Rate limiting check
-    if not check_rate_limit_auth(request):
-        raise HTTPException(
-            status_code=429, 
-            detail="Too many requests. Please try again later."
-        )
-    
-    try:
-        # Hash the password
-        hashed_password = auth_service.get_password_hash(user_data.password)
-        
-        # Save the user
-        user = await auth_service.save_user(user_data, hashed_password)
-        
-        # Allocate starter tokens (1000 tokens) for new users
-        try:
-            logger.info(f"Allocating starter tokens for new user: {user.id}")
-            await api_pricing_service.allocate_monthly_tokens(
-                user_id=user.id, 
-                amount=1000, 
-                source="new_user_bonus"
-            )
-            logger.info(f"✅ Successfully allocated 1000 starter tokens to user: {user.email}")
-        except Exception as token_error:
-            logger.warning(f"Failed to allocate starter tokens to user {user.email}: {token_error}")
-            # Don't fail registration if token allocation fails
-        
-        return RegisterResponse(
-            success=True,
-            message="User registered successfully! You've received 1000 starter tokens to test your APIs.",
-            user=user
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        secure_error = create_secure_error(
-            status_code=400,
-            category='auth',
-            internal_error=e,
-            user_message='Registration failed. Please check your information and try again.'
-        )
-        raise secure_error.to_http_exception()
+# Authentication endpoints removed - will be replaced with new auth system
 
-@app.post("/auth/login", response_model=LoginResponse)
-async def login(login_data: UserLogin, response: Response):
-    """Authenticate user and set JWT token in HTTP-only cookie."""
-    try:
-        # Authenticate user
-        user = await auth_service.authenticate_user(login_data.email, login_data.password)
-        
-        if not user:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid email or password"
-            )
-        
-        # Create access token
-        access_token = auth_service.create_access_token(
-            data={"sub": user.email},
-            expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        )
-        
-        # Set HTTP-only cookie with the JWT token
-        response.set_cookie(
-            key="access_token",
-            value=access_token,
-            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            httponly=True,
-            secure=False,  # Set to True in production with HTTPS
-            samesite="lax"
-        )
-        
-        # Create token response (without exposing the actual token)
-        token = Token(
-            access_token="set_in_cookie",  # Don't expose actual token
-            token_type="bearer",
-            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            user=user
-        )
-        
-        return LoginResponse(
-            success=True,
-            message="Login successful!",
-            token=token
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        secure_error = create_secure_error(
-            status_code=500,
-            category='auth',
-            internal_error=e,
-            user_message='Login failed. Please try again later.',
-            context={'email': login_data.email}
-        )
-        raise secure_error.to_http_exception()
-
-@app.post("/auth/logout")
-async def logout(response: Response):
-    """Logout user by clearing the authentication cookie."""
-    response.delete_cookie("access_token")
-    return {"success": True, "message": "Logged out successfully"}
-
-@app.get("/auth/profile", response_model=UserProfile)
-async def get_profile(current_user: User = Depends(require_auth)):
-    """Get user profile with API statistics."""
-    try:
-        # Get user's saved APIs
-        saved_apis = await file_service.get_user_apis(current_user.id)
-        
-        # Create recent activity (simplified)
-        recent_activity = []
-        for api in saved_apis[:5]:  # Last 5 activities
-            recent_activity.append({
-                "action": "API Created",
-                "api_name": api.api_name,
-                "timestamp": api.created_at.isoformat()
-            })
-        
-        return UserProfile(
-            user=current_user,
-            total_apis=len(saved_apis),
-            saved_apis=saved_apis,
-            recent_activity=recent_activity
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get profile: {str(e)}"
-        )
-
-@app.get("/auth/me")
-async def get_current_user_info(request: Request, current_user: Optional[User] = Depends(get_current_user)):
-    """Get current user information (checks both header and cookie auth)."""
-    # If header auth didn't work, try cookie auth
-    if not current_user:
-        current_user = await get_current_user_from_cookie(request)
-    
-    if current_user:
-        return {"authenticated": True, "user": current_user}
-    else:
-        return {"authenticated": False, "user": None}
+# Debug auth endpoint removed
 
 # API Key Management Endpoints
 @app.post("/api-keys", response_model=CreateAPIKeyResponse)
@@ -2278,7 +1975,7 @@ async def list_user_apis(user_id: str):
             status_code=500,
             detail=f"Failed to list APIs: {str(e)}"
         )
-
+        
 @app.get("/api/{user_id}/basic")
 async def list_user_apis_basic(user_id: str):
     """
@@ -2314,6 +2011,32 @@ async def delete_api(user_id: str, api_slug: str):
             raise HTTPException(
                 status_code=404,
                 detail=f"API not found: {user_id}/{api_slug}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete API: {str(e)}"
+        )
+
+@app.delete("/saved-apis/{api_slug}")
+async def delete_saved_api(api_slug: str, current_user: User = Depends(require_active_user)):
+    """
+    Delete a specific saved API for the current authenticated user.
+    This endpoint is used by the profile page.
+    """
+    try:
+        success = await file_service.delete_api(current_user.id, api_slug)
+        if success:
+            return {
+                "success": True,
+                "message": f"API {api_slug} deleted successfully"
+            }
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"API not found: {api_slug}"
             )
     except HTTPException:
         raise
