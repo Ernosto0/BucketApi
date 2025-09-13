@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from typing import Optional
 
 from ..models_auth import UserCreate, UserLogin, RegisterResponse, LoginResponse, AuthResponse, User
-from ..services.auth_service_new import auth_service
+from ..services.auth_service import auth_service
 from ..services.api_pricing_service import api_pricing_service
 
 logger = logging.getLogger(__name__)
