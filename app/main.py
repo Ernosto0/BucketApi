@@ -314,7 +314,9 @@ async def api_documentation_page(request: Request, user_id: str, api_slug: str):
             "api_name": api_details.get('api_name', f"API {api_slug}"),
             "description": api_details.get('prompt', 'API endpoint for processing requests'),
             "base_url": base_url,
-            "curl_example": api_details.get('curl_example', f'curl -X POST "{base_url}" \\\n  -H "Content-Type: application/json" \\\n  -d \'{{\"example\": \"value\"}}\'')
+            "curl_example": api_details.get('curl_example', f'curl -X POST "{base_url}" \\\n  -H "Content-Type: application/json" \\\n  -d \'{{\"example\": \"value\"}}\''),
+            "documentation": api_details.get('documentation', 'Documentation not available'),
+            "openapi_spec": api_details.get('openapi_spec')
         })
     except Exception as e:
         logger.error(f"Failed to load API documentation: {str(e)}")
@@ -755,7 +757,6 @@ async def generate_proposal(
         analysis_result = await prompt_service.CanIBuildThis(proposal_request.user_id, proposal_request.prompt)
         
         # Parse the analysis result
-        import json
         try:
             analysis_data = json.loads(analysis_result)
             status = analysis_data.get("status")
@@ -913,9 +914,6 @@ async def modify_proposal(
         logger.info("Directly modifying existing proposal (skipping analysis step)...")
         prompt_service = PromptServiceBuild()
         
-        # Import json at the top level for cleaner code
-        import json
-        
         # Go directly to modification without analysis
         try:
             # Check if we have the current proposal data
@@ -1038,7 +1036,7 @@ async def modify_proposal(
             detail=f"Failed to modify proposal: {str(e)}"
         )
 
-
+# we don't use this for now
 @app.post("/generate-api-stream")
 async def generate_api_stream(
     api_request: APIGenerationRequest,
@@ -1212,6 +1210,26 @@ async def generate_api_stream(
                     # Update curl example with actual endpoint
                     if "your-endpoint-url" in curl_example:
                         curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
+                    
+                    # Save API documentation and metadata to database
+                    try:
+                        save_request = SaveAPIRequest(
+                            user_id=current_user.id,
+                            api_slug=clean_slug,
+                            api_name=api_request.api_name or f"API {clean_slug}",
+                            prompt=api_request.prompt,
+                            endpoint_url=endpoint_url,
+                            documentation=documentation,
+                            curl_example=curl_example,
+                            openapi_spec=json.dumps(openapi_spec) if openapi_spec else None,
+                            sample_input=api_request.sample_input,
+                            expected_output=api_request.expected_output
+                        )
+                        await file_service.save_api_metadata(save_request)
+                        logger.info(f"API documentation saved to database for {clean_slug}")
+                    except Exception as e:
+                        logger.warning(f"Failed to save API documentation to database: {e}")
+                        # Continue without database save if service is unavailable
                     
                     # Save API metadata
                     try:
@@ -1411,9 +1429,9 @@ async def generate_api(
             # Legacy single-step generation (only when explicitly disabled)
             logger.info("Using legacy single-step generation...")
             raw_code = await claude_service.generate_api_code(
-                prompt=request.prompt,
-                sample_input=request.sample_input,
-                expected_output=request.expected_output,
+                prompt=api_request.prompt,
+                sample_input=api_request.sample_input,
+                expected_output=api_request.expected_output,
                 user_id=current_user.id,
                 api_key_id=api_key_id
             )
@@ -1471,6 +1489,26 @@ async def generate_api(
         # Update curl example with actual endpoint
         if "your-endpoint-url" in curl_example:
             curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
+        
+        # Save API documentation and metadata to database
+        try:
+            save_request = SaveAPIRequest(
+                user_id=current_user.id,
+                api_slug=clean_slug,
+                api_name=api_request.api_name or f"API {clean_slug}",
+                prompt=api_request.prompt,
+                endpoint_url=endpoint_url,
+                documentation=documentation,
+                curl_example=curl_example,
+                openapi_spec=json.dumps(openapi_spec) if openapi_spec else None,
+                sample_input=api_request.sample_input,
+                expected_output=api_request.expected_output
+            )
+            await file_service.save_api_metadata(save_request)
+            logger.info(f"API documentation saved to database for {clean_slug}")
+        except Exception as e:
+            logger.warning(f"Failed to save API documentation to database: {e}")
+            # Continue without database save if service is unavailable
         
         # Save API metadata for pricing using actual generation data
         try:
@@ -2070,7 +2108,13 @@ async def get_openapi_spec(request: Request, user_id: str, api_slug: str):
         
         # Check if we have OpenAPI spec in the details
         if 'openapi_spec' in api_details and api_details['openapi_spec']:
-            return api_details['openapi_spec']
+            try:
+                # Parse the JSON string back to dict
+                openapi_spec = json.loads(api_details['openapi_spec'])
+                return openapi_spec
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Failed to parse stored OpenAPI spec for {api_slug}, falling back to basic spec")
+                pass  # Fall through to generate basic spec
         
         # If not available, generate a basic OpenAPI spec
         base_url = f"{settings.API_PREFIX}/{user_id}/{api_slug}"
@@ -2182,7 +2226,6 @@ async def test_api(request: TestRequest):
     This endpoint provides structured testing functionality with proper error handling.
     """
     import uuid
-    import json
     print("=== TEST-API ENDPOINT CALLED ===")
     print(f"Request: {request}")
     print(f"User ID: {request.user_id}")

@@ -728,6 +728,12 @@
         const responseTimeEl = document.getElementById('responseTime');
         const testResultsDiv = document.getElementById('testResults');
 
+        // Safety check - ensure button exists before proceeding
+        if (!runTestBtn) {
+            console.error('Test button not found');
+            return;
+        }
+
         // Update UI to show testing in progress
         runTestBtn.disabled = true;
         runTestBtn.innerHTML = `
@@ -736,9 +742,14 @@
             </svg>
             <span>Testing...</span>
         `;
-        testStatusEl.className = 'w-3 h-3 bg-yellow-500 rounded-full animate-pulse';
-        testStatusTextEl.textContent = 'Running test...';
-        testStatusTextEl.className = 'text-sm text-yellow-400';
+        
+        if (testStatusEl) {
+            testStatusEl.className = 'w-3 h-3 bg-yellow-500 rounded-full animate-pulse';
+        }
+        if (testStatusTextEl) {
+            testStatusTextEl.textContent = 'Running test...';
+            testStatusTextEl.className = 'text-sm text-yellow-400';
+        }
 
         const startTime = Date.now();
 
@@ -836,28 +847,28 @@
             testStatusTextEl.textContent = 'Test error';
             testStatusTextEl.className = 'text-sm text-red-400';
         } finally {
-            // Reset button
-            runTestBtn.disabled = false;
-            runTestBtn.innerHTML = `
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
-                </svg>
-                <span>Run Test</span>
-            `;
+            // Reset button - with safety checks
+            if (runTestBtn) {
+                runTestBtn.disabled = false;
+                runTestBtn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
+                    </svg>
+                    <span>Run Test</span>
+                `;
+            }
         }
     }
 
     async function quickTest() {
-        // Switch to test tab and run a quick test
+        // Switch to test tab and load example data (without auto-running test)
         switchTab('test');
         
         // Load example data
         loadExample();
         
-        // Run the test after a short delay to let the UI update
-        setTimeout(() => {
-            runAPITestDetails();
-        }, 500);
+        // Optional: Show a message that user can now run the test manually
+        // The test will not run automatically anymore
     }
     
     function clearTestData() {

@@ -569,6 +569,350 @@
     }
 }
 
+/* =====================================
+   Enhanced Message Animation System
+   ===================================== */
+
+/* User message send animation */
+.message-send {
+    animation: messageSlideInRight 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.message-send .user-message-bubble {
+    transform: translateX(20px) scale(0.95);
+    animation: bubbleBounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.1s forwards;
+}
+
+.message-send .user-avatar {
+    animation: avatarPop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) 0.2s forwards;
+    transform: scale(0);
+}
+
+.message-sent .user-message-bubble {
+    animation: sentConfirmation 0.3s ease-out;
+}
+
+/* Assistant message entrance animation */
+.assistant-message-entrance {
+    animation: messageSlideInLeft 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.assistant-message-entrance .assistant-avatar {
+    animation: assistantAvatarGlow 0.6s ease-out;
+}
+
+.assistant-message-entrance .assistant-message-content {
+    animation: contentSlideUp 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.2s backwards;
+}
+
+/* System message fade animation */
+.system-message-fade {
+    animation: systemMessageFade 0.6s ease-out;
+}
+
+.system-message-fade .system-message-bubble {
+    animation: systemBubbleGlow 0.8s ease-out;
+}
+
+/* Thinking animation */
+.thinking-animation {
+    animation: thinkingSlideIn 0.3s ease-out;
+}
+
+.thinking-dots {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.thinking-dot {
+    width: 6px;
+    height: 6px;
+    background-color: #64748b;
+    border-radius: 50%;
+    animation: thinkingBounce 1.4s infinite;
+}
+
+.thinking-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.thinking-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* Typing cursor animation */
+.typing-cursor {
+    color: #60a5fa;
+    font-weight: bold;
+    animation: cursorBlink 1s infinite;
+}
+
+.content-revealed {
+    animation: contentReveal 0.3s ease-out;
+}
+
+/* Enhanced message entrance animations */
+@keyframes messageSlideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(50px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes messageSlideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+@keyframes bubbleBounceIn {
+    from {
+        transform: translateX(20px) scale(0.95);
+        opacity: 0.8;
+    }
+    60% {
+        transform: translateX(-5px) scale(1.02);
+    }
+    to {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes avatarPop {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+    60% {
+        transform: scale(1.1);
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes sentConfirmation {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes assistantAvatarGlow {
+    from {
+        box-shadow: 0 0 0 rgba(16, 185, 129, 0);
+        transform: scale(0.9);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(16, 185, 129, 0.6);
+        transform: scale(1.05);
+    }
+    to {
+        box-shadow: 0 0 0 rgba(16, 185, 129, 0);
+        transform: scale(1);
+    }
+}
+
+@keyframes contentSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes systemMessageFade {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes systemBubbleGlow {
+    0%, 100% {
+        box-shadow: 0 0 0 rgba(148, 163, 184, 0);
+    }
+    50% {
+        box-shadow: 0 0 10px rgba(148, 163, 184, 0.3);
+    }
+}
+
+@keyframes thinkingSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes thinkingBounce {
+    0%, 60%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    30% {
+        opacity: 1;
+        transform: scale(1.3);
+    }
+}
+
+@keyframes cursorBlink {
+    0%, 50% {
+        opacity: 1;
+    }
+    51%, 100% {
+        opacity: 0;
+    }
+}
+
+@keyframes contentReveal {
+    from {
+        opacity: 0.8;
+        transform: scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Hover effects for interactive elements */
+.user-message-bubble:hover {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+}
+
+.assistant-message-content:hover {
+    transform: translateY(-1px);
+    transition: transform 0.2s ease;
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.1);
+}
+
+/* Responsive adjustments for animations */
+@media (max-width: 640px) {
+    .message-send .user-message-bubble {
+        animation-duration: 0.4s;
+    }
+    
+    .assistant-message-entrance {
+        animation-duration: 0.4s;
+    }
+    
+    .thinking-animation {
+        animation-duration: 0.25s;
+    }
+}
+
+/* Reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .message-animation,
+    .message-send,
+    .assistant-message-entrance,
+    .system-message-fade,
+    .thinking-animation {
+        animation-duration: 0.1s;
+    }
+    
+    .typing-cursor {
+        animation: none;
+    }
+    
+    .thinking-dot {
+        animation: none;
+        opacity: 0.6;
+    }
+    
+    .user-message-bubble:hover,
+    .assistant-message-content:hover {
+        transform: none;
+    }
+}
+
+/* Input animation enhancements */
+#chatInput {
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+#chatInput.sending {
+    transform: scale(0.98);
+    background-color: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+#chatInput:focus {
+    transform: scale(1.01);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Send button animation */
+#sendButton {
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+#sendButton:hover:not(:disabled) {
+    transform: scale(1.05);
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+}
+
+#sendButton:active:not(:disabled) {
+    transform: scale(0.95);
+}
+
+#sendButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Character count animation */
+#charCount {
+    transition: color 0.2s ease;
+}
+
+/* Scroll to bottom button animation */
+#scrollToBottomBtn {
+    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+#scrollToBottomBtn:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+}
+
+#scrollToBottomBtn:active {
+    transform: translateY(0) scale(0.95);
+}
+
 /* Code block styling in streaming messages */
 .streaming-message code {
     background: rgba(0, 0, 0, 0.3);

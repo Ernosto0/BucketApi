@@ -133,6 +133,7 @@ class SavedAPI(BaseModel):
     endpoint_url: str
     documentation: str
     curl_example: str
+    openapi_spec: Optional[str] = None  # JSON string of OpenAPI spec
     sample_input: Optional[str] = None
     expected_output: Optional[str] = None
     created_at: datetime
@@ -147,6 +148,7 @@ class SaveAPIRequest(BaseModel):
     endpoint_url: str
     documentation: str
     curl_example: str
+    openapi_spec: Optional[str] = None  # JSON string of OpenAPI spec
     sample_input: Optional[str] = None
     expected_output: Optional[str] = None
 

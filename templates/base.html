@@ -92,37 +92,37 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-800 text-slate-200 flex flex-col">
     <!-- Header -->
-    <header id="mainHeader" class="glass-effect sticky top-0 z-50 border-b border-slate-700/50 transition-transform duration-300 ease-in-out">
+    <header id="mainHeader" class="sticky top-0 z-50 border-b border-gray-200/20 transition-transform duration-300 ease-in-out" style="background-color: #0D1117;">
         <div class="container mx-auto px-4 py-4">
             <div class="flex justify-between items-center">
                 <!-- Logo and Title -->
                 <div class="flex items-center space-x-3">
-                    <div class="bg-gradient-to-r from-blue-500 to-purple-600 p-2 rounded-lg">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="p-2 rounded-lg" style="background-color: #10B981;">
+                        <svg class="w-6 h-6" style="color: #F9FAFB;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                         </svg>
                     </div>
                     <div>
-                        <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                        <h1 class="text-xl font-bold" style="color: #F9FAFB;">
                             AI API Generator
                         </h1>
-                        <p class="text-xs text-slate-400">Generate APIs with AI</p>
+                        <p class="text-xs" style="color: #9CA3AF;">Generate APIs with AI</p>
                     </div>
                 </div>
 
                 <!-- Navigation -->
                 <nav class="hidden md:flex items-center space-x-8">
-                    <a href="/" class="text-sm text-slate-300 hover:text-blue-400 transition-colors duration-200 relative group">
+                    <a href="/" class="text-sm transition-colors duration-200 relative group hover:opacity-80" style="color: #F9FAFB;">
                         Generator
-                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all duration-200 group-hover:w-full"></span>
+                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 transition-all duration-200 group-hover:w-full" style="background-color: #10B981;"></span>
                     </a>
-                    <a href="/profile" class="text-sm text-slate-300 hover:text-blue-400 transition-colors duration-200 relative group">
+                    <a href="/profile" class="text-sm transition-colors duration-200 relative group hover:opacity-80" style="color: #F9FAFB;">
                         My APIs
-                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all duration-200 group-hover:w-full"></span>
+                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 transition-all duration-200 group-hover:w-full" style="background-color: #10B981;"></span>
                     </a>
-                    <a href="#docs" class="text-sm text-slate-300 hover:text-blue-400 transition-colors duration-200 relative group">
+                    <a href="#docs" class="text-sm transition-colors duration-200 relative group hover:opacity-80" style="color: #F9FAFB;">
                         Docs
-                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-blue-400 transition-all duration-200 group-hover:w-full"></span>
+                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 transition-all duration-200 group-hover:w-full" style="background-color: #10B981;"></span>
                     </a>
                 </nav>
 
@@ -131,11 +131,13 @@
                     {% if not user %}
                     <div id="authButtons" class="flex space-x-3">
                         <a href="/login" 
-                           class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium transition-all duration-200 border border-slate-600 hover:border-slate-500">
+                           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border hover:opacity-80" 
+                           style="background-color: #374151; color: #F9FAFB; border-color: #4B5563;">
                             Login
                         </a>
                         <a href="/register" 
-                           class="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-xl">
+                           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-xl hover:opacity-90" 
+                           style="background-color: #3B82F6; color: #F9FAFB;">
                             Register
                         </a>
                     </div>
@@ -143,29 +145,32 @@
                     {% if user %}
                     <div id="userMenu" class="flex items-center space-x-3">
                         <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-lg">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-lg" style="background-color: #10B981; color: #F9FAFB;">
                                 <span id="userInitials">{{ user.email[:2].upper() }}</span>
                             </div>
-                            <span id="welcomeText" class="text-sm text-slate-300 hidden sm:block">{{ user.email }}</span>
+                            <span id="welcomeText" class="text-sm hidden sm:block" style="color: #F9FAFB;">{{ user.email }}</span>
                         </div>
                         <div class="relative">
                             <button onclick="toggleUserDropdown()" 
-                                    class="p-2 text-slate-400 hover:text-white transition-colors duration-200 rounded-lg hover:bg-slate-700">
+                                    class="p-2 transition-colors duration-200 rounded-lg hover:opacity-80" 
+                                    style="color: #F9FAFB; background-color: rgba(55, 65, 81, 0.5);">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             </button>
-                            <div id="userDropdown" class="hidden absolute right-0 mt-2 w-48 glass-effect rounded-xl shadow-xl z-50 border border-slate-600/50">
+                            <div id="userDropdown" class="hidden absolute right-0 mt-2 w-48 rounded-xl shadow-xl z-50 border" style="background-color: #0D1117; border-color: rgba(156, 163, 175, 0.3);">
                                 <div class="py-2">
                                     <a href="/profile" 
-                                       class="block px-4 py-3 text-sm text-slate-300 hover:bg-slate-700/50 hover:text-white transition-all duration-200 rounded-lg mx-2">
+                                       class="block px-4 py-3 text-sm transition-all duration-200 rounded-lg mx-2 hover:opacity-80" 
+                                       style="color: #F9FAFB; background-color: rgba(55, 65, 81, 0.3);">
                                         👤 Profile
                                     </a>
-                                    <hr class="border-slate-600/50 my-2 mx-2">
-                                    <button onclick="logout()" 
-                                            class="block w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 rounded-lg mx-2">
+                                    <hr class="my-2 mx-2" style="border-color: rgba(156, 163, 175, 0.3);">
+                                    <a href="/logout" 
+                                       class="block px-4 py-3 text-sm transition-all duration-200 rounded-lg mx-2 hover:opacity-80" 
+                                       style="color: #EF4444;">
                                         🚪 Logout
-                                    </button>
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -271,36 +276,7 @@
             dropdown.classList.toggle('hidden');
         }
 
-        // Logout function
-        function logout() {
-            clearAuthState();
-            
-            // Show logout message briefly
-            const logoutMessage = document.createElement('div');
-            logoutMessage.style.cssText = `
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background: #10b981;
-                color: white;
-                padding: 12px 20px;
-                border-radius: 8px;
-                z-index: 1000;
-                font-size: 14px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            `;
-            logoutMessage.textContent = 'Logged out successfully!';
-            document.body.appendChild(logoutMessage);
-            
-            setTimeout(() => {
-                document.body.removeChild(logoutMessage);
-            }, 2000);
-            
-            // Redirect to landing page
-            setTimeout(() => {
-                window.location.href = '/landing';
-            }, 1000);
-        }
+        // Logout is now handled by direct link to /logout
 
         // Clear authentication state
         function clearAuthState() {
@@ -390,16 +366,25 @@
             const currentPath = window.location.pathname;
             const publicPaths = ['/landing', '/login', '/register'];
             
-            if (!currentUser && !publicPaths.includes(currentPath)) {
+            // Check if user is authenticated via server-side template data
+            const serverUser = {% if user %}true{% else %}false{% endif %};
+            
+            if (!currentUser && !serverUser && !publicPaths.includes(currentPath)) {
                 console.log('User not authenticated, redirecting to landing page');
                 window.location.href = '/landing';
+            } else if (serverUser && !currentUser) {
+                // Server says user is authenticated but client-side isn't initialized yet
+                console.log('Server authentication detected, initializing client-side auth');
+                initializeAuth();
             }
         }
         
         // Run auth check after DOM is loaded and auth is initialized
         document.addEventListener('DOMContentLoaded', function() {
-            // Give initializeAuth a moment to run
-            setTimeout(checkAuthAndRedirect, 100);
+            // Initialize auth first
+            initializeAuth();
+            // Then check auth with a longer delay to ensure server data is processed
+            setTimeout(checkAuthAndRedirect, 500);
         });
         
         window.addEventListener('scroll', requestTick, { passive: true });

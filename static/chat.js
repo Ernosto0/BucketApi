@@ -74,7 +74,7 @@ async function isModificationRequest(message) {
 }
 
 // Helper function to handle conversational messages
-function handleConversationalMessage(message) {
+async function handleConversationalMessage(message) {
     const lowerMessage = message.toLowerCase().trim();
     
     // Generate appropriate responses for different types of conversational messages
@@ -95,7 +95,7 @@ function handleConversationalMessage(message) {
         response = "I'm here to help with your API! 🤖 Your current proposal is ready for review. You can build it as-is or ask me to make any changes you'd like.";
     }
     
-    addMessage('assistant', response);
+    await addMessage('assistant', response);
 }
 
 // Proposal modification handling with explicit context
@@ -441,12 +441,18 @@ async function sendMessage() {
     
     if (!message || isGenerating) return;
 
-    // Add user message to chat
-    addMessage('user', message);
+    // Add send animation to input
+    input.classList.add('sending');
     
-    // Clear input
-    input.value = '';
-    handleInputChange();
+    // Add user message to chat
+    await addMessage('user', message);
+    
+    // Clear input with animation
+    setTimeout(() => {
+        input.value = '';
+        input.classList.remove('sending');
+        handleInputChange();
+    }, 300);
 
     // Check if we're in modification mode
     if (isModificationMode) {
@@ -490,7 +496,7 @@ async function sendMessage() {
             console.log('Message does not appear to be a modification request - handling as conversational');
             
             // Handle conversational messages (thanks, looks good, etc.)
-            handleConversationalMessage(message);
+            await handleConversationalMessage(message);
             return;
         }
     }
@@ -530,7 +536,7 @@ async function sendMessage() {
         } else if (!proposalResponse.ok) {
             const errorData = await proposalResponse.json();
             hideTypingIndicator();
-            addMessage('assistant', `❌ Error: ${errorData.detail || 'Request failed'}`);
+            await addMessage('assistant', `❌ Error: ${errorData.detail || 'Request failed'}`, { enableTyping: false });
             return;
         }
 
@@ -658,6 +664,9 @@ async function generateAPI(message, userId, skipAnalysis = true) {
         hideTypingIndicator();
 
         if (result.success) {
+            // Hide the loading animation
+            hideAPIBuildLoading();
+            
             // Update conversation state to indicate code has been generated
             conversationState = result.conversation_state || 'code_generated';
             
@@ -667,6 +676,9 @@ async function generateAPI(message, userId, skipAnalysis = true) {
             
             console.log('Updated conversation state to:', conversationState);
         } else {
+            // Hide the loading animation
+            hideAPIBuildLoading();
+            
             // Handle different types of unsuccessful responses
             if (result.status === 'needs_clarification') {
                 addClarificationMessage(result);
@@ -680,6 +692,8 @@ async function generateAPI(message, userId, skipAnalysis = true) {
             }
         }
     } catch (error) {
+        // Hide the loading animation
+        hideAPIBuildLoading();
         hideTypingIndicator();
         addMessage('assistant', `❌ Network error: ${error.message}`);
     }
@@ -753,6 +767,8 @@ async function generateAPIStream(message, userId, skipAnalysis = true) {
         }
 
     } catch (error) {
+        // Hide the loading animation
+        hideAPIBuildLoading();
         console.error('Streaming generation error:', error);
         addMessage('assistant', `❌ Connection error: ${error.message}`);
     }
@@ -869,6 +885,9 @@ function handleSessionComplete(data) {
 // Handle final generation completion with results
 function handleGenerationComplete(data) {
     console.log('Generation completed:', data);
+    
+    // Hide the loading animation
+    hideAPIBuildLoading();
     
     if (data.success) {
         // Update conversation state
@@ -1007,56 +1026,90 @@ function updateStepProgress(data) {
     }
 }
 
-function addMessage(type, content) {
+// Enhanced message system with smooth animations and realistic delays
+async function addMessage(type, content, options = {}) {
     const messagesContainer = document.getElementById('chatMessages');
     const messageDiv = document.createElement('div');
-    messageDiv.className = 'message-animation';
     
     // Remember if user was at bottom before adding message
     const wasAtBottom = messagesContainer.scrollTop + messagesContainer.clientHeight >= messagesContainer.scrollHeight - 50;
     
     if (type === 'user') {
+        // Add instant user message with send animation
+        messageDiv.className = 'message-animation message-send';
         messageDiv.innerHTML = `
             <div class="flex items-start space-x-3 justify-end">
-                <div class="glass-card rounded-2xl p-4 max-w-lg bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30">
+                <div class="glass-card rounded-2xl p-4 max-w-lg bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-blue-500/30 user-message-bubble">
                     <p class="text-white">${content}</p>
                 </div>
-                <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0 user-avatar">
                     <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                     </svg>
                 </div>
             </div>
         `;
+        
+        messagesContainer.appendChild(messageDiv);
+        
+        // Trigger send animation
+        setTimeout(() => {
+            messageDiv.classList.add('message-sent');
+        }, 50);
+        
     } else if (type === 'assistant') {
+        // Calculate realistic typing delay based on content length
+        const typingDelay = options.skipDelay ? 0 : calculateTypingDelay(content);
+        
+        if (!options.skipDelay && typingDelay > 0) {
+            // Show thinking dots during delay
+            showThinkingDots();
+            await new Promise(resolve => setTimeout(resolve, typingDelay));
+            hideThinkingDots();
+        }
+        
+        messageDiv.className = 'message-animation assistant-message-entrance';
         messageDiv.innerHTML = `
             <div class="flex items-start space-x-3 w-full">
-                <div class="w-8 h-8 bg-gradient-to-r from-emerald-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <div class="w-8 h-8 bg-gradient-to-r from-emerald-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0 assistant-avatar">
                     <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
                     </svg>
                 </div>
-                <div class="glass-card rounded-2xl p-6 flex-1 min-w-0">
-                    ${content}
+                <div class="glass-card rounded-2xl p-6 flex-1 min-w-0 assistant-message-content">
+                    <div class="typing-content"></div>
                 </div>
             </div>
         `;
+        
+        messagesContainer.appendChild(messageDiv);
+        
+        // Start typing animation if enabled
+        if (options.enableTyping !== false && !options.skipDelay) {
+            await animateTyping(messageDiv.querySelector('.typing-content'), content);
+        } else {
+            messageDiv.querySelector('.typing-content').innerHTML = content;
+        }
+        
     } else if (type === 'system') {
+        messageDiv.className = 'message-animation system-message-fade';
         messageDiv.innerHTML = `
             <div class="flex justify-center">
-                <div class="glass-card rounded-xl p-3 text-center text-sm text-slate-300 max-w-md">
+                <div class="glass-card rounded-xl p-3 text-center text-sm text-slate-300 max-w-md system-message-bubble">
                     ${content}
                 </div>
             </div>
         `;
+        messagesContainer.appendChild(messageDiv);
     }
     
-    messagesContainer.appendChild(messageDiv);
-    
-    // Only auto-scroll if user was already at bottom or if it's a new user message
+    // Enhanced auto-scroll with smooth animation
     if (wasAtBottom || type === 'user') {
         setTimeout(() => {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            messagesContainer.scrollTo({
+                top: messagesContainer.scrollHeight,
+                behavior: 'smooth'
+            });
         }, 100);
     }
     
@@ -1064,7 +1117,109 @@ function addMessage(type, content) {
     currentConversation.push({ type, content });
 }
 
-function addChatAnalysisMessage(analysis) {
+// Calculate realistic typing delay based on content complexity
+function calculateTypingDelay(content) {
+    const baseDelay = 800; // Minimum delay
+    const maxDelay = 3000; // Maximum delay
+    
+    // Remove HTML tags for length calculation
+    const textContent = content.replace(/<[^>]*>/g, '');
+    const wordCount = textContent.split(/\s+/).length;
+    const charCount = textContent.length;
+    
+    // More complex content = longer delay
+    let delay = baseDelay + (wordCount * 50) + (charCount * 10);
+    
+    // Factor in complexity indicators
+    if (content.includes('<ul>') || content.includes('<ol>')) delay += 500; // Lists
+    if (content.includes('<code>') || content.includes('```')) delay += 800; // Code
+    if (content.includes('<table>')) delay += 600; // Tables
+    
+    return Math.min(delay, maxDelay);
+}
+
+// Show thinking dots animation
+function showThinkingDots() {
+    const messagesContainer = document.getElementById('chatMessages');
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.id = 'thinking-indicator';
+    thinkingDiv.className = 'thinking-animation';
+    thinkingDiv.innerHTML = `
+        <div class="flex items-start space-x-3 w-full">
+            <div class="w-8 h-8 bg-gradient-to-r from-emerald-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-white animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
+            </div>
+            <div class="glass-card rounded-2xl p-4 flex-1 min-w-0">
+                <div class="flex items-center space-x-2">
+                    <div class="thinking-dots">
+                        <div class="thinking-dot"></div>
+                        <div class="thinking-dot"></div>
+                        <div class="thinking-dot"></div>
+                    </div>
+                    <span class="text-slate-400 text-sm">thinking...</span>
+                </div>
+            </div>
+        </div>
+    `;
+    messagesContainer.appendChild(thinkingDiv);
+    
+    // Scroll to show thinking indicator
+    setTimeout(() => {
+        messagesContainer.scrollTo({
+            top: messagesContainer.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 100);
+}
+
+// Hide thinking dots
+function hideThinkingDots() {
+    const thinkingIndicator = document.getElementById('thinking-indicator');
+    if (thinkingIndicator) {
+        thinkingIndicator.remove();
+    }
+}
+
+// Animate typing effect for assistant messages
+async function animateTyping(container, content) {
+    const typingSpeed = 30; // milliseconds per character
+    const minChunkSize = 1;
+    const maxChunkSize = 3;
+    
+    // Remove HTML for typing calculation, but preserve it for display
+    const isHTML = /<[^>]*>/.test(content);
+    
+    if (isHTML) {
+        // For HTML content, show it instantly but with a brief delay
+        await new Promise(resolve => setTimeout(resolve, 300));
+        container.innerHTML = content;
+        container.classList.add('content-revealed');
+    } else {
+        // For plain text, use character-by-character typing
+        let currentIndex = 0;
+        container.innerHTML = '<span class="typing-cursor">|</span>';
+        
+        while (currentIndex < content.length) {
+            const chunkSize = Math.floor(Math.random() * (maxChunkSize - minChunkSize + 1)) + minChunkSize;
+            const chunk = content.slice(currentIndex, currentIndex + chunkSize);
+            
+            container.innerHTML = content.slice(0, currentIndex + chunkSize) + '<span class="typing-cursor">|</span>';
+            currentIndex += chunkSize;
+            
+            // Variable speed for more natural typing
+            const delay = typingSpeed + Math.random() * 20;
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        // Remove cursor and add final reveal animation
+        container.innerHTML = content;
+        container.classList.add('content-revealed');
+    }
+}
+
+async function addChatAnalysisMessage(analysis) {
     const content = `
         <div class="space-y-4">
             <div class="flex items-center space-x-2">
@@ -1082,7 +1237,7 @@ function addChatAnalysisMessage(analysis) {
             </div>
         </div>
     `;
-    addMessage('assistant', content);
+    await addMessage('assistant', content);
 }
 
 function addClarificationMessage(analysis) {
@@ -1262,6 +1417,82 @@ function hideProposalMessage() {
 }
 
 // Confirmation handler functions
+function createLoadingAnimation() {
+    return `
+        <div class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+            <div class="flex items-center justify-center space-x-4">
+                <div class="relative">
+                    <div class="w-12 h-12 border-4 border-green-500/30 border-t-green-400 rounded-full animate-spin"></div>
+                    <div class="absolute inset-2 w-8 h-8 border-2 border-green-400/20 border-t-green-300 rounded-full animate-spin" style="animation-direction: reverse; animation-duration: 0.8s;"></div>
+                </div>
+                <div class="text-center">
+                    <h4 class="font-semibold text-white mb-2 flex items-center space-x-2">
+                        <span class="text-green-400">🚀</span>
+                        <span>Building Your API...</span>
+                    </h4>
+                    <div class="flex items-center space-x-2">
+                        <div class="flex space-x-1">
+                            <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse" style="animation-delay: 0s;"></div>
+                            <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse" style="animation-delay: 0.3s;"></div>
+                            <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse" style="animation-delay: 0.6s;"></div>
+                        </div>
+                        <span class="text-green-300 text-sm font-medium">Generating code and documentation</span>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 bg-green-900/10 rounded-lg p-3">
+                <div class="flex items-center space-x-2 mb-2">
+                    <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <span class="text-green-200 text-sm">Analyzing requirements...</span>
+                </div>
+                <div class="w-full bg-green-900/30 rounded-full h-2">
+                    <div class="bg-gradient-to-r from-green-500 to-emerald-400 h-2 rounded-full animate-pulse" style="width: 100%; animation-duration: 2s;"></div>
+                </div>
+                <p class="text-xs text-green-300 mt-2 opacity-75">
+                    This may take a few moments. Please don't refresh the page.
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+function hideAPIBuildLoading() {
+    // Find any confirmation buttons containers with loading animation
+    const loadingContainers = document.querySelectorAll('[id^="confirmation-buttons-"]');
+    loadingContainers.forEach(container => {
+        if (container.innerHTML.includes('Building Your API...')) {
+            // Add fade-out animation
+            container.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
+            container.style.opacity = '0';
+            container.style.transform = 'scale(0.95)';
+            
+            setTimeout(() => {
+                container.style.display = 'none';
+            }, 300);
+        }
+    });
+}
+
+function startAPIBuild(originalPrompt, userId, buttonElement) {
+    // Find the confirmation buttons container
+    const container = buttonElement.closest('[id^="confirmation-buttons-"]');
+    
+    if (container) {
+        // Replace the buttons with loading animation
+        container.innerHTML = createLoadingAnimation();
+        
+        // Add smooth transition effect
+        container.style.transition = 'all 0.3s ease-in-out';
+        container.style.transform = 'scale(0.98)';
+        setTimeout(() => {
+            container.style.transform = 'scale(1)';
+        }, 100);
+    }
+    
+    // Call the original build function
+    confirmBuildAPI(originalPrompt, userId);
+}
+
 async function confirmBuildAPI(originalPrompt, userId) {
     try {
         // Add user confirmation message
@@ -3179,13 +3410,13 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
         ` : ''}
 
         <!-- Confirmation Buttons -->
-        <div class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+        <div id="confirmation-buttons-${Date.now()}" class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
             <h4 class="font-semibold text-white mb-4 flex items-center space-x-2">
                 <span class="text-green-400">✅</span>
                 <span>Ready to build this API?</span>
             </h4>
             <div class="flex flex-wrap gap-3">
-                <button onclick="confirmBuildAPI('${originalPrompt.replace(/'/g, "\\'")}', '${userId}')" 
+                <button onclick="startAPIBuild('${originalPrompt.replace(/'/g, "\\'")}', '${userId}', this)" 
                         class="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
                     🚀 Build It!
                 </button>

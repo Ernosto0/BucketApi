@@ -71,6 +71,7 @@ class SavedAPIDB(Base):
     endpoint_url = Column(String, nullable=False)
     documentation = Column(Text, nullable=False)
     curl_example = Column(Text, nullable=False)
+    openapi_spec = Column(Text, nullable=True)  # Store as JSON string
     sample_input = Column(Text, nullable=True)
     expected_output = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
