@@ -1456,37 +1456,126 @@ function createLoadingAnimation() {
     `;
 }
 
-function hideAPIBuildLoading() {
-    // Find any confirmation buttons containers with loading animation
-    const loadingContainers = document.querySelectorAll('[id^="confirmation-buttons-"]');
-    loadingContainers.forEach(container => {
-        if (container.innerHTML.includes('Building Your API...')) {
-            // Add fade-out animation
-            container.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out';
-            container.style.opacity = '0';
-            container.style.transform = 'scale(0.95)';
-            
-            setTimeout(() => {
-                container.style.display = 'none';
-            }, 300);
-        }
-    });
+function createFullSectionLoadingAnimation() {
+    return `
+        <div class="h-full flex items-center justify-center p-8">
+            <div class="text-center max-w-md mx-auto">
+                <!-- Main Loading Animation -->
+                <div class="relative mb-8">
+                    <div class="w-24 h-24 border-4 border-green-500/20 border-t-green-400 rounded-full animate-spin mx-auto"></div>
+                    <div class="absolute inset-4 w-16 h-16 border-3 border-green-400/30 border-t-green-300 rounded-full animate-spin mx-auto" style="animation-direction: reverse; animation-duration: 1.2s;"></div>
+                    <div class="absolute inset-8 w-8 h-8 border-2 border-green-300/40 border-t-green-200 rounded-full animate-spin mx-auto" style="animation-duration: 0.8s;"></div>
+                </div>
+
+                <!-- Status Text -->
+                <div class="space-y-4">
+                    <h3 class="text-2xl font-bold text-white flex items-center justify-center space-x-3">
+                        <span class="text-green-400">🚀</span>
+                        <span>Building Your API</span>
+                    </h3>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-center space-x-2">
+                            <div class="flex space-x-1">
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse" style="animation-delay: 0s;"></div>
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse" style="animation-delay: 0.3s;"></div>
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse" style="animation-delay: 0.6s;"></div>
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse" style="animation-delay: 0.9s;"></div>
+                            </div>
+                            <span class="text-green-300 font-medium">Generating code and documentation</span>
+                        </div>
+                        
+                        <p class="text-slate-400 text-sm">This may take a few moments while we create your custom API</p>
+                    </div>
+                </div>
+
+                <!-- Progress Steps -->
+                <div class="mt-8 space-y-4">
+                    <div class="bg-green-900/10 rounded-lg p-4 border border-green-500/20">
+                        <div class="flex items-center space-x-3 mb-3">
+                            <div class="w-4 h-4 bg-green-400 rounded-full animate-pulse"></div>
+                            <span class="text-green-200 font-medium">Analyzing requirements</span>
+                        </div>
+                        <div class="w-full bg-green-900/30 rounded-full h-2">
+                            <div class="bg-gradient-to-r from-green-500 to-emerald-400 h-2 rounded-full animate-pulse" style="width: 100%; animation-duration: 2s;"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-blue-900/10 rounded-lg p-4 border border-blue-500/20">
+                        <div class="flex items-center space-x-3 mb-3">
+                            <div class="w-4 h-4 bg-blue-400 rounded-full animate-pulse" style="animation-delay: 0.5s;"></div>
+                            <span class="text-blue-200 font-medium">Generating endpoints</span>
+                        </div>
+                        <div class="w-full bg-blue-900/30 rounded-full h-2">
+                            <div class="bg-gradient-to-r from-blue-500 to-cyan-400 h-2 rounded-full animate-pulse" style="width: 80%; animation-duration: 2.5s; animation-delay: 0.5s;"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-purple-900/10 rounded-lg p-4 border border-purple-500/20">
+                        <div class="flex items-center space-x-3 mb-3">
+                            <div class="w-4 h-4 bg-purple-400 rounded-full animate-pulse" style="animation-delay: 1s;"></div>
+                            <span class="text-purple-200 font-medium">Creating documentation</span>
+                        </div>
+                        <div class="w-full bg-purple-900/30 rounded-full h-2">
+                            <div class="bg-gradient-to-r from-purple-500 to-pink-400 h-2 rounded-full animate-pulse" style="width: 60%; animation-duration: 3s; animation-delay: 1s;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Warning Text -->
+                <div class="mt-6 p-3 bg-yellow-900/10 border border-yellow-500/20 rounded-lg">
+                    <p class="text-yellow-300 text-xs font-medium flex items-center justify-center space-x-2">
+                        <span>⚠️</span>
+                        <span>Please don't refresh the page during generation</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
-function startAPIBuild(originalPrompt, userId, buttonElement) {
-    // Find the confirmation buttons container
-    const container = buttonElement.closest('[id^="confirmation-buttons-"]');
+function hideAPIBuildLoading() {
+    const previewContent = document.getElementById('apiPreviewContent');
     
+    if (previewContent && previewContent.innerHTML.includes('Building Your API')) {
+        console.log('Hiding API build loading animation from preview section');
+        
+        // Don't restore content here - let updateAPIPreview handle it
+        // Just mark that we're ready for the content to be updated
+        console.log('Loading animation will be replaced by API preview content');
+    }
+}
+
+// Store original preview content for restoration
+let originalPreviewContent = null;
+
+function startAPIBuild(originalPrompt, userId, buttonElement) {
+    // Find the confirmation buttons container and hide it
+    const container = buttonElement.closest('[id^="confirmation-buttons-"]');
     if (container) {
-        // Replace the buttons with loading animation
-        container.innerHTML = createLoadingAnimation();
+        container.style.transition = 'opacity 0.3s ease-out';
+        container.style.opacity = '0';
+        setTimeout(() => {
+            container.style.display = 'none';
+        }, 300);
+    }
+    
+    // Get the API preview content container
+    const previewContent = document.getElementById('apiPreviewContent');
+    
+    if (previewContent) {
+        // Store the original content for restoration later
+        originalPreviewContent = previewContent.innerHTML;
         
         // Add smooth transition effect
-        container.style.transition = 'all 0.3s ease-in-out';
-        container.style.transform = 'scale(0.98)';
+        previewContent.style.transition = 'opacity 0.3s ease-in-out';
+        previewContent.style.opacity = '0';
+        
         setTimeout(() => {
-            container.style.transform = 'scale(1)';
-        }, 100);
+            // Replace with full-section loading animation
+            previewContent.innerHTML = createFullSectionLoadingAnimation();
+            previewContent.style.opacity = '1';
+        }, 300);
     }
     
     // Call the original build function
@@ -2503,9 +2592,173 @@ function updateAPIPreview(apiData) {
     currentProposal = null;
     previewMode = 'api';
     
-    // Show the preview panel and hide empty state
-    document.getElementById('emptyState').classList.add('hidden');
-    document.getElementById('apiPreviewPanel').classList.remove('hidden');
+    // First, restore the preview structure if it's currently showing loading animation
+    const previewContent = document.getElementById('apiPreviewContent');
+    if (previewContent && previewContent.innerHTML.includes('Building Your API')) {
+        console.log('Preview showing loading - restoring original content structure');
+        
+        // Restore the original preview structure
+        previewContent.innerHTML = `
+            <!-- Empty State -->
+            <div id="emptyState" class="p-6 h-full flex items-center justify-center hidden">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <h4 class="text-lg font-medium text-slate-300 mb-2">No API in Preview</h4>
+                    <p class="text-slate-500 text-sm max-w-sm mx-auto">Start a conversation to generate an API and see a structured preview here with endpoints, parameters, and testing tools.</p>
+                </div>
+            </div>
+            
+            <!-- API Preview Content (Hidden by default) -->
+            <div id="apiPreviewPanel" class="hidden p-6 space-y-6">
+                
+                <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+                    <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
+                        <span class="text-blue-400">🌐</span>
+                        <span>API Endpoint</span>
+                    </h4>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <span id="apiMethod" class="px-2 py-1 bg-green-600/20 text-green-300 rounded font-mono text-xs">POST</span>
+                                <code id="apiEndpoint" class="text-blue-300 font-mono text-sm bg-slate-700/50 px-2 py-1 rounded">-</code>
+                            </div>
+                           
+                        </div>
+                        <p id="apiDescription" class="text-slate-300 text-sm">-</p>
+                    </div>
+                </div>
+                
+                <!-- Parameters Section -->
+                <div id="parametersSection" class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+                    <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
+                        <span class="text-green-400">📝</span>
+                        <span>Parameters</span>
+                    </h4>
+                    <div id="parametersTable" class="overflow-x-auto">
+                        <div class="text-slate-400 text-sm text-center py-8">No parameters defined</div>
+                    </div>
+                </div>
+                
+                <!-- Example Response Section -->
+                <div id="exampleResponseSection" class="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+                    <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
+                        <span class="text-purple-400">📋</span>
+                        <span>Example Response</span>
+                    </h4>
+                    <div id="exampleResponse" class="bg-slate-800/50 rounded p-4 font-mono text-sm text-slate-300">
+                        <div class="text-slate-400 text-center py-4">No response example available</div>
+                    </div>
+                </div>
+                
+                <!-- Test Playground Section -->
+                <div id="testPlaygroundSection" class="bg-slate-800/30 border border-slate-600/50 rounded-xl p-4">
+                    <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
+                        <span class="text-blue-400">🧪</span>
+                        <span>Test Playground</span>
+                    </h4>
+                    
+                    <div class="space-y-4">
+                        <!-- Test Scenario Selector -->
+                        <div id="testScenarioSelector" class="hidden">
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Choose Test Scenario</label>
+                            <select 
+                                id="scenarioSelect" 
+                                onchange="loadSelectedScenario()"
+                                class="w-full p-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-sm">
+                                <option value="">Select a test scenario...</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Test Input -->
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <label class="block text-sm font-medium text-slate-300">Request Data (JSON)</label>
+                                <button 
+                                    id="generateNewScenariosBtn" 
+                                    onclick="regenerateTestScenarios()" 
+                                    class="hidden px-2 py-1 text-xs bg-blue-600/20 text-blue-300 rounded border border-blue-500/30 hover:bg-blue-600/30 transition-all duration-200">
+                                    🔄 Generate New
+                                </button>
+                            </div>
+                            <textarea 
+                                id="previewTestInput" 
+                                class="w-full h-24 p-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 font-mono text-sm" 
+                                placeholder='{
+  "example": "data"
+}'
+                            ></textarea>
+                        </div>
+                        
+                        <!-- Test Controls -->
+                        <div class="flex items-center justify-between">
+                            <button onclick="runPreviewTest()" 
+                                    id="previewRunTestBtn"
+                                    class="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
+                                </svg>
+                                <span>Run Test</span>
+                            </button>
+                            <div class="flex items-center space-x-2">
+                                <div id="previewTestStatus" class="w-3 h-3 bg-gray-500 rounded-full"></div>
+                                <span id="previewTestStatusText" class="text-sm text-gray-400">Ready</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Test Results -->
+                        <div id="previewTestResults" class="hidden">
+                            <div class="bg-slate-700/50 rounded-lg p-3">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-sm font-medium text-slate-300">Response</span>
+                                    <span id="previewResponseStatus" class="px-2 py-1 rounded text-xs font-mono"></span>
+                                </div>
+                                <pre id="previewResponseBody" class="text-xs text-slate-300 font-mono whitespace-pre-wrap overflow-x-auto"></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="pt-4 border-t border-slate-600/50">
+                        <div class="flex items-center space-x-3">
+                            <button onclick="deployCurrentAPI()" 
+                                    id="previewDeployBtn"
+                                    class="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center justify-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                                </svg>
+                                <span>Deploy API</span>
+                            </button>
+                            <button onclick="modifyCurrentAPI()" 
+                                    id="previewModifyBtn"
+                                    class="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg flex items-center justify-center space-x-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                                <span>Modify API</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Now safely access the elements
+    const emptyState = document.getElementById('emptyState');
+    const apiPreviewPanel = document.getElementById('apiPreviewPanel');
+    
+    if (emptyState && apiPreviewPanel) {
+        // Show the preview panel and hide empty state
+        emptyState.classList.add('hidden');
+        apiPreviewPanel.classList.remove('hidden');
+    } else {
+        console.error('Could not find emptyState or apiPreviewPanel elements');
+        return;
+    }
     
     // Hide proposal elements and show API elements
     hideProposalElements();
@@ -2602,8 +2855,23 @@ function extractAPIDescription(documentation) {
 function updateParametersTable(apiData) {
     const container = document.getElementById('parametersTable');
     
-    // Try to extract parameters from documentation or create generic ones
-    const params = extractParametersFromDocumentation(apiData.documentation);
+    // Try multiple sources for parameters
+    let params = [];
+    
+    // First, try to extract from sample_input if available
+    if (apiData.sample_input) {
+        params = extractParametersFromSampleInput(apiData.sample_input);
+    }
+    
+    // If no parameters from sample_input, try documentation
+    if (params.length === 0) {
+        params = extractParametersFromDocumentation(apiData.documentation);
+    }
+    
+    // If still no parameters, try curl example
+    if (params.length === 0 && apiData.curl_example) {
+        params = extractParametersFromCurlExample(apiData.curl_example);
+    }
     
     if (params.length === 0) {
         container.innerHTML = '<div class="text-slate-400 text-sm text-center py-8">No parameters defined</div>';
@@ -2644,7 +2912,7 @@ function extractParametersFromDocumentation(documentation) {
     const params = [];
     
     if (!documentation) {
-        params.push({name: 'data', type: 'string', required: true, example: '"example input"'});
+        // Return empty array instead of generic parameters
         return params;
     }
     
@@ -2698,29 +2966,166 @@ function extractParametersFromDocumentation(documentation) {
         }
     }
     
-    // Fallback: Look for common patterns if no formal parameter section
+    // Look for function signature in documentation to extract parameters
     if (params.length === 0) {
-        // Common API patterns
-        if (doc.includes('text') && !doc.includes('no parameters')) {
-            params.push({name: 'text', type: 'string', required: true, example: '"Sample text for processing"'});
+        const functionMatch = documentation.match(/def\s+\w+\([^)]*\)/);
+        if (functionMatch) {
+            const funcSig = functionMatch[0];
+            const paramMatch = funcSig.match(/\(([^)]*)\)/);
+            if (paramMatch && paramMatch[1].trim()) {
+                const paramList = paramMatch[1].split(',').map(p => p.trim());
+                paramList.forEach(param => {
+                    if (param && param !== 'self' && !param.includes('=')) {
+                        const name = param.replace(/:\s*\w+/, '').trim();
+                        if (name) {
+                            params.push({
+                                name: name,
+                                type: 'string',
+                                required: true,
+                                example: `"example ${name}"`
+                            });
+                        }
+                    }
+                });
+            }
         }
-        if (doc.includes('file') || doc.includes('upload')) {
+    }
+    
+    // Look for JSON schema or input format in documentation
+    if (params.length === 0) {
+        const jsonMatch = documentation.match(/```json\s*\{[^}]*\}/s);
+        if (jsonMatch) {
+            try {
+                const jsonStr = jsonMatch[0].replace(/```json\s*/, '').replace(/```\s*$/, '');
+                const jsonObj = JSON.parse(jsonStr);
+                Object.keys(jsonObj).forEach(key => {
+                    const value = jsonObj[key];
+                    let type = 'string';
+                    let example = `"${value}"`;
+                    
+                    if (typeof value === 'number') {
+                        type = 'number';
+                        example = value.toString();
+                    } else if (typeof value === 'boolean') {
+                        type = 'boolean';
+                        example = value.toString();
+                    } else if (Array.isArray(value)) {
+                        type = 'array';
+                        example = JSON.stringify(value);
+                    } else if (typeof value === 'object' && value !== null) {
+                        type = 'object';
+                        example = JSON.stringify(value);
+                    }
+                    
+                    params.push({
+                        name: key,
+                        type: type,
+                        required: true,
+                        example: example
+                    });
+                });
+            } catch (e) {
+                // JSON parsing failed, continue without parameters
+            }
+        }
+    }
+    
+    // Only use very specific fallbacks for very obvious cases
+    if (params.length === 0) {
+        // Only add parameters if the documentation clearly indicates specific input types
+        if (doc.includes('pdf') && doc.includes('file')) {
             params.push({name: 'file', type: 'file', required: true, example: 'document.pdf'});
-        }
-        if (doc.includes('url') || doc.includes('link')) {
+        } else if (doc.includes('image') && (doc.includes('upload') || doc.includes('file'))) {
+            params.push({name: 'image', type: 'file', required: true, example: 'image.jpg'});
+        } else if (doc.includes('url') && doc.includes('scrape')) {
             params.push({name: 'url', type: 'string', required: true, example: '"https://example.com"'});
         }
-        if (doc.includes('image') || doc.includes('photo')) {
-            params.push({name: 'image', type: 'file', required: true, example: 'image.jpg'});
-        }
-        if (doc.includes('json') || doc.includes('data')) {
-            params.push({name: 'data', type: 'object', required: true, example: '{"key": "value"}'});
-        }
+        // Don't add generic text/data parameters anymore
+    }
+    
+    return params;
+}
+
+function extractParametersFromSampleInput(sampleInput) {
+    const params = [];
+    
+    try {
+        // Try to parse as JSON
+        const jsonData = JSON.parse(sampleInput);
         
-        // If still no parameters found, add a default
-        if (params.length === 0) {
-            params.push({name: 'input', type: 'string', required: true, example: '"example input"'});
+        Object.keys(jsonData).forEach(key => {
+            const value = jsonData[key];
+            let type = 'string';
+            let example = `"${value}"`;
+            
+            if (typeof value === 'number') {
+                type = 'number';
+                example = value.toString();
+            } else if (typeof value === 'boolean') {
+                type = 'boolean';
+                example = value.toString();
+            } else if (Array.isArray(value)) {
+                type = 'array';
+                example = JSON.stringify(value);
+            } else if (typeof value === 'object' && value !== null) {
+                type = 'object';
+                example = JSON.stringify(value);
+            }
+            
+            params.push({
+                name: key,
+                type: type,
+                required: true,
+                example: example
+            });
+        });
+    } catch (e) {
+        // If not JSON, try to extract from other formats
+        console.log('Sample input is not JSON, trying other extraction methods');
+    }
+    
+    return params;
+}
+
+function extractParametersFromCurlExample(curlExample) {
+    const params = [];
+    
+    try {
+        // Look for JSON data in curl example
+        const jsonMatch = curlExample.match(/-d\s+['"`](.*?)['"`]/s);
+        if (jsonMatch) {
+            const jsonStr = jsonMatch[1].replace(/\\"/g, '"');
+            const jsonData = JSON.parse(jsonStr);
+            
+            Object.keys(jsonData).forEach(key => {
+                const value = jsonData[key];
+                let type = 'string';
+                let example = `"${value}"`;
+                
+                if (typeof value === 'number') {
+                    type = 'number';
+                    example = value.toString();
+                } else if (typeof value === 'boolean') {
+                    type = 'boolean';
+                    example = value.toString();
+                } else if (Array.isArray(value)) {
+                    type = 'array';
+                    example = JSON.stringify(value);
+                } else if (typeof value === 'object' && value !== null) {
+                    type = 'object';
+                    example = JSON.stringify(value);
+                }
+                
+                params.push({
+                    name: key,
+                    type: type,
+                    required: true,
+                    example: example
+                });
+            });
         }
+    } catch (e) {
+        console.log('Could not extract parameters from curl example');
     }
     
     return params;
