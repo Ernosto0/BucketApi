@@ -413,7 +413,7 @@ class TestService:
             api_details = {}
             try:
                 api_details = await file_service.get_api_details(user_id, api_slug)
-                logger.info(f"Loaded API details for {api_slug}")
+                logger.info(f"Loaded API details for {api_slug}: {list(api_details.keys())}")
             except Exception as e:
                 logger.warning(f"Could not load API details for {api_slug}: {str(e)}, trying to load code directly")
                 # Try to load the code directly from file
@@ -452,6 +452,19 @@ class TestService:
             processing_type = context['processing_type']
             api_purpose = context['api_purpose']
             
+            logger.info(f"API Context for {api_slug}: purpose='{api_purpose}', fields='{expected_fields}', processing='{processing_type}'")
+            logger.info(f"API details keys: {list(api_details.keys())}")
+            
+            # Debug specific API
+            if "api-175828" in api_slug:  # Match both API IDs
+                logger.info(f"DEBUGGING {api_slug} - Raw API details: {api_details}")
+                if 'code' in api_details:
+                    logger.info(f"DEBUGGING {api_slug} - Code contains 'text': {'text' in api_details['code']}")
+                    logger.info(f"DEBUGGING {api_slug} - Code contains 'sentiment': {'sentiment' in api_details['code'].lower()}")
+                    logger.info(f"DEBUGGING {api_slug} - First 300 chars of code: {api_details['code'][:300]}")
+                else:
+                    logger.info(f"DEBUGGING {api_slug} - No code in API details")
+            
             # Load the test data generator prompt
             prompt_config = load_test_data_generator_prompt()
             system_prompt = prompt_config["system_prompt"]
@@ -471,6 +484,7 @@ class TestService:
             # Try OpenAI first, fallback to enhanced test data if it fails
             logger.info(f"Making OpenAI request for test data generation using model: {prompt_config.get('model', 'gpt-4o-mini')}")
             logger.info(f"Context being sent to AI - Expected fields: {expected_fields}, API purpose: {api_purpose}")
+            logger.info(f"Full user prompt being sent to AI: {user_prompt}")
             
             try:
                 response = await openai_service.make_openai_request(
@@ -482,6 +496,8 @@ class TestService:
                     api_slug=api_slug
                 )
                 
+                logger.info(f"Raw AI response: {response[:500]}...")
+                
                 # Parse the AI response
                 try:
                     test_data_array = json.loads(response)
@@ -490,15 +506,20 @@ class TestService:
                     if isinstance(test_data_array, list) and len(test_data_array) > 0:
                         # Convert direct input objects to scenario format
                         test_scenarios = []
-                        scenario_names = ["Normal input test", "Minimal input test", "Rich data test"]
+                        scenario_names = ["Normal case", "Simple case", "Complex case"]
                         
                         for i, input_data in enumerate(test_data_array[:3]):  # Limit to 3 scenarios
                             if isinstance(input_data, dict):
-                                scenario_name = scenario_names[i] if i < len(scenario_names) else f"Test scenario {i+1}"
-                                test_scenarios.append({
-                                    "scenario": scenario_name,
-                                    "data": input_data
-                                })
+                                # Validate that the input data is not empty or just spaces
+                                if input_data and any(str(v).strip() for v in input_data.values()):
+                                    scenario_name = scenario_names[i] if i < len(scenario_names) else f"Test scenario {i+1}"
+                                    test_scenarios.append({
+                                        "scenario": scenario_name,
+                                        "data": input_data
+                                    })
+                                else:
+                                    # Skip completely empty or whitespace-only data
+                                    logger.warning(f"Skipping empty test scenario {i+1}")
                         
                         if test_scenarios:
                             logger.info(f"Generated {len(test_scenarios)} test scenarios using AI")
@@ -537,7 +558,7 @@ class TestService:
             # Generate basic test scenarios
             basic_scenarios = [
                 {
-                    "scenario": "Normal input test",
+                    "scenario": "Normal case",
                     "data": {
                         "message": "Test message",
                         "data": "sample test data",
@@ -546,16 +567,16 @@ class TestService:
                     }
                 },
                 {
-                    "scenario": "Minimal input test",
+                    "scenario": "Simple case",
                     "data": {
-                        "test": "minimal data"
+                        "test": "simple test data"
                     }
                 },
                 {
-                    "scenario": "Rich data test",
+                    "scenario": "Complex case",
                     "data": {
-                        "user": "John Doe",
-                        "email": "john.doe@example.com",
+                        "user": "Test User",
+                        "email": "test@example.com",
                         "data": ["item1", "item2", "item3"],
                         "count": 42,
                         "active": True,
@@ -807,7 +828,6 @@ class TestService:
                         api_purpose = code_context.get('purpose', api_purpose)
                         processing_type = code_context.get('processing_type', processing_type)
                         api_description = code_context.get('description', api_description)
-            
             # Enhance with documentation analysis
             if doc_analysis['parameters']:
                 # Merge parameters from documentation
@@ -898,7 +918,10 @@ class TestService:
                 r'input_data\.get\([\'\"]([\w_]+)[\'\"],',  # Match with comma after parameter
                 r'request\.(\w+)',
                 r'(\w+)\s*=\s*input_data\[[\'"]\w+[\'"]\]',
-                r'(\w+)\s*=\s*input_data\.get\([\'\"]\w+[\'\"]'
+                r'(\w+)\s*=\s*input_data\.get\([\'\"]\w+[\'\"]',
+                r'[\'\"]([\w_]+)[\'\"]\s*not\s+in\s+input_data',  # Check for 'text' not in input_data
+                r'[\'\"]([\w_]+)[\'\"]\s*in\s+input_data',  # Check for 'text' in input_data
+                r'if\s+not\s+input_data\s+or\s+[\'\"]([\w_]+)[\'\"]\s+not\s+in\s+input_data'  # Validation patterns
             ]
             
             for pattern in data_access_patterns:
@@ -926,6 +949,10 @@ class TestService:
             
             # Debug logging to see what parameters we extracted
             logger.info(f"Extracted parameters from code analysis: {list(parameters)}")
+            if code:
+                logger.info(f"Code analysis for API - Code length: {len(code)} chars, first 200 chars: {code[:200]}")
+            else:
+                logger.info("No code available for analysis")
             
             # Infer purpose from function names, variable names, and operations
             code_lower = code.lower()
@@ -1042,19 +1069,19 @@ class TestService:
             else:
                 # Generate realistic data for all parameters
                 test_scenarios.append({
-                    "scenario": "Normal input test", 
+                    "scenario": "Normal case", 
                     "data": self._generate_data_for_all_params(param_names, "normal")
                 })
             
-            # Scenario 2: Edge case - minimal input
+            # Scenario 2: Simple but valid input
             test_scenarios.append({
-                "scenario": "Minimal input test",
-                "data": self._generate_data_for_all_params(param_names, "minimal")
+                "scenario": "Simple case",
+                "data": self._generate_data_for_all_params(param_names, "simple")
             })
             
             # Scenario 3: Rich input with multiple data types
             test_scenarios.append({
-                "scenario": "Rich data test",
+                "scenario": "Complex case",
                 "data": self._generate_data_for_all_params(param_names, "rich")
             })
             
@@ -1123,12 +1150,28 @@ class TestService:
                 # Generate contextually appropriate data based on parameter name
                 if data_type == "minimal":
                     data[param_name] = ""
+                elif data_type == "simple":
+                    # Simple but valid data - short but meaningful
+                    if param_name == "text":
+                        data[param_name] = "I like this product"
+                    elif param_name == "message":
+                        data[param_name] = "Good service"
+                    elif param_name == "content":
+                        data[param_name] = "Nice work"
+                    else:
+                        data[param_name] = f"Test {param_name}"
                         
                 elif data_type == "rich":
                     if param_name.endswith('s') and param_name != 'options':  # likely plural/array
                         data[param_name] = [f"Sample {param_name[:-1]} one", f"Sample {param_name[:-1]} two", f"Sample {param_name[:-1]} three"]
                     elif 'option' in param_name.lower() or 'config' in param_name.lower():
                         data[param_name] = {"advanced": True, "detailed": True}
+                    elif param_name == "text":
+                        data[param_name] = "I am absolutely thrilled with this innovative product! The quality is outstanding and the customer service team went above and beyond to ensure my satisfaction. However, I did notice some minor issues with the packaging, but overall this exceeded my expectations. The price point is reasonable and I would definitely recommend this to my colleagues and friends."
+                    elif param_name == "message":
+                        data[param_name] = "The comprehensive analysis reveals both positive and negative aspects. While the performance is excellent, there are areas for improvement in the user interface design."
+                    elif param_name == "content":
+                        data[param_name] = "This detailed review covers multiple aspects including functionality, design, performance, and overall user experience with mixed sentiments throughout."
                     else:
                         data[param_name] = f"Comprehensive test data for {param_name} with multiple elements and varied content"
                         
@@ -1137,6 +1180,12 @@ class TestService:
                         data[param_name] = [f"Sample {param_name[:-1]} one", f"Sample {param_name[:-1]} two"]
                     elif 'option' in param_name.lower() or 'config' in param_name.lower():
                         data[param_name] = {}
+                    elif param_name == "text":
+                        data[param_name] = "This is a wonderful day and I'm feeling great about the project progress"
+                    elif param_name == "message":
+                        data[param_name] = "The customer service team provided excellent support"
+                    elif param_name == "content":
+                        data[param_name] = "The product quality exceeded my expectations"
                     else:
                         data[param_name] = f"Sample {param_name} content"
             

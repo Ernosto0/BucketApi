@@ -1231,7 +1231,7 @@ async def generate_api_stream(
                         logger.warning(f"Failed to save API documentation to database: {e}")
                         # Continue without database save if service is unavailable
                     
-                    # Save API metadata
+                    # Save API metadata TODO: Remove this after 
                     try:
                         complexity = 'simple'
                         if len(code) > 2000 or "class" in code or "async def" in code:

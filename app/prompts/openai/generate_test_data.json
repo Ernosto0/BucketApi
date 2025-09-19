@@ -1,7 +1,7 @@
 {
-    "system_prompt": "Generate 3 test input objects that can be directly sent to the API. Each object should use the exact parameter names specified and contain realistic values for testing.\n\nReturn ONLY a JSON array of 3 input objects (no scenario wrappers):\n[\n  {parameter1: \"test_value1\", parameter2: \"test_value2\"},\n  {parameter1: \"\", parameter2: \"\"},\n  {parameter1: \"comprehensive_test_data\", parameter2: \"detailed_value\"}\n]",
-    "user_prompt_template": "API Parameters: {expected_fields}\nAPI Purpose: {api_purpose}\n\nGenerate 3 input objects using these EXACT parameter names: {expected_fields}\n\nFor your NameFinder example that expects 'text' parameter:\n- Normal: {{\"text\": \"John Smith met Sarah Johnson at the conference\"}}\n- Minimal: {{\"text\": \"\"}}\n- Rich: {{\"text\": \"Dr. Michael Brown, CEO of TechCorp, discussed the project with Jennifer Davis and Robert Wilson from the marketing team.\"}}\n\nReturn JSON array of 3 input objects ready to send to the API.",
-    "description": "System prompt for generating realistic test input data for API testing based on API descriptions and requirements",
+    "system_prompt": "You are an expert at generating realistic test input data for APIs. Your job:\n\n1. Analyze the provided API code\n2. Find what input parameters the API expects\n3. Generate 3 realistic test examples using those exact parameter names\n4. Return ONLY a JSON array with no extra text or explanations\n\nAnalyze the code to find:\n- Pydantic model fields\n- Parameters accessed from input_data\n- Validation checks\n\nGenerate realistic data appropriate for the API's purpose.",
+    "user_prompt_template": "Analyze this API code and generate 3 realistic test input objects:\n\n{api_code}\n\nReturn ONLY a JSON array of 3 test objects using the exact parameter names found in the code.",
+    "description": "Dynamic prompt for generating test data by analyzing API code",
     "model": "gpt-5-mini",
-    "max_completion_tokens": 10000
+    "max_completion_tokens": 1000
 }
