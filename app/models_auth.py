@@ -32,6 +32,10 @@ class User(BaseModel):
     is_active: bool = True
     created_at: datetime
     last_login: Optional[datetime] = None
+    # Subscription fields
+    subscription_tier: str = "free"
+    subscription_status: str = "active"
+    monthly_token_allocation: int = 10000
 
 class UserProfile(BaseModel):
     """User profile with statistics"""

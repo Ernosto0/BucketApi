@@ -27,7 +27,10 @@ from .models import (
     UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest,
     APIExecutionStatsResponse, APIExecutionLimitsResponse, CreateAPIExecutionUsageRequest,
     EstimateAPIUsageCostRequest, EstimateAPIUsageCostResponse, InternalTokenBalance,
-    CreateInternalTokenRequest,
+    CreateInternalTokenRequest, SeparatedTokenBalance,
+    # Subscription models
+    Subscription, SubscriptionTier, CreateSubscriptionRequest, CreateSubscriptionResponse,
+    SubscriptionStatusResponse, UpdateSubscriptionRequest, SubscriptionTiersResponse,
     # Logging models
     LogsRequest, LogsResponse, HTTPLogsRequest, HTTPLogsResponse,
     LLMLogsRequest, LLMLogsResponse, ChatLogsRequest, ChatLogsResponse,
@@ -45,6 +48,7 @@ from .services.api_key_service import api_key_service
 from .services.usage_service import usage_service
 from .services.api_execution_usage_service import api_execution_usage_service
 from .services.api_pricing_service import api_pricing_service
+from .services.subscription_service import subscription_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database, UserDB, UserSessionDB, SavedAPIDB, APIKeyDB, AsyncSessionLocal
 from .routes.auth_routes import router as auth_router, get_current_user, require_auth, require_active_user
@@ -254,6 +258,11 @@ async def profile_page(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=302)
     return templates.TemplateResponse("profile.html", {"request": request, "user": user})
+
+@app.get("/subscription", response_class=HTMLResponse)
+async def subscription_page(request: Request):
+    """Subscription management page."""
+    return templates.TemplateResponse("subscription.html", {"request": request})
     
 
 @app.get("/logs", response_class=HTMLResponse)
@@ -2706,6 +2715,23 @@ async def get_internal_token_balance(
         logger.error(f"Failed to get token balance: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get token balance: {str(e)}")
 
+@app.get("/separated-token-balance", response_model=SeparatedTokenBalance)
+async def get_separated_token_balance(
+    request: Request,
+    api_key_id: Optional[str] = None,
+    current_user: User = Depends(require_auth_hybrid)
+):
+    """Get separated token balance (generation vs execution) for the user."""
+    try:
+        balance = await api_pricing_service.get_separated_token_balance(
+            user_id=current_user.id,
+            api_key_id=api_key_id
+        )
+        return balance
+    except Exception as e:
+        logger.error(f"Failed to get separated token balance: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get separated token balance: {str(e)}")
+
 @app.post("/allocate-monthly-tokens")
 async def allocate_monthly_tokens(
     monthly_request: CreateInternalTokenRequest,
@@ -3187,6 +3213,135 @@ async def list_all_users(
     except Exception as e:
         logger.error(f"Failed to list users: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to list users: {str(e)}")
+
+# ===================================
+# SUBSCRIPTION ENDPOINTS
+# ===================================
+
+@app.get("/subscription/tiers")
+async def get_subscription_tiers(
+    current_user: Optional[User] = Depends(get_current_user_or_api_key)
+):
+    """Get available subscription tiers."""
+    try:
+        user_id = current_user.id if current_user else None
+        return await subscription_service.get_available_tiers(user_id)
+    except Exception as e:
+        logger.error(f"Failed to get subscription tiers: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get subscription tiers: {str(e)}")
+
+@app.get("/subscription/status")
+async def get_subscription_status(
+    current_user: User = Depends(require_active_user)
+):
+    """Get current user's subscription status."""
+    try:
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        
+        # Get current usage
+        current_usage = None
+        if subscription:
+            token_balance = await api_pricing_service.get_token_balance(current_user.id)
+            current_usage = {
+                "tokens_used": token_balance.used_tokens,
+                "tokens_remaining": token_balance.remaining_tokens,
+                "monthly_allocation": token_balance.monthly_allocation
+            }
+        
+        # Calculate days until renewal
+        days_until_renewal = None
+        if subscription and subscription.current_period_end:
+            days_until_renewal = (subscription.current_period_end - datetime.utcnow()).days
+        
+        return SubscriptionStatusResponse(
+            success=True,
+            subscription=subscription,
+            current_usage=current_usage,
+            days_until_renewal=days_until_renewal
+        )
+    except Exception as e:
+        logger.error(f"Failed to get subscription status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get subscription status: {str(e)}")
+
+@app.post("/subscription/create")
+async def create_subscription(
+    request: CreateSubscriptionRequest,
+    current_user: User = Depends(require_active_user)
+):
+    """Create a new subscription (generates LemonSqueezy checkout URL)."""
+    try:
+        # Check if user already has an active subscription
+        existing_subscription = await subscription_service.get_user_subscription(current_user.id)
+        if existing_subscription and existing_subscription.status == "active":
+            raise HTTPException(
+                status_code=400,
+                detail="User already has an active subscription"
+            )
+        
+        # Create LemonSqueezy checkout URL
+        checkout_url = await subscription_service.create_lemonsqueezy_checkout(
+            user_id=current_user.id,
+            tier=request.tier
+        )
+        
+        return CreateSubscriptionResponse(
+            success=True,
+            message="Checkout URL created successfully",
+            checkout_url=checkout_url
+        )
+    except Exception as e:
+        logger.error(f"Failed to create subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create subscription: {str(e)}")
+
+@app.post("/subscription/webhook")
+async def handle_subscription_webhook(
+    request: Request
+):
+    """Handle LemonSqueezy webhook events."""
+    try:
+        # Get raw body and signature
+        body = await request.body()
+        signature = request.headers.get("X-LemonSqueezy-Signature", "")
+        
+        # Parse JSON payload
+        payload = json.loads(body.decode())
+        
+        # Process webhook
+        success = await subscription_service.handle_subscription_webhook(payload, signature)
+        
+        if success:
+            return {"success": True, "message": "Webhook processed successfully"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to process webhook")
+            
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    except Exception as e:
+        logger.error(f"Failed to handle webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to handle webhook: {str(e)}")
+
+@app.post("/subscription/update")
+async def update_subscription(
+    request: UpdateSubscriptionRequest,
+    current_user: User = Depends(require_active_user)
+):
+    """Update user's subscription (cancel, pause, change tier)."""
+    try:
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        if not subscription:
+            raise HTTPException(status_code=404, detail="No active subscription found")
+        
+        # For now, this is a placeholder - you'll implement the actual LemonSqueezy API calls
+        # to update/cancel subscriptions
+        
+        return {
+            "success": True,
+            "message": "Subscription update requested",
+            "note": "You'll need to implement LemonSqueezy API integration for this endpoint"
+        }
+    except Exception as e:
+        logger.error(f"Failed to update subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update subscription: {str(e)}")
 
 
 if __name__ == "__main__":

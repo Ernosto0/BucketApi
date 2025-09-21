@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription Management - AI API Generator{% endblock %}
+
+{% block extra_head %}
+<style>
+    .tier-card {
+        transition: all 0.3s ease;
+    }
+    .tier-card:hover {
+        transform: translateY(-5px);
+    }
+    .usage-progress {
+        background: linear-gradient(90deg, #10b981 0%, #f59e0b 70%, #ef4444 100%);
+        transition: width 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-slate-100 mb-2">Subscription Management</h1>
+            <p class="text-slate-400">Manage your subscription and view usage</p>
+        </div>
+
+        <!-- Internal Token Balance (same as profile page) -->
+        <div class="mb-8" id="internal-token-balance" style="display: none;">
+            <div class="glass-effect rounded-xl border border-slate-700/50 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-700/50">
+                    <h5 class="text-lg font-semibold text-slate-100 mb-0">Internal Token Balance</h5>
+                    <p class="text-sm text-slate-400 mt-1">Your available tokens for API generation and execution</p>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-dark-800/50 rounded-lg p-4 border border-green-500/10">
+                            <div class="text-2xl font-bold text-green-400 mb-1" id="remainingTokens">0</div>
+                            <div class="text-sm text-slate-400">Remaining Tokens</div>
+                        </div>
+                        <div class="bg-dark-800/50 rounded-lg p-4 border border-blue-500/10">
+                            <div class="text-2xl font-bold text-blue-400 mb-1" id="usedTokens">0</div>
+                            <div class="text-sm text-slate-400">Used This Month</div>
+                        </div>
+                        <div class="bg-dark-800/50 rounded-lg p-4 border border-yellow-500/10">
+                            <div class="text-2xl font-bold text-yellow-400 mb-1" id="expiringTokens">0</div>
+                            <div class="text-sm text-slate-400">Expiring Soon</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-medium text-white">Monthly Token Usage</span>
+                            <span class="text-sm text-slate-400" id="tokenUsageText">0 / 10,000</span>
+                        </div>
+                        <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div class="usage-progress h-full" id="tokenUsageProgress" style="width: 0%"></div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <span class="text-sm text-slate-400" id="tokenUsagePercent">0% used</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Current Usage Stats (Separated) -->
+        <div class="mb-8" id="usage-stats" style="display: none;">
+            <div class="glass-effect rounded-xl border border-slate-700/50 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-700/50">
+                    <h5 class="text-lg font-semibold text-slate-100 mb-0">Separated Token Usage</h5>
+                    <p class="text-sm text-slate-400 mt-1">Breakdown by generation vs execution tokens</p>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <h6 class="text-sm font-medium text-slate-300 mb-2">Generation Tokens</h6>
+                            <div class="h-2 bg-slate-700 rounded-full overflow-hidden mb-2">
+                                <div class="usage-progress h-full" id="generation-progress"></div>
+                            </div>
+                            <div class="text-xs text-slate-400">
+                                <span id="gen-tokens-used">0</span> / <span id="gen-tokens-total">0</span> used
+                                <br>For AI model usage
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="text-sm font-medium text-slate-300 mb-2">Execution Tokens</h6>
+                            <div class="h-2 bg-slate-700 rounded-full overflow-hidden mb-2">
+                                <div class="usage-progress h-full" id="execution-progress"></div>
+                            </div>
+                            <div class="text-xs text-slate-400">
+                                <span id="exec-tokens-used">0</span> / <span id="exec-tokens-total">0</span> used
+                                <br>For API execution
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="text-sm font-medium text-slate-300 mb-2">Subscription Status</h6>
+                            <span class="inline-block px-2 py-1 bg-green-500 text-white text-xs font-medium rounded" id="subscription-status">Active</span>
+                            <br>
+                            <div class="text-xs text-slate-400 mt-1">
+                                Renews in <span id="days-until-renewal">0</span> days
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subscription Tiers -->
+        <div class="mb-6">
+            <h3 class="text-2xl font-bold text-slate-100">Choose Your Plan</h3>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="subscription-tiers">
+            <!-- Tier cards will be dynamically loaded here -->
+        </div>
+
+        <!-- Loading State -->
+        <div class="text-center py-12" id="loading-state">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <p class="mt-2 text-slate-400">Loading subscription plans...</p>
+        </div>
+    </div>
+
+    <script>
+        let currentTier = null;
+        let currentUsage = null;
+
+        // Load subscription data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSubscriptionData();
+        });
+
+        async function loadSubscriptionData() {
+            try {
+                // Load subscription tiers
+                const tiersResponse = await fetch('/subscription/tiers');
+                const tiersData = await tiersResponse.json();
+                
+                if (tiersData.success) {
+                    currentTier = tiersData.current_tier;
+                    renderSubscriptionTiers(tiersData.tiers);
+                }
+
+                // Load current subscription status (if user is logged in)
+                try {
+                    const statusResponse = await fetch('/subscription/status');
+                    const statusData = await statusResponse.json();
+                    
+                    if (statusData.success && statusData.subscription) {
+                        currentUsage = statusData.current_usage;
+                        renderUsageStats(statusData);
+                    }
+                    
+                    // Load separated token balance
+                    const separatedResponse = await fetch('/separated-token-balance');
+                    const separatedData = await separatedResponse.json();
+                    
+                    if (separatedData) {
+                        renderSeparatedUsageStats(separatedData);
+                    }
+                    
+                    // Load internal token balance (same as profile page)
+                    const internalResponse = await fetch('/internal-token-balance');
+                    const internalData = await internalResponse.json();
+                    
+                    if (internalData) {
+                        renderInternalTokenBalance(internalData);
+                    }
+                } catch (e) {
+                    // User might not be logged in, that's okay
+                    console.log('User not logged in or no subscription');
+                }
+
+                document.getElementById('loading-state').style.display = 'none';
+            } catch (error) {
+                console.error('Error loading subscription data:', error);
+                document.getElementById('loading-state').innerHTML = 
+                    '<div class="text-center py-12"><div class="bg-red-500/20 border border-red-500/50 rounded-lg p-4 text-red-300">Error loading subscription data</div></div>';
+            }
+        }
+
+        function renderSubscriptionTiers(tiers) {
+            const container = document.getElementById('subscription-tiers');
+            container.innerHTML = '';
+
+            tiers.forEach(tier => {
+                const isCurrentTier = tier.name === currentTier;
+                const priceDisplay = tier.price_cents === 0 ? 'Free' : `$${(tier.price_cents / 100).toFixed(2)}/month`;
+                
+                const tierCard = `
+                    <div class="relative">
+                        <div class="tier-card glass-effect rounded-xl border ${isCurrentTier ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700/50'} overflow-hidden h-full flex flex-col" data-tier="${tier.name}">
+                            ${isCurrentTier ? '<div class="absolute -top-3 right-4 bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-medium">Current Plan</div>' : ''}
+                            <div class="px-6 py-4 text-center border-b border-slate-700/50">
+                                <h5 class="text-lg font-semibold text-slate-100 mb-1">${tier.display_name}</h5>
+                                <h3 class="text-2xl font-bold text-blue-400">${priceDisplay}</h3>
+                            </div>
+                            <div class="p-6 flex-grow">
+                                <ul class="feature-list space-y-2 text-sm text-slate-300">
+                                    ${tier.features.map(feature => `<li class="flex items-start"><span class="text-green-400 mr-2">✓</span>${feature}</li>`).join('')}
+                                </ul>
+                                <div class="mt-4">
+                                    <div class="text-xs text-slate-400 mb-2">Available AI Models:</div>
+                                    <div class="flex flex-wrap gap-1">
+                                        ${tier.ai_models.map(model => `<span class="inline-block px-2 py-1 bg-slate-700 text-slate-300 text-xs rounded">${model}</span>`).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-6 pt-0">
+                                ${isCurrentTier ? 
+                                    '<button class="w-full py-2 px-4 bg-slate-600 text-slate-300 rounded-lg cursor-not-allowed" disabled>Current Plan</button>' :
+                                    tier.price_cents === 0 ? 
+                                        '<button class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200" onclick="selectTier(\'free\')">Select Free</button>' :
+                                        `<button class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors duration-200" onclick="selectTier('${tier.name}')">Upgrade to ${tier.display_name}</button>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += tierCard;
+            });
+        }
+
+        function renderUsageStats(statusData) {
+            if (!statusData.current_usage) return;
+
+            const usage = statusData.current_usage;
+            const usagePercent = (usage.tokens_used / usage.monthly_allocation) * 100;
+
+            document.getElementById('tokens-used').textContent = usage.tokens_used.toLocaleString();
+            document.getElementById('tokens-total').textContent = usage.monthly_allocation.toLocaleString();
+            document.getElementById('usage-progress').style.width = `${Math.min(usagePercent, 100)}%`;
+            
+            if (statusData.days_until_renewal) {
+                document.getElementById('days-until-renewal').textContent = statusData.days_until_renewal;
+            }
+
+            document.getElementById('usage-stats').style.display = 'block';
+        }
+
+        function renderSeparatedUsageStats(separatedData) {
+            // Generation tokens
+            const genPercent = separatedData.generation_monthly_allocation > 0 ? 
+                (separatedData.generation_tokens_used / separatedData.generation_monthly_allocation) * 100 : 0;
+            
+            document.getElementById('gen-tokens-used').textContent = separatedData.generation_tokens_used.toLocaleString();
+            document.getElementById('gen-tokens-total').textContent = separatedData.generation_monthly_allocation.toLocaleString();
+            document.getElementById('generation-progress').style.width = `${Math.min(genPercent, 100)}%`;
+            
+            // Execution tokens
+            const execPercent = separatedData.execution_monthly_allocation > 0 ? 
+                (separatedData.execution_tokens_used / separatedData.execution_monthly_allocation) * 100 : 0;
+            
+            document.getElementById('exec-tokens-used').textContent = separatedData.execution_tokens_used.toLocaleString();
+            document.getElementById('exec-tokens-total').textContent = separatedData.execution_monthly_allocation.toLocaleString();
+            document.getElementById('execution-progress').style.width = `${Math.min(execPercent, 100)}%`;
+            
+            document.getElementById('usage-stats').style.display = 'block';
+        }
+
+        function renderInternalTokenBalance(balance) {
+            try {
+                // Update token balance elements using the correct IDs
+                const remainingTokensElement = document.getElementById('remainingTokens');
+                const usedTokensElement = document.getElementById('usedTokens');
+                const expiringTokensElement = document.getElementById('expiringTokens');
+                const tokenUsageTextElement = document.getElementById('tokenUsageText');
+                const tokenUsageProgressElement = document.getElementById('tokenUsageProgress');
+                const tokenUsagePercentElement = document.getElementById('tokenUsagePercent');
+                
+                if (remainingTokensElement) {
+                    remainingTokensElement.textContent = balance.remaining_tokens?.toLocaleString() || '0';
+                }
+                if (usedTokensElement) {
+                    usedTokensElement.textContent = balance.used_tokens?.toLocaleString() || '0';
+                }
+                if (expiringTokensElement) {
+                    expiringTokensElement.textContent = balance.expires_soon_tokens?.toLocaleString() || '0';
+                }
+                
+                // Update usage progress
+                if (tokenUsageTextElement && balance.total_tokens && balance.monthly_allocation) {
+                    tokenUsageTextElement.textContent = `${balance.used_tokens?.toLocaleString() || '0'} / ${balance.monthly_allocation?.toLocaleString() || '10,000'}`;
+                }
+                
+                if (tokenUsageProgressElement && balance.monthly_allocation > 0) {
+                    const usagePercent = ((balance.used_tokens || 0) / balance.monthly_allocation) * 100;
+                    tokenUsageProgressElement.style.width = `${Math.min(100, usagePercent)}%`;
+                    
+                    if (tokenUsagePercentElement) {
+                        tokenUsagePercentElement.textContent = `${usagePercent.toFixed(1)}% used`;
+                    }
+                }
+                
+                // Show the internal token balance section
+                document.getElementById('internal-token-balance').style.display = 'block';
+                
+                console.log('Updated internal token balance UI');
+            } catch (error) {
+                console.error('Error updating internal token balance UI:', error);
+            }
+        }
+
+        async function selectTier(tierName) {
+            try {
+                const response = await fetch('/subscription/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tier: tierName
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.checkout_url) {
+                    // Redirect to LemonSqueezy checkout
+                    window.location.href = data.checkout_url;
+                } else {
+                    alert('Error creating subscription: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error creating subscription:', error);
+                alert('Error creating subscription. Please try again.');
+            }
+        }
+    </script>
+{% endblock %}

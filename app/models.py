@@ -638,6 +638,30 @@ class InternalTokenBalance(BaseModel):
     expires_soon_tokens: int  # Tokens expiring in next 7 days
     last_updated: datetime
 
+class SeparatedTokenBalance(BaseModel):
+    """Separated token balance for generation vs execution"""
+    user_id: str
+    api_key_id: Optional[str] = None
+    
+    # Generation tokens (for AI model usage)
+    generation_tokens_total: int
+    generation_tokens_used: int
+    generation_tokens_remaining: int
+    generation_monthly_allocation: int
+    
+    # Execution tokens (for running APIs)
+    execution_tokens_total: int
+    execution_tokens_used: int
+    execution_tokens_remaining: int
+    execution_monthly_allocation: int
+    
+    # Combined totals
+    total_tokens: int
+    total_used: int
+    total_remaining: int
+    
+    last_updated: datetime
+
 class APIExecutionCost(BaseModel):
     api_slug: str
     user_id: str
@@ -769,4 +793,70 @@ class PipelineInfoResponse(BaseModel):
     default_pipeline: str
     step_types: List[str]
     generation_modes: List[str]
+
+# Subscription Models
+class SubscriptionTier(BaseModel):
+    name: str  # free, starter, professional, enterprise
+    display_name: str
+    monthly_tokens: int  # Legacy field for backwards compatibility
+    price_cents: int  # Price in cents per month (0 for free)
+    features: List[str]
+    ai_models: List[str]  # Available AI models for this tier
+    
+    # Separated token allocations
+    monthly_generation_tokens: int  # Tokens for API generation (AI model usage)
+    monthly_execution_tokens: int   # Tokens for API execution (running generated APIs)
+    generation_token_ratio: float = 0.3  # 30% for generation, 70% for execution by default
+
+class Subscription(BaseModel):
+    id: str
+    user_id: str
+    lemonsqueezy_subscription_id: str
+    lemonsqueezy_customer_id: str
+    lemonsqueezy_product_id: str
+    lemonsqueezy_variant_id: str
+    tier: str
+    status: str
+    current_period_start: Optional[datetime] = None
+    current_period_end: Optional[datetime] = None
+    trial_start: Optional[datetime] = None
+    trial_end: Optional[datetime] = None
+    monthly_token_allocation: int
+    created_at: datetime
+    updated_at: datetime
+
+class CreateSubscriptionRequest(BaseModel):
+    tier: str = Field(..., description="Subscription tier: starter, professional, enterprise")
+    lemonsqueezy_checkout_url: Optional[str] = Field(None, description="LemonSqueezy checkout URL")
+
+class CreateSubscriptionResponse(BaseModel):
+    success: bool
+    message: str
+    checkout_url: Optional[str] = None
+    subscription: Optional[Subscription] = None
+
+class SubscriptionStatusResponse(BaseModel):
+    success: bool
+    subscription: Optional[Subscription] = None
+    current_usage: Optional[Dict[str, Any]] = None
+    days_until_renewal: Optional[int] = None
+
+class UpdateSubscriptionRequest(BaseModel):
+    tier: Optional[str] = None
+    action: Optional[str] = None  # cancel, pause, resume
+
+class SubscriptionEvent(BaseModel):
+    id: str
+    subscription_id: str
+    user_id: str
+    event_type: str
+    lemonsqueezy_event_id: str
+    event_data: Optional[str] = None
+    processed: bool = False
+    created_at: datetime
+
+class SubscriptionTiersResponse(BaseModel):
+    success: bool
+    tiers: List[SubscriptionTier]
+    current_tier: Optional[str] = None
    

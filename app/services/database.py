@@ -47,6 +47,15 @@ class UserDB(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login = Column(DateTime, nullable=True)
+    
+    # Subscription fields
+    subscription_tier = Column(String, default="free", nullable=False)  # free, starter, professional, enterprise
+    subscription_status = Column(String, default="active", nullable=False)  # active, cancelled, past_due, unpaid
+    lemonsqueezy_customer_id = Column(String, nullable=True)  # LemonSqueezy customer ID
+    lemonsqueezy_subscription_id = Column(String, nullable=True)  # LemonSqueezy subscription ID
+    subscription_started_at = Column(DateTime, nullable=True)
+    subscription_expires_at = Column(DateTime, nullable=True)
+    monthly_token_allocation = Column(Integer, default=10000, nullable=False)  # Based on subscription tier
 
 class UserSessionDB(Base):
     __tablename__ = "user_sessions"
@@ -434,6 +443,45 @@ async def init_database():
     """Initialize the database with tables."""
     # Create tables if they don't exist
     create_tables()
+
+# Subscription management tables
+class SubscriptionDB(Base):
+    __tablename__ = "subscriptions"
+    
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, index=True, nullable=False)
+    lemonsqueezy_subscription_id = Column(String, unique=True, nullable=False)
+    lemonsqueezy_customer_id = Column(String, nullable=False)
+    lemonsqueezy_product_id = Column(String, nullable=False)
+    lemonsqueezy_variant_id = Column(String, nullable=False)
+    
+    tier = Column(String, nullable=False)  # free, starter, professional, enterprise
+    status = Column(String, nullable=False)  # active, cancelled, past_due, unpaid, paused
+    
+    current_period_start = Column(DateTime, nullable=True)
+    current_period_end = Column(DateTime, nullable=True)
+    trial_start = Column(DateTime, nullable=True)
+    trial_end = Column(DateTime, nullable=True)
+    
+    monthly_token_allocation = Column(Integer, nullable=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class SubscriptionEventDB(Base):
+    __tablename__ = "subscription_events"
+    
+    id = Column(String, primary_key=True, index=True)
+    subscription_id = Column(String, index=True, nullable=False)
+    user_id = Column(String, index=True, nullable=False)
+    
+    event_type = Column(String, nullable=False)  # subscription_created, subscription_updated, payment_success, etc.
+    lemonsqueezy_event_id = Column(String, unique=True, nullable=False)
+    
+    event_data = Column(Text, nullable=True)  # JSON data from LemonSqueezy
+    processed = Column(Boolean, default=False, nullable=False)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 # Database service class
 class DatabaseService:

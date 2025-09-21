@@ -194,7 +194,10 @@ class AuthService:
                 email=db_user.email,
                 is_active=db_user.is_active,
                 created_at=db_user.created_at,
-                last_login=db_user.last_login
+                last_login=db_user.last_login,
+                subscription_tier=db_user.subscription_tier,
+                subscription_status=db_user.subscription_status,
+                monthly_token_allocation=db_user.monthly_token_allocation
             )
     
     async def authenticate_user(self, email: str, password: str) -> Optional[User]:
@@ -230,7 +233,10 @@ class AuthService:
                 email=db_user.email,
                 is_active=db_user.is_active,
                 created_at=db_user.created_at,
-                last_login=db_user.last_login
+                last_login=db_user.last_login,
+                subscription_tier=db_user.subscription_tier,
+                subscription_status=db_user.subscription_status,
+                monthly_token_allocation=db_user.monthly_token_allocation
             )
     
     async def get_user_by_id(self, user_id: str) -> Optional[User]:
@@ -249,7 +255,10 @@ class AuthService:
                 email=db_user.email,
                 is_active=db_user.is_active,
                 created_at=db_user.created_at,
-                last_login=db_user.last_login
+                last_login=db_user.last_login,
+                subscription_tier=db_user.subscription_tier,
+                subscription_status=db_user.subscription_status,
+                monthly_token_allocation=db_user.monthly_token_allocation
             )
     
     async def get_user_by_email(self, email: str) -> Optional[User]:
@@ -268,7 +277,10 @@ class AuthService:
                 email=db_user.email,
                 is_active=db_user.is_active,
                 created_at=db_user.created_at,
-                last_login=db_user.last_login
+                last_login=db_user.last_login,
+                subscription_tier=db_user.subscription_tier,
+                subscription_status=db_user.subscription_status,
+                monthly_token_allocation=db_user.monthly_token_allocation
             )
     
     # Session Management

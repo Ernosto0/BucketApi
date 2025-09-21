@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..models import (
     APIMetadata, InternalToken, InternalTokenBalance, APIExecutionCost,
     APIExecutionTokenUsage, EstimateAPIUsageCostRequest, EstimateAPIUsageCostResponse,
-    CreateInternalTokenRequest, InternalTokenUsageStatsResponse
+    CreateInternalTokenRequest, InternalTokenUsageStatsResponse, SeparatedTokenBalance
 )
 from .database import APIMetadataDB, InternalTokenDB, APIExecutionTokenUsageDB, AsyncSessionLocal
 from fastapi import HTTPException
@@ -22,6 +22,14 @@ class APIPricingService:
         
         # Monthly token allocations by plan (free tier)
         self.DEFAULT_MONTHLY_TOKEN_ALLOCATION = 10000  # 10k internal tokens = $10 worth
+        
+        # AI model access by subscription tier
+        self.TIER_AI_MODELS = {
+            'free': ['gpt-3.5-turbo', 'gpt-4o-mini', 'claude-3-haiku'],
+            'starter': ['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4', 'claude-3-haiku', 'claude-3-sonnet'],
+            'professional': ['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'],
+            'enterprise': ['gpt-3.5-turbo', 'gpt-4o-mini', 'gpt-4', 'gpt-4-turbo', 'claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus', 'claude-4']
+        }
         
         # Base pricing multipliers by complexity
         self.COMPLEXITY_MULTIPLIERS = {
@@ -49,6 +57,49 @@ class APIPricingService:
         }
         
         logger.info("APIPricingService initialized")
+    
+    async def check_ai_model_access(self, user_id: str, ai_model: str) -> bool:
+        """Check if user can access a specific AI model based on their subscription tier."""
+        try:
+            from .database import UserDB
+            async with AsyncSessionLocal() as session:
+                user_result = await session.execute(
+                    select(UserDB).where(UserDB.id == user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                
+                if not user:
+                    return False
+                
+                tier = user.subscription_tier or 'free'
+                allowed_models = self.TIER_AI_MODELS.get(tier, self.TIER_AI_MODELS['free'])
+                
+                return ai_model in allowed_models
+                
+        except Exception as e:
+            logger.error(f"Failed to check AI model access: {str(e)}")
+            # Default to allowing access if we can't check
+            return True
+    
+    async def get_available_ai_models(self, user_id: str) -> List[str]:
+        """Get list of AI models available to a user based on their subscription tier."""
+        try:
+            from .database import UserDB
+            async with AsyncSessionLocal() as session:
+                user_result = await session.execute(
+                    select(UserDB).where(UserDB.id == user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                
+                if not user:
+                    return self.TIER_AI_MODELS['free']
+                
+                tier = user.subscription_tier or 'free'
+                return self.TIER_AI_MODELS.get(tier, self.TIER_AI_MODELS['free'])
+                
+        except Exception as e:
+            logger.error(f"Failed to get available AI models: {str(e)}")
+            return self.TIER_AI_MODELS['free']
     
     async def save_api_metadata(
         self,
@@ -178,6 +229,64 @@ class APIPricingService:
             logger.error(f"Failed to get API execution cost: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to get API execution cost: {str(e)}")
     
+    async def allocate_separated_monthly_tokens(
+        self,
+        user_id: str,
+        api_key_id: Optional[str] = None,
+        generation_tokens: Optional[int] = None,
+        execution_tokens: Optional[int] = None,
+        source: str = "monthly_allocation"
+    ) -> List[InternalToken]:
+        """Allocate separated monthly tokens (generation + execution) to a user based on their subscription tier."""
+        
+        if generation_tokens is None or execution_tokens is None:
+            # Get user's subscription tier to determine allocation
+            from .subscription_service import subscription_service
+            from .database import UserDB
+            
+            async with AsyncSessionLocal() as session:
+                user_result = await session.execute(
+                    select(UserDB).where(UserDB.id == user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                
+                if user and user.subscription_tier:
+                    tier_info = subscription_service.SUBSCRIPTION_TIERS.get(user.subscription_tier)
+                    if tier_info:
+                        generation_tokens = tier_info.monthly_generation_tokens
+                        execution_tokens = tier_info.monthly_execution_tokens
+                    else:
+                        generation_tokens = 3000  # Free tier default
+                        execution_tokens = 7000
+                else:
+                    generation_tokens = 3000  # Free tier default
+                    execution_tokens = 7000
+        
+        allocated_tokens = []
+        
+        # Allocate generation tokens
+        generation_token = await self._create_token_allocation(
+            user_id=user_id,
+            api_key_id=api_key_id,
+            token_type="api_generation",
+            amount=generation_tokens,
+            source=source
+        )
+        allocated_tokens.append(generation_token)
+        
+        # Allocate execution tokens
+        execution_token = await self._create_token_allocation(
+            user_id=user_id,
+            api_key_id=api_key_id,
+            token_type="api_execution", 
+            amount=execution_tokens,
+            source=source
+        )
+        allocated_tokens.append(execution_token)
+        
+        logger.info(f"Allocated {generation_tokens} generation + {execution_tokens} execution tokens to user {user_id}")
+        return allocated_tokens
+
     async def allocate_monthly_tokens(
         self,
         user_id: str,
@@ -185,10 +294,21 @@ class APIPricingService:
         amount: Optional[int] = None,
         source: str = "monthly_allocation"
     ) -> InternalToken:
-        """Allocate monthly tokens to a user."""
+        """Legacy method - allocate monthly tokens to a user based on their subscription tier."""
         
         if amount is None:
-            amount = self.DEFAULT_MONTHLY_TOKEN_ALLOCATION
+            # Get user's subscription tier to determine allocation
+            from .database import UserDB
+            async with AsyncSessionLocal() as session:
+                user_result = await session.execute(
+                    select(UserDB).where(UserDB.id == user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                
+                if user and user.monthly_token_allocation:
+                    amount = user.monthly_token_allocation
+                else:
+                    amount = self.DEFAULT_MONTHLY_TOKEN_ALLOCATION
         
         try:
             token_id = str(uuid.uuid4())
@@ -484,6 +604,171 @@ class APIPricingService:
         except Exception as e:
             logger.error(f"Failed to estimate API usage cost: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to estimate API usage cost: {str(e)}")
+    
+    async def _create_token_allocation(
+        self,
+        user_id: str,
+        api_key_id: Optional[str],
+        token_type: str,
+        amount: int,
+        source: str
+    ) -> InternalToken:
+        """Helper method to create a token allocation."""
+        try:
+            token_id = str(uuid.uuid4())
+            
+            async with AsyncSessionLocal() as session:
+                # Set expiration to end of next month
+                now = datetime.utcnow()
+                next_month = now.replace(day=1) + timedelta(days=32)
+                expires_at = next_month.replace(day=1) - timedelta(days=1)
+                
+                db_token = InternalTokenDB(
+                    id=token_id,
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    token_type=token_type,
+                    amount=amount,
+                    source=source,
+                    expires_at=expires_at,
+                    created_at=datetime.utcnow(),
+                    is_used=False
+                )
+                
+                session.add(db_token)
+                await session.commit()
+                await session.refresh(db_token)
+                
+                return InternalToken(
+                    id=db_token.id,
+                    user_id=db_token.user_id,
+                    api_key_id=db_token.api_key_id,
+                    token_type=db_token.token_type,
+                    amount=db_token.amount,
+                    source=db_token.source,
+                    expires_at=db_token.expires_at,
+                    created_at=db_token.created_at,
+                    used_at=db_token.used_at,
+                    is_used=db_token.is_used
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to create token allocation: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to create token allocation: {str(e)}")
+    
+    async def get_separated_token_balance(
+        self,
+        user_id: str,
+        api_key_id: Optional[str] = None
+    ) -> SeparatedTokenBalance:
+        """Get separated token balance (generation vs execution) for a user."""
+        try:
+            async with AsyncSessionLocal() as session:
+                now = datetime.utcnow()
+                
+                # Get generation tokens
+                gen_query = select(InternalTokenDB).where(
+                    and_(
+                        InternalTokenDB.user_id == user_id,
+                        InternalTokenDB.token_type == "api_generation",
+                        InternalTokenDB.is_used == False,
+                        or_(
+                            InternalTokenDB.expires_at.is_(None),
+                            InternalTokenDB.expires_at > now
+                        )
+                    )
+                )
+                
+                if api_key_id:
+                    gen_query = gen_query.where(InternalTokenDB.api_key_id == api_key_id)
+                
+                gen_result = await session.execute(gen_query)
+                gen_tokens = gen_result.scalars().all()
+                
+                # Get execution tokens
+                exec_query = select(InternalTokenDB).where(
+                    and_(
+                        InternalTokenDB.user_id == user_id,
+                        InternalTokenDB.token_type == "api_execution",
+                        InternalTokenDB.is_used == False,
+                        or_(
+                            InternalTokenDB.expires_at.is_(None),
+                            InternalTokenDB.expires_at > now
+                        )
+                    )
+                )
+                
+                if api_key_id:
+                    exec_query = exec_query.where(InternalTokenDB.api_key_id == api_key_id)
+                
+                exec_result = await session.execute(exec_query)
+                exec_tokens = exec_result.scalars().all()
+                
+                # Calculate totals
+                generation_total = sum(token.amount for token in gen_tokens)
+                execution_total = sum(token.amount for token in exec_tokens)
+                
+                # Get used tokens this month
+                month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                
+                # Generation tokens used
+                gen_used_query = select(
+                    func.sum(APIExecutionTokenUsageDB.internal_tokens_used)
+                ).where(
+                    and_(
+                        APIExecutionTokenUsageDB.user_id == user_id,
+                        APIExecutionTokenUsageDB.created_at >= month_start,
+                        # Assuming we add a field to track token type in usage
+                    )
+                )
+                
+                # For now, we'll use the existing usage tracking
+                # TODO: Add token_type field to APIExecutionTokenUsageDB
+                gen_used_result = await session.execute(gen_used_query)
+                total_used = gen_used_result.scalar() or 0
+                
+                # For now, split usage 30/70 between generation and execution
+                gen_used = int(total_used * 0.3)
+                exec_used = int(total_used * 0.7)
+                
+                # Get monthly allocations from subscription tier
+                from .subscription_service import subscription_service
+                from .database import UserDB
+                
+                user_result = await session.execute(
+                    select(UserDB).where(UserDB.id == user_id)
+                )
+                user = user_result.scalar_one_or_none()
+                
+                gen_allocation = 3000  # Default free tier
+                exec_allocation = 7000
+                
+                if user and user.subscription_tier:
+                    tier_info = subscription_service.SUBSCRIPTION_TIERS.get(user.subscription_tier)
+                    if tier_info:
+                        gen_allocation = tier_info.monthly_generation_tokens
+                        exec_allocation = tier_info.monthly_execution_tokens
+                
+                return SeparatedTokenBalance(
+                    user_id=user_id,
+                    api_key_id=api_key_id,
+                    generation_tokens_total=generation_total,
+                    generation_tokens_used=gen_used,
+                    generation_tokens_remaining=generation_total,
+                    generation_monthly_allocation=gen_allocation,
+                    execution_tokens_total=execution_total,
+                    execution_tokens_used=exec_used,
+                    execution_tokens_remaining=execution_total,
+                    execution_monthly_allocation=exec_allocation,
+                    total_tokens=generation_total + execution_total,
+                    total_used=gen_used + exec_used,
+                    total_remaining=generation_total + execution_total,
+                    last_updated=now
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to get separated token balance: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to get separated token balance: {str(e)}")
 
 # Global instance
 api_pricing_service = APIPricingService() 

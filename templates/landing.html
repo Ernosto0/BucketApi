@@ -305,7 +305,22 @@
                 </p>
             </div>
 
-            <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            <!-- Pricing Tiers Container -->
+            <div id="pricing-tiers-container" class="grid md:grid-cols-4 gap-6 max-w-7xl mx-auto">
+                <!-- Pricing tiers will be dynamically loaded here -->
+            </div>
+
+            <!-- Loading State for Pricing -->
+            <div id="pricing-loading" class="text-center">
+                <div class="inline-flex items-center space-x-3 text-slate-400">
+                    <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>Loading pricing plans...</span>
+                </div>
+            </div>
+
+            <div class="hidden grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
                 <!-- Free Plan -->
                 <div class="pricing-card rounded-2xl p-6">
                     <div class="text-center">
@@ -966,6 +981,9 @@ pre code {
         // The template will handle showing different buttons based on user authentication
         console.log('Landing page loaded');
         
+        // Load subscription tiers
+        loadSubscriptionTiers();
+        
         // For API key auth users, check localStorage and redirect if needed
         const authToken = localStorage.getItem('authToken');
         const currentUser = localStorage.getItem('currentUser');
@@ -991,5 +1009,150 @@ pre code {
         }
         {% endif %}
     });
+
+    async function loadSubscriptionTiers() {
+        try {
+            const response = await fetch('/subscription/tiers');
+            const data = await response.json();
+            
+            if (data.success && data.tiers) {
+                renderPricingTiers(data.tiers);
+            } else {
+                showPricingError();
+            }
+        } catch (error) {
+            console.error('Error loading subscription tiers:', error);
+            showPricingError();
+        } finally {
+            document.getElementById('pricing-loading').style.display = 'none';
+        }
+    }
+
+    function renderPricingTiers(tiers) {
+        const container = document.getElementById('pricing-tiers-container');
+        container.innerHTML = '';
+
+        // Sort tiers by price for consistent display
+        const sortedTiers = tiers.sort((a, b) => a.price_cents - b.price_cents);
+
+        sortedTiers.forEach((tier, index) => {
+            const isPopular = tier.name === 'professional'; // Mark Professional as popular
+            const priceDisplay = tier.price_cents === 0 ? 'Free' : `$${(tier.price_cents / 100).toFixed(0)}`;
+            const priceSubtext = tier.price_cents === 0 ? 'Forever free' : 'per month';
+            
+            // Get color scheme based on tier
+            const colorScheme = getTierColorScheme(tier.name);
+            
+            const tierCard = `
+                <div class="pricing-card rounded-2xl p-6 relative ${isPopular ? 'border-2 border-purple-500' : ''}">
+                    ${isPopular ? `
+                        <div class="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                            <div class="bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                                Most Popular
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="text-center">
+                        <h3 class="text-xl font-bold text-white mb-3">${tier.display_name}</h3>
+                        <div class="text-3xl font-bold ${colorScheme.price} mb-2">${priceDisplay}</div>
+                        <div class="text-slate-400 mb-6">${priceSubtext}</div>
+                        
+                        <!-- Token Breakdown -->
+                        <div class="bg-slate-800/50 rounded-lg p-3 mb-4 text-sm">
+                            <div class="text-${colorScheme.accent} font-semibold mb-2">Token Allocation:</div>
+                            <div class="text-slate-300 space-y-1">
+                                <div class="flex justify-between">
+                                    <span>Generation:</span>
+                                    <span class="font-mono">${tier.monthly_generation_tokens.toLocaleString()}</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span>Execution:</span>
+                                    <span class="font-mono">${tier.monthly_execution_tokens.toLocaleString()}</span>
+                                </div>
+                                <div class="border-t border-slate-600 pt-1 flex justify-between font-semibold">
+                                    <span>Total:</span>
+                                    <span class="font-mono">${(tier.monthly_generation_tokens + tier.monthly_execution_tokens).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <ul class="space-y-3 text-left mb-6 text-sm">
+                            ${tier.features.map(feature => `
+                                <li class="flex items-start space-x-2">
+                                    <svg class="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    <span class="text-slate-300">${feature}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                        
+                        <!-- AI Models -->
+                        <div class="mb-6">
+                            <div class="text-xs text-slate-400 mb-2">Available AI Models:</div>
+                            <div class="flex flex-wrap gap-1">
+                                ${tier.ai_models.slice(0, 3).map(model => `
+                                    <span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">${model}</span>
+                                `).join('')}
+                                ${tier.ai_models.length > 3 ? `<span class="text-xs text-slate-400">+${tier.ai_models.length - 3} more</span>` : ''}
+                            </div>
+                        </div>
+                        
+                        ${getCallToActionButton(tier, colorScheme)}
+                    </div>
+                </div>
+            `;
+            container.innerHTML += tierCard;
+        });
+    }
+
+    function getTierColorScheme(tierName) {
+        switch (tierName) {
+            case 'free':
+                return { price: 'text-blue-400', accent: 'blue-400', button: 'border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white hover:bg-blue-500/10' };
+            case 'starter':
+                return { price: 'text-green-400', accent: 'green-400', button: 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white' };
+            case 'professional':
+                return { price: 'text-purple-400', accent: 'purple-400', button: 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white' };
+            case 'enterprise':
+                return { price: 'text-yellow-400', accent: 'yellow-400', button: 'border-yellow-600 hover:border-yellow-500 text-yellow-300 hover:text-white hover:bg-yellow-500/10' };
+            default:
+                return { price: 'text-slate-400', accent: 'slate-400', button: 'border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white' };
+        }
+    }
+
+    function getCallToActionButton(tier, colorScheme) {
+        if (tier.name === 'free') {
+            return `<a href="/register" class="block w-full px-4 py-3 border-2 ${colorScheme.button} font-semibold rounded-xl transition-all duration-300 text-center text-sm">
+                        Get Started Free
+                    </a>`;
+        } else if (tier.name === 'enterprise') {
+            return `<a href="/subscription" class="block w-full px-4 py-3 border-2 ${colorScheme.button} font-semibold rounded-xl transition-all duration-300 text-center text-sm">
+                        Contact Sales
+                    </a>`;
+        } else {
+            return `<a href="/subscription" class="block w-full px-4 py-3 ${colorScheme.button} font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 text-center text-sm">
+                        Choose ${tier.display_name}
+                    </a>`;
+        }
+    }
+
+    function showPricingError() {
+        const container = document.getElementById('pricing-tiers-container');
+        container.innerHTML = `
+            <div class="col-span-full text-center py-8">
+                <div class="text-slate-400 mb-4">
+                    <svg class="w-12 h-12 mx-auto mb-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <p>Unable to load pricing information</p>
+                    <button onclick="loadSubscriptionTiers()" class="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        `;
+    }
 </script>
 {% endblock %}
