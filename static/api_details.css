@@ -1,0 +1,235 @@
+/* API Details Page Styles */
+
+.api-details-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.api-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-active {
+    background: rgba(6, 78, 59, 0.5);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.status-inactive {
+    background: rgba(127, 29, 29, 0.5);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+.metric-card {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(100, 116, 139, 0.2);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+    transform: translateY(-2px);
+}
+
+.metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.section-header {
+    border-bottom: 2px solid rgba(59, 130, 246, 0.3);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.code-viewer {
+    background: linear-gradient(135deg, #020617 0%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 0.75rem;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.code-viewer pre {
+    margin: 0;
+    padding: 1.5rem;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.action-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #059669, #047857);
+    color: white;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    color: white;
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #64748b, #475569);
+    color: white;
+}
+
+.loading-skeleton {
+    background: linear-gradient(90deg, rgba(100, 116, 139, 0.1) 25%, rgba(100, 116, 139, 0.2) 50%, rgba(100, 116, 139, 0.1) 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.tab-button {
+    padding: 0.75rem 1.5rem;
+    border-bottom: 2px solid transparent;
+    color: rgba(148, 163, 184, 1);
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.tab-button.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+.tab-button:hover {
+    color: #93c5fd;
+}
+
+.test-interface {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 1rem;
+    padding: 1.5rem;
+}
+
+.endpoint-card {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(100, 116, 139, 0.2);
+    border-radius: 1rem;
+    transition: all 0.3s ease;
+}
+
+.endpoint-card:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+    transform: translateY(-2px);
+}
+
+/* Additional utility classes */
+.glass-card {
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(100, 116, 139, 0.2);
+}
+
+/* Test controls styling */
+.test-controls {
+    margin-top: 1rem;
+}
+
+.test-button {
+    transition: all 0.2s ease;
+}
+
+.test-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.test-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Notification styles */
+.notification {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    z-index: 50;
+    color: white;
+    font-weight: 500;
+    animation: slideIn 0.3s ease-out;
+}
+
+.notification.success {
+    background: linear-gradient(135deg, #059669, #047857);
+}
+
+.notification.error {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .api-details-container {
+        padding: 1rem;
+    }
+    
+    .metric-card {
+        padding: 1rem;
+    }
+    
+    .action-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+    
+    .tab-button {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+}
