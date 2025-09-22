@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}AI-Powered API Generator{% endblock %}</title>
+    <title>{% block title %}BucketApi - AI-Powered API Generator{% endblock %}</title>
     
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -36,7 +36,10 @@
                     animation: {
                         'fade-in': 'fadeIn 0.5s ease-in-out',
                         'slide-up': 'slideUp 0.3s ease-out',
-                        'pulse-soft': 'pulseSoft 2s ease-in-out infinite'
+                        'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
+                        'bounce-gentle': 'bounceGentle 2s ease-in-out infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate',
+                        'float': 'float 3s ease-in-out infinite'
                     }
                 }
             }
@@ -56,6 +59,21 @@
         @keyframes pulseSoft {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
+        }
+        
+        @keyframes bounceGentle {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.3); }
+            100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.6), 0 0 30px rgba(16, 185, 129, 0.4); }
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-6px) rotate(1deg); }
         }
 
         /* Custom scrollbar */
@@ -92,38 +110,58 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-dark-950 via-dark-900 to-dark-800 text-slate-200 flex flex-col">
     <!-- Header -->
-    <header id="mainHeader" class="sticky top-0 z-50 border-b border-gray-200/20 transition-transform duration-300 ease-in-out" style="background-color: #0D1117;">
-        <div class="container mx-auto px-4 py-4">
+    <header id="mainHeader" class="sticky top-0 z-50 transition-all duration-300 ease-in-out backdrop-blur-md bg-gradient-to-r from-dark-950/95 via-dark-900/95 to-dark-800/95 border-b border-emerald-500/20 shadow-lg">
+        <div class="container mx-auto px-4 py-3">
             <div class="flex justify-between items-center">
                 <!-- Logo and Title -->
-                <div class="flex items-center space-x-3">
-                    <div class="p-2 rounded-lg" style="background-color: #10B981;">
-                        <svg class="w-6 h-6" style="color: #F9FAFB;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
+                <div class="flex items-center space-x-4 group">
+                    <div class="relative">
+                        <div class="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg animate-glow group-hover:animate-bounce-gentle transition-all duration-300">
+                            <svg class="w-7 h-7 text-white animate-float" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                            </svg>
+                        </div>
+                        <div class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse-soft"></div>
                     </div>
-                    <div>
-                        <h1 class="text-xl font-bold" style="color: #F9FAFB;">
-                            AI API Generator
+                    <div class="flex flex-col">
+                        <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-500 bg-clip-text text-transparent animate-fade-in">
+                            BucketApi
                         </h1>
-                        <p class="text-xs" style="color: #9CA3AF;">Generate APIs with AI</p>
+                        <p class="text-xs text-slate-400 font-medium tracking-wide">AI-Powered API Generator</p>
                     </div>
                 </div>
 
+                <!-- Mobile Menu Button -->
+                <button id="mobileMenuButton" class="md:hidden p-2 rounded-lg text-slate-300 hover:bg-slate-800/50 transition-colors duration-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+
                 <!-- Navigation -->
-                <nav class="hidden md:flex items-center space-x-8">
-                    <a href="/" class="text-sm transition-colors duration-200 relative group hover:opacity-80" style="color: #F9FAFB;">
-                        Generator
-                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 transition-all duration-200 group-hover:w-full" style="background-color: #10B981;"></span>
+                <nav id="mainNav" class="hidden md:flex items-center space-x-1">
+                    <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Dashboard</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
-                    <a href="/profile" class="text-sm transition-colors duration-200 relative group hover:opacity-80" style="color: #F9FAFB;">
-                        My APIs
-                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 transition-all duration-200 group-hover:w-full" style="background-color: #10B981;"></span>
+                    <a href="/profile" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">My APIs</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
-                    <a href="#docs" class="text-sm transition-colors duration-200 relative group hover:opacity-80" style="color: #F9FAFB;">
-                        Docs
-                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 transition-all duration-200 group-hover:w-full" style="background-color: #10B981;"></span>
+                    <a href="/api-documentation" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Documentation</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
+                    <a href="/subscription" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Pricing</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
+                    {% if user and user.is_admin %}
+                    <a href="/admin" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-red-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-red-300">Admin</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-red-500/20 to-red-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
+                    {% endif %}
                 </nav>
 
                 <!-- Auth Section -->
@@ -131,45 +169,57 @@
                     {% if not user %}
                     <div id="authButtons" class="flex space-x-3">
                         <a href="/login" 
-                           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 border hover:opacity-80" 
-                           style="background-color: #374151; color: #F9FAFB; border-color: #4B5563;">
+                           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 border border-slate-600 text-slate-300 hover:bg-slate-800/50 hover:border-emerald-500/50 hover:text-emerald-300">
                             Login
                         </a>
                         <a href="/register" 
-                           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-xl hover:opacity-90" 
-                           style="background-color: #3B82F6; color: #F9FAFB;">
-                            Register
+                           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg hover:shadow-emerald-500/25 hover:scale-105 transform">
+                            Get Started
                         </a>
                     </div>
                     {% endif %}
                     {% if user %}
                     <div id="userMenu" class="flex items-center space-x-3">
                         <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-lg" style="background-color: #10B981; color: #F9FAFB;">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-lg bg-gradient-to-br from-emerald-500 to-emerald-600 text-white animate-pulse-soft">
                                 <span id="userInitials">{{ user.email[:2].upper() }}</span>
                             </div>
-                            <span id="welcomeText" class="text-sm hidden sm:block" style="color: #F9FAFB;">{{ user.email }}</span>
+                            <span id="welcomeText" class="text-sm hidden sm:block text-slate-300 font-medium">{{ user.email }}</span>
                         </div>
                         <div class="relative">
                             <button onclick="toggleUserDropdown()" 
-                                    class="p-2 transition-colors duration-200 rounded-lg hover:opacity-80" 
-                                    style="color: #F9FAFB; background-color: rgba(55, 65, 81, 0.5);">
+                                    class="p-2 transition-all duration-300 rounded-lg hover:bg-slate-800/50 text-slate-300 hover:text-emerald-300">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             </button>
-                            <div id="userDropdown" class="hidden absolute right-0 mt-2 w-48 rounded-xl shadow-xl z-50 border" style="background-color: #0D1117; border-color: rgba(156, 163, 175, 0.3);">
+                            <div id="userDropdown" class="hidden absolute right-0 mt-2 w-56 rounded-xl shadow-2xl z-50 border border-slate-700/50 bg-slate-900/95 backdrop-blur-md">
                                 <div class="py-2">
+                                    <div class="px-4 py-3 border-b border-slate-700/50">
+                                        <p class="text-sm text-slate-400">Signed in as</p>
+                                        <p class="text-sm font-medium text-slate-200">{{ user.email }}</p>
+                                    </div>
                                     <a href="/profile" 
-                                       class="block px-4 py-3 text-sm transition-all duration-200 rounded-lg mx-2 hover:opacity-80" 
-                                       style="color: #F9FAFB; background-color: rgba(55, 65, 81, 0.3);">
-                                        👤 Profile
+                                       class="flex items-center px-4 py-3 text-sm transition-all duration-200 hover:bg-slate-800/50 text-slate-300 hover:text-emerald-300">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                        Profile & Settings
                                     </a>
-                                    <hr class="my-2 mx-2" style="border-color: rgba(156, 163, 175, 0.3);">
+                                    <a href="/subscription" 
+                                       class="flex items-center px-4 py-3 text-sm transition-all duration-200 hover:bg-slate-800/50 text-slate-300 hover:text-emerald-300">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                        </svg>
+                                        Subscription
+                                    </a>
+                                    <hr class="my-2 border-slate-700/50">
                                     <a href="/logout" 
-                                       class="block px-4 py-3 text-sm transition-all duration-200 rounded-lg mx-2 hover:opacity-80" 
-                                       style="color: #EF4444;">
-                                        🚪 Logout
+                                       class="flex items-center px-4 py-3 text-sm transition-all duration-200 hover:bg-red-900/20 text-red-400 hover:text-red-300">
+                                        <svg class="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                        </svg>
+                                        Sign Out
                                     </a>
                                 </div>
                             </div>
@@ -177,6 +227,29 @@
                     </div>
                     {% endif %}
                 </div>
+            </div>
+
+            <!-- Mobile Navigation Menu -->
+            <div id="mobileMenu" class="hidden md:hidden mt-4 pb-4 border-t border-slate-700/50 pt-4">
+                <nav class="flex flex-col space-y-2">
+                    <a href="/" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                        Dashboard
+                    </a>
+                    <a href="/profile" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                        My APIs
+                    </a>
+                    <a href="/api-documentation" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                        Documentation
+                    </a>
+                    <a href="/subscription" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                        Pricing
+                    </a>
+                    {% if user and user.is_admin %}
+                    <a href="/admin" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-red-500/10 text-slate-300 hover:text-red-300">
+                        Admin Panel
+                    </a>
+                    {% endif %}
+                </nav>
             </div>
         </div>
     </header>
@@ -191,11 +264,11 @@
         <div class="container mx-auto px-4 py-6">
             <div class="flex flex-col md:flex-row justify-between items-center text-sm text-slate-400">
                 <div class="flex items-center space-x-4 mb-3 md:mb-0">
-                    <span>© 2025 AI API Generator</span>
+                    <span>© 2025 BucketApi</span>
                     <span class="text-slate-600">•</span>
-                    <a href="#" class="hover:text-blue-400 transition-colors duration-200">Privacy</a>
+                    <a href="#" class="hover:text-emerald-400 transition-colors duration-200">Privacy</a>
                     <span class="text-slate-600">•</span>
-                    <a href="#" class="hover:text-blue-400 transition-colors duration-200">Terms</a>
+                    <a href="#" class="hover:text-emerald-400 transition-colors duration-200">Terms</a>
                 </div>
                 <div class="flex items-center space-x-4">
                     <span class="flex items-center space-x-2">
@@ -276,6 +349,21 @@
             dropdown.classList.toggle('hidden');
         }
 
+        function toggleMobileMenu() {
+            const mobileMenu = document.getElementById('mobileMenu');
+            const mobileMenuButton = document.getElementById('mobileMenuButton');
+            
+            mobileMenu.classList.toggle('hidden');
+            
+            // Toggle button icon
+            const icon = mobileMenuButton.querySelector('svg path');
+            if (mobileMenu.classList.contains('hidden')) {
+                icon.setAttribute('d', 'M4 6h16M4 12h16M4 18h16');
+            } else {
+                icon.setAttribute('d', 'M6 18L18 6M6 6l12 12');
+            }
+        }
+
         // Logout is now handled by direct link to /logout
 
         // Clear authentication state
@@ -293,6 +381,14 @@
             const button = event.target.closest('[onclick="toggleUserDropdown()"]');
             if (!button && !dropdown.contains(event.target)) {
                 dropdown.classList.add('hidden');
+            }
+        });
+
+        // Mobile menu functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuButton = document.getElementById('mobileMenuButton');
+            if (mobileMenuButton) {
+                mobileMenuButton.addEventListener('click', toggleMobileMenu);
             }
         });
 
