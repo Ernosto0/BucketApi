@@ -2588,6 +2588,8 @@ function getMethodColor(method) {
 
 function updateAPIPreview(apiData) {
     console.log('updateAPIPreview called with:', apiData);
+    console.log('API slug in preview:', apiData?.api_slug);
+    console.log('User ID in preview:', apiData?.user_id);
     currentAPISpec = apiData;
     currentProposal = null;
     previewMode = 'api';
@@ -3302,11 +3304,17 @@ async function updateTestInput(apiData) {
             testInput.parentElement.insertBefore(loadingIndicator, testInput);
             
             // Call our AI test data generation endpoint
+            console.log(`Calling: /generate-test-data/${apiData.user_id}/${apiData.api_slug}`);
             const response = await fetch(`/generate-test-data/${apiData.user_id}/${apiData.api_slug}`);
             
             if (response.ok) {
                 const data = await response.json();
                 console.log('Test data generation response:', data);
+                console.log('Test scenarios received:', JSON.stringify(data.test_scenarios, null, 2));
+                console.log('First scenario data:', JSON.stringify(data.test_scenarios[0], null, 2));
+                
+                // Debug: Check what we're actually setting in the text area
+                console.log('About to set testInput.value to:', JSON.stringify(data.test_scenarios[0].data, null, 2));
                 
                 if (data.success && data.test_scenarios && data.test_scenarios.length > 0) {
                     // Store all scenarios globally
@@ -4040,6 +4048,12 @@ async function regenerateTestScenarios() {
     
     // Clear current scenarios
     window.currentTestScenarios = null;
+    
+    // Also clear the test input field to prevent showing old data
+    const testInput = document.getElementById('previewTestInput');
+    if (testInput) {
+        testInput.value = '';
+    }
     const scenarioSelector = document.getElementById('testScenarioSelector');
     const generateBtn = document.getElementById('generateNewScenariosBtn');
     scenarioSelector.classList.add('hidden');
