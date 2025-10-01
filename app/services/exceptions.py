@@ -26,7 +26,10 @@ class LLMBaseError(Exception):
         if self.details:
             extra.append(f"Details: {self.details}")
 
-        return f"{base_str}\n{'\n'.join(extra)}"
+        if extra:
+            joined = "\n".join(extra)
+            return f"{base_str}\n{joined}"
+        return base_str
 
 
 class PromptBuildError(LLMBaseError):
@@ -71,7 +74,8 @@ class MultiStepGenerationError(LLMBaseError):
             extra.append(f"Step ID: {self.step_id}")
             
         if extra:
-            return f"{base_str}\n{'\n'.join(extra)}"
+            joined = "\n".join(extra)
+            return f"{base_str}\n{joined}"
         return base_str
 
 
