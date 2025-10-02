@@ -43,7 +43,7 @@
                     <button class="sidebar-nav-link" data-tab="api-keys">
                         <div class="sidebar-nav-icon">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 0121 9z"></path>
                             </svg>
                         </div>
                         <span>API Keys</span>
@@ -53,7 +53,7 @@
                     <button class="sidebar-nav-link" data-tab="subscription">
                         <div class="sidebar-nav-icon">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
                             </svg>
                         </div>
                         <span>Subscription</span>
@@ -63,7 +63,7 @@
                     <button class="sidebar-nav-link" data-tab="saved-apis">
                         <div class="sidebar-nav-icon">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path>
                             </svg>
                         </div>
                         <span>Saved APIs</span>
@@ -449,7 +449,7 @@
             <div id="apiKeysEmpty" class="empty-state hidden text-center py-16 glass-effect rounded-xl">
                 <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                     <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 0121 9z"></path>
                     </svg>
                 </div>
                 <h3 class="text-xl font-semibold text-white mb-2">No API keys yet</h3>
@@ -619,7 +619,7 @@
             <div class="flex items-center space-x-3">
                 <div class="p-2 bg-blue-500/20 rounded-lg">
                     <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1721 9z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 0121 9z"></path>
                     </svg>
                 </div>
                 <div>
@@ -1371,6 +1371,78 @@
         });
     }
 
+    // Helpers to parse and summarize long API prompt/spec text
+    function trimText(text, maxLength) {
+        if (!text) return '';
+        const clean = String(text).replace(/\s+/g, ' ').trim();
+        if (clean.length <= maxLength) return clean;
+        return clean.slice(0, maxLength - 1) + '…';
+    }
+
+    function parseApiPrompt(promptText) {
+        const result = {
+            description: '',
+            endpoints: [],
+            inputFormat: '',
+            outputFormat: ''
+        };
+        if (!promptText || typeof promptText !== 'string') return result;
+
+        const text = promptText;
+
+        // Description: try to capture after "Description:" up to next section label
+        const descMatch = text.match(/Description:\s*([^]*?)(?:\n\s*Functionality:|\n\s*Endpoints:|\n\s*Input Format:|\n\s*Output Format:|$)/i);
+        if (descMatch && descMatch[1]) {
+            result.description = descMatch[1].trim();
+        }
+
+        // Endpoints: capture bullet list after "Endpoints:"
+        const endpointsSectionMatch = text.match(/Endpoints:\s*([^]*?)(?:\n\s*[A-Z][A-Za-z ]+:|$)/i);
+        if (endpointsSectionMatch && endpointsSectionMatch[1]) {
+            const lines = endpointsSectionMatch[1]
+                .split(/\r?\n/)
+                .map(l => l.trim())
+                .filter(l => l.length > 0);
+            for (const line of lines) {
+                const bullet = line.replace(/^[-•\d\.\)\s]+/, '').trim();
+                if (bullet) result.endpoints.push(bullet);
+                if (result.endpoints.length >= 5) break; // cap for card
+            }
+        }
+
+        // Input/Output formats (optional, not shown on card now)
+        const inputMatch = text.match(/Input Format:\s*([^]*?)(?:\n\s*Output Format:|\n\s*[A-Z][A-Za-z ]+:|$)/i);
+        if (inputMatch && inputMatch[1]) result.inputFormat = inputMatch[1].trim();
+        const outputMatch = text.match(/Output Format:\s*([^]*?)(?:\n\s*[A-Z][A-Za-z ]+:|$)/i);
+        if (outputMatch && outputMatch[1]) result.outputFormat = outputMatch[1].trim();
+
+        return result;
+    }
+
+    function renderApiSummaryFromPrompt(promptText) {
+        const parsed = parseApiPrompt(promptText);
+        const shortDesc = parsed.description ? trimText(parsed.description, 200) : '';
+        const endpoints = parsed.endpoints.slice(0, 3);
+
+        let html = '';
+        if (shortDesc) {
+            html += `<p class="text-slate-400 text-sm mb-3">${shortDesc}</p>`;
+        }
+        if (endpoints.length > 0) {
+            html += '<div class="mb-3">'
+                + '<div class="text-slate-400 text-xs mb-1">Endpoints</div>'
+                + '<ul class="list-disc list-inside text-slate-300 text-xs space-y-1">'
+                + endpoints.map(ep => `<li>${ep}</li>`).join('')
+                + '</ul>'
+                + '</div>';
+        }
+        if (!html) {
+            // Fallback to trimmed raw text if parsing failed
+            html = `<p class="text-slate-400 text-sm mb-3">${trimText(promptText || '', 200)}</p>`;
+        }
+        return html;
+    }
+
     // Create Saved API Card
     function createSavedAPICard(api) {
         const card = document.createElement('div');
@@ -1387,7 +1459,7 @@
                             Active
                         </span>
                     </div>
-                    <p class="text-slate-400 text-sm mb-3">${api.prompt}</p>
+                    ${renderApiSummaryFromPrompt(api.prompt)}
                     <div class="font-mono text-sm text-slate-400 bg-slate-800/50 px-3 py-2 rounded-lg">
                         ${api.endpoint_url}
                     </div>
@@ -1405,7 +1477,7 @@
                     </button>
                     <button onclick="showDeleteAPIModal('${api.api_slug}', '${api.api_name}')" class="p-2 hover:bg-red-500/20 rounded-lg transition-colors" title="Delete API">
                         <svg class="w-4 h-4 text-slate-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                         </svg>
                     </button>
                 </div>
