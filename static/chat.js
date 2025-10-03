@@ -3630,7 +3630,25 @@ async function runPreviewTest() {
             responseStatus.textContent = 'Error';
             responseStatus.className = 'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
             
-            responseBody.textContent = JSON.stringify({error: testResult.error || 'Test failed'}, null, 2);
+            // Show user-friendly error message instead of raw error
+            responseBody.innerHTML = `
+                <div class="text-red-300 text-center py-4">
+                    <div class="text-lg mb-2">⚠️ Test Failed</div>
+                    <div class="text-sm mb-3">The test was invalid. Please check your input and try again.</div>
+                    <div class="mb-4">
+                        <button onclick="runPreviewTest()" 
+                                class="px-4 py-2 bg-red-600/20 text-red-300 border border-red-500/30 rounded-lg hover:bg-red-600/30 transition-all duration-200 text-sm">
+                            🔄 Try Again
+                        </button>
+                    </div>
+                    <details class="text-left">
+                        <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300 mb-2">Show technical details</summary>
+                        <div class="text-xs text-slate-500 font-mono bg-slate-800/50 p-2 rounded border-l-2 border-red-500/50">
+                            ${JSON.stringify({error: testResult.error || 'Test failed'}, null, 2)}
+                        </div>
+                    </details>
+                </div>
+            `;
         }
         
     } catch (error) {
@@ -3643,7 +3661,25 @@ async function runPreviewTest() {
         responseStatus.textContent = 'Error';
         responseStatus.className = 'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
         
-        responseBody.textContent = `Error: ${error.message}`;
+        // Show user-friendly error message instead of raw error
+        responseBody.innerHTML = `
+            <div class="text-red-300 text-center py-4">
+                <div class="text-lg mb-2">⚠️ Test Failed</div>
+                <div class="text-sm mb-3">The test was invalid. Please check your input and try again.</div>
+                <div class="mb-4">
+                    <button onclick="runPreviewTest()" 
+                            class="px-4 py-2 bg-red-600/20 text-red-300 border border-red-500/30 rounded-lg hover:bg-red-600/30 transition-all duration-200 text-sm">
+                        🔄 Try Again
+                    </button>
+                </div>
+                <details class="text-left">
+                    <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300 mb-2">Show technical details</summary>
+                    <div class="text-xs text-slate-500 font-mono bg-slate-800/50 p-2 rounded border-l-2 border-red-500/50">
+                        Error: ${error.message}
+                    </div>
+                </details>
+            </div>
+        `;
     } finally {
         // Reset button
         runBtn.disabled = false;
