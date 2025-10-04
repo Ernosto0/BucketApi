@@ -29,8 +29,10 @@ class SandboxService:
     def _extract_api_logic(self, code: str) -> str:
         """Extract the actual API logic from the FastAPI wrapper."""
         try:
-            # Look for the run() function
-            run_start = code.find('def run(')
+            # Look for the run() function (both sync and async)
+            run_start = code.find('async def run(')
+            if run_start == -1:
+                run_start = code.find('def run(')
             if run_start != -1:
                 # Find the function body
                 body_start = code.find(':', run_start)
@@ -158,7 +160,13 @@ class SandboxService:
                         result = module.run(file_bytes=file_bytes, input_data=input_data)
                         namespace['result'] = result
                 else:
-                    raise Exception("API code must define a 'run' function")
+                    # Check if there are any functions in the module
+                    import inspect
+                    functions = [name for name, obj in inspect.getmembers(module) if inspect.isfunction(obj)]
+                    if functions:
+                        raise Exception(f"API code must define a 'run' function. Found functions: {functions}")
+                    else:
+                        raise Exception("API code must define a 'run' function. No functions found in the code.")
             finally:
                 # Clean up the temporary file
                 os.unlink(temp_file_path)
@@ -174,7 +182,7 @@ class SandboxService:
                 raise Exception(f"Memory limit exceeded: {memory_used:.2f}MB > {memory_limit_mb}MB")
             
             # Get the result
-            if 'result' not in namespace:
+            if 'result' not in namespace or namespace['result'] is None:
                 raise Exception("API code must set a 'result' variable")
             
             return namespace['result']
