@@ -140,6 +140,8 @@
 
                 <!-- Navigation -->
                 <nav id="mainNav" class="hidden md:flex items-center space-x-1">
+                    {% if request and request.url.path == '/landing' %}
+                    <!-- Commented out header navigation on landing page
                     <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
                         <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Dashboard</span>
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -162,11 +164,38 @@
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-red-500/20 to-red-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
                     {% endif %}
+                    -->
+                    {% else %}
+                    <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Dashboard</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
+                    <a href="/profile" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">My APIs</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
+                    <a href="/api-documentation" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Documentation</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
+                    <a href="/subscription" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Pricing</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
+                    {% if user and user.is_admin %}
+                    <a href="/admin" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-red-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-red-300">Admin</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-red-500/20 to-red-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
+                    {% endif %}
+                    {% endif %}
                 </nav>
 
                 <!-- Auth Section -->
                 <div class="flex items-center space-x-3">
                     {% if not user %}
+                    {% if request and request.url.path == '/landing' %}
+                    <!-- Commented out auth buttons on landing page
                     <div id="authButtons" class="flex space-x-3">
                         <a href="/login" 
                            class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 border border-slate-600 text-slate-300 hover:bg-slate-800/50 hover:border-emerald-500/50 hover:text-emerald-300">
@@ -177,6 +206,19 @@
                             Get Started
                         </a>
                     </div>
+                    -->
+                    {% else %}
+                    <div id="authButtons" class="flex space-x-3">
+                        <a href="/login" 
+                           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 border border-slate-600 text-slate-300 hover:bg-slate-800/50 hover:border-emerald-500/50 hover:text-emerald-300">
+                            Login
+                        </a>
+                        <a href="/register" 
+                           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg hover:shadow-emerald-500/25 hover:scale-105 transform">
+                            Get Started
+                        </a>
+                    </div>
+                    {% endif %}
                     {% endif %}
                     {% if user %}
                     <div id="userMenu" class="flex items-center space-x-3">
@@ -232,6 +274,8 @@
             <!-- Mobile Navigation Menu -->
             <div id="mobileMenu" class="hidden md:hidden mt-4 pb-4 border-t border-slate-700/50 pt-4">
                 <nav class="flex flex-col space-y-2">
+                    {% if request and request.url.path == '/landing' %}
+                    <!-- Commented out mobile navigation on landing page
                     <a href="/" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
                         Dashboard
                     </a>
@@ -248,6 +292,26 @@
                     <a href="/admin" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-red-500/10 text-slate-300 hover:text-red-300">
                         Admin Panel
                     </a>
+                    {% endif %}
+                    -->
+                    {% else %}
+                    <a href="/" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                        Dashboard
+                    </a>
+                    <a href="/profile" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                        My APIs
+                    </a>
+                    <a href="/api-documentation" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                        Documentation
+                    </a>
+                    <a href="/subscription" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                        Pricing
+                    </a>
+                    {% if user and user.is_admin %}
+                    <a href="/admin" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-red-500/10 text-slate-300 hover:text-red-300">
+                        Admin Panel
+                    </a>
+                    {% endif %}
                     {% endif %}
                 </nav>
             </div>
