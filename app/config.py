@@ -74,6 +74,15 @@ class Settings:
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 4320  # 3 days
     
+    # OAuth Configuration
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    OAUTH_REDIRECT_URI: str = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8001/auth/google/callback")
+    
+    # Feature Flags
+    ENABLE_CUSTOM_AUTH: bool = os.getenv("ENABLE_CUSTOM_AUTH", "false").lower() == "true"  # Disabled by default
+    ENABLE_GOOGLE_AUTH: bool = os.getenv("ENABLE_GOOGLE_AUTH", "true").lower() == "true"  # Enabled by default
+    
     # Security Configuration
     SECURITY_SERVICE_ENABLED: bool = os.getenv("SECURITY_SERVICE_ENABLED", "true").lower() == "true"
     print("security service enabled", SECURITY_SERVICE_ENABLED)

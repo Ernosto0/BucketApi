@@ -32,6 +32,11 @@ class User(BaseModel):
     is_active: bool = True
     created_at: datetime
     last_login: Optional[datetime] = None
+    # OAuth fields
+    oauth_provider: Optional[str] = None  # 'google', 'github', etc.
+    oauth_id: Optional[str] = None  # User ID from OAuth provider
+    profile_picture: Optional[str] = None  # Profile picture URL
+    full_name: Optional[str] = None  # Full name from OAuth
     # Subscription fields
     subscription_tier: str = "free"
     subscription_status: str = "active"

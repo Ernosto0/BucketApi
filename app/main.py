@@ -52,6 +52,7 @@ from .services.subscription_service import subscription_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.database import init_database, UserDB, UserSessionDB, SavedAPIDB, APIKeyDB, AsyncSessionLocal
 from .routes.auth_routes import router as auth_router, get_current_user, require_auth, require_active_user
+from .routes.oauth_routes import router as oauth_router
 from sqlalchemy import select
 from .services.test_service import test_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
@@ -139,6 +140,7 @@ templates = Jinja2Templates(directory="templates")
 
 # Include authentication routes
 app.include_router(auth_router)
+app.include_router(oauth_router)
 
 # Temporary stub functions for backward compatibility (to be replaced)
 async def require_auth_hybrid(request: Request) -> User:
@@ -240,7 +242,10 @@ async def login_page(request: Request):
     user = await get_current_user(request)
     if user:
         return RedirectResponse(url="/dashboard", status_code=302)
-    return templates.TemplateResponse("auth/login.html", {"request": request})
+    return templates.TemplateResponse("auth/login.html", {
+        "request": request,
+        "settings": settings
+    })
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
@@ -249,7 +254,10 @@ async def register_page(request: Request):
     user = await get_current_user(request)
     if user:
         return RedirectResponse(url="/dashboard", status_code=302)
-    return templates.TemplateResponse("auth/register.html", {"request": request})
+    return templates.TemplateResponse("auth/register.html", {
+        "request": request,
+        "settings": settings
+    })
 
 @app.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request):
@@ -1045,7 +1053,7 @@ async def modify_proposal(
             detail=f"Failed to modify proposal: {str(e)}"
         )
 
-# we don't use this for now
+
 @app.post("/generate-api-stream")
 async def generate_api_stream(
     api_request: APIGenerationRequest,
@@ -1081,6 +1089,7 @@ async def generate_api_stream(
                 status_code=429,
                 detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
             )
+            
     except HTTPException:
         raise
     except Exception as e:
