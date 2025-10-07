@@ -5,8 +5,7 @@ import re
 import functools
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
-from sqlalchemy import select, and_, func, text
-from sqlalchemy.ext.asyncio import AsyncSession
+# MongoDB operations handled through mongodb service
 
 # Token counting libraries
 try:
@@ -27,7 +26,7 @@ except ImportError:
 from ..models import (
     Usage, UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest
 )
-from .database import LLMUsageDB, AsyncSessionLocal
+from .mongodb import mongodb
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
@@ -157,57 +156,55 @@ class UsageService:
             usage_id = str(uuid.uuid4())
             context_json = json.dumps(operation_context) if operation_context else None
             
-            async with AsyncSessionLocal() as session:
-                db_usage = LLMUsageDB(
-                    id=usage_id,
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    service_type=service_type,
-                    operation_type=operation_type,
-                    model_name=model_name,
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    total_tokens=total_tokens,
-                    estimated_cost_cents=estimated_cost_cents,
-                    prompt_length=prompt_length,
-                    response_length=response_length,
-                    request_duration_ms=request_duration_ms,
-                    operation_context=context_json,
-                    api_slug=api_slug,
-                    created_at=datetime.utcnow(),
-                    completed_at=datetime.utcnow() if success else None,
-                    success=success,
-                    error_message=error_message
+            # Create usage record in MongoDB
+            db_usage = {
+                "_id": usage_id,
+                "user_id": user_id,
+                "api_key_id": api_key_id,
+                "service_type": service_type,
+                "operation_type": operation_type,
+                "model_name": model_name,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "estimated_cost_cents": estimated_cost_cents,
+                "prompt_length": prompt_length,
+                "response_length": response_length,
+                "request_duration_ms": request_duration_ms,
+                "operation_context": context_json,
+                "api_slug": api_slug,
+                "created_at": datetime.utcnow(),
+                "completed_at": datetime.utcnow() if success else None,
+                "success": success,
+                "error_message": error_message
+            }
+            
+            mongodb.llm_usage.insert_one(db_usage)
+            
+            # Convert to Pydantic model
+            usage = Usage(
+                user_id=db_usage["user_id"],
+                api_key_id=db_usage["api_key_id"],
+                    service_type=db_usage["service_type"],
+                    operation_type=db_usage["operation_type"],
+                    model_name=db_usage["model_name"],
+                    input_tokens=db_usage["input_tokens"],
+                    output_tokens=db_usage["output_tokens"],
+                    total_tokens=db_usage["total_tokens"],
+                    estimated_cost_cents=db_usage["estimated_cost_cents"],
+                    prompt_length=db_usage["prompt_length"],
+                    response_length=db_usage["response_length"],
+                    request_duration_ms=db_usage["request_duration_ms"],
+                    operation_context=db_usage["operation_context"],
+                    api_slug=db_usage["api_slug"],
+                    created_at=db_usage["created_at"],
+                    completed_at=db_usage["completed_at"],
+                    success=db_usage["success"],
+                    error_message=db_usage["error_message"]
                 )
-                
-                session.add(db_usage)
-                await session.commit()
-                await session.refresh(db_usage)
-                
-                # Convert to Pydantic model
-                usage = Usage(
-                    user_id=db_usage.user_id,
-                    api_key_id=db_usage.api_key_id,
-                    service_type=db_usage.service_type,
-                    operation_type=db_usage.operation_type,
-                    model_name=db_usage.model_name,
-                    input_tokens=db_usage.input_tokens,
-                    output_tokens=db_usage.output_tokens,
-                    total_tokens=db_usage.total_tokens,
-                    estimated_cost_cents=db_usage.estimated_cost_cents,
-                    prompt_length=db_usage.prompt_length,
-                    response_length=db_usage.response_length,
-                    request_duration_ms=db_usage.request_duration_ms,
-                    operation_context=db_usage.operation_context,
-                    api_slug=db_usage.api_slug,
-                    created_at=db_usage.created_at,
-                    completed_at=db_usage.completed_at,
-                    success=db_usage.success,
-                    error_message=db_usage.error_message
-                )
-                
-                logger.info(f"Recorded usage for user {user_id}: {total_tokens} tokens, ${estimated_cost_cents/100:.4f}")
-                return usage
+            
+            logger.info(f"Recorded usage for user {user_id}: {total_tokens} tokens, ${estimated_cost_cents/100:.4f}")
+            return usage
                 
         except Exception as e:
             logger.error(f"Failed to record usage: {str(e)}")
@@ -222,157 +219,168 @@ class UsageService:
         """Check if user is within usage limits."""
         
         try:
-            async with AsyncSessionLocal() as session:
-                now = datetime.utcnow()
-                today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                hour_start = now.replace(minute=0, second=0, microsecond=0)
-                minute_start = now.replace(second=0, microsecond=0)
+            now = datetime.utcnow()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            hour_start = now.replace(minute=0, second=0, microsecond=0)
+            minute_start = now.replace(second=0, microsecond=0)
+            
+            # Build base match conditions
+            base_match = {
+                "user_id": user_id,
+                "created_at": {"$gte": today_start},
+                "success": True
+            }
+            
+            if api_key_id:
+                base_match["api_key_id"] = api_key_id
+            
+            # Query daily usage
+            daily_pipeline = [
+                {"$match": base_match},
+                {"$group": {
+                    "_id": None,
+                    "total_tokens": {"$sum": "$total_tokens"},
+                    "total_cost": {"$sum": "$estimated_cost_cents"}
+                }}
+            ]
+            
+            daily_result = list(mongodb.llm_usage.aggregate(daily_pipeline))
+            daily_tokens_used = daily_result[0]["total_tokens"] if daily_result else 0
+            daily_cost_used_cents = daily_result[0]["total_cost"] if daily_result else 0
                 
-                # Query daily usage
-                daily_query = select(
-                    func.sum(LLMUsageDB.total_tokens).label('total_tokens'),
-                    func.sum(LLMUsageDB.estimated_cost_cents).label('total_cost')
-                ).where(
-                    and_(
-                        LLMUsageDB.user_id == user_id,
-                        LLMUsageDB.created_at >= today_start,
-                        LLMUsageDB.success == True
-                    )
-                )
-                
-                if api_key_id:
-                    daily_query = daily_query.where(LLMUsageDB.api_key_id == api_key_id)
-                
-                daily_result = await session.execute(daily_query)
-                daily_row = daily_result.first()
-                
-                daily_tokens_used = daily_row.total_tokens or 0
-                daily_cost_used_cents = daily_row.total_cost or 0
-                
-                # Query monthly usage
-                monthly_query = select(
-                    func.sum(LLMUsageDB.total_tokens).label('total_tokens')
-                ).where(
-                    and_(
-                        LLMUsageDB.user_id == user_id,
-                        LLMUsageDB.created_at >= month_start,
-                        LLMUsageDB.success == True
-                    )
-                )
-                
-                if api_key_id:
-                    monthly_query = monthly_query.where(LLMUsageDB.api_key_id == api_key_id)
-                
-                monthly_result = await session.execute(monthly_query)
-                monthly_row = monthly_result.first()
-                monthly_tokens_used = monthly_row.total_tokens or 0
-                
-                # Query hourly usage
-                hourly_query = select(
-                    func.sum(LLMUsageDB.total_tokens).label('total_tokens')
-                ).where(
-                    and_(
-                        LLMUsageDB.user_id == user_id,
-                        LLMUsageDB.created_at >= hour_start,
-                        LLMUsageDB.success == True
-                    )
-                )
-                
-                if api_key_id:
-                    hourly_query = hourly_query.where(LLMUsageDB.api_key_id == api_key_id)
-                
-                hourly_result = await session.execute(hourly_query)
-                hourly_row = hourly_result.first()
-                hourly_tokens_used = hourly_row.total_tokens or 0
-                
-                # Query minute usage (request count)
-                minute_query = select(
-                    func.count(LLMUsageDB.id).label('request_count')
-                ).where(
-                    and_(
-                        LLMUsageDB.user_id == user_id,
-                        LLMUsageDB.created_at >= minute_start,
-                        LLMUsageDB.success == True
-                    )
-                )
-                
-                if api_key_id:
-                    minute_query = minute_query.where(LLMUsageDB.api_key_id == api_key_id)
-                
-                minute_result = await session.execute(minute_query)
-                minute_row = minute_result.first()
-                minute_requests_used = minute_row.request_count or 0
-                
-                # Calculate limits and remaining usage
-                daily_token_limit = self.DEFAULT_DAILY_TOKEN_LIMIT
-                monthly_token_limit = self.DEFAULT_MONTHLY_TOKEN_LIMIT
-                daily_cost_limit_cents = self.DEFAULT_DAILY_COST_LIMIT_CENTS
-                hourly_token_limit = self.DEFAULT_HOURLY_TOKEN_LIMIT
-                minutely_request_limit = self.DEFAULT_MINUTELY_REQUEST_LIMIT
-                
-                daily_tokens_remaining = max(0, daily_token_limit - daily_tokens_used)
-                monthly_tokens_remaining = max(0, monthly_token_limit - monthly_tokens_used)
-                daily_cost_remaining_cents = max(0, daily_cost_limit_cents - daily_cost_used_cents)
-                hourly_tokens_remaining = max(0, hourly_token_limit - hourly_tokens_used)
-                minutely_requests_remaining = max(0, minutely_request_limit - minute_requests_used)
-                
-                # Estimate cost for the new tokens
-                estimated_new_cost_cents = self._calculate_cost_cents(
-                    "gpt-5-mini",  # Use default model for estimation
-                    tokens_to_use // 2,  # Rough split between input/output
-                    tokens_to_use // 2
-                )
-                
-                # Check if adding the new tokens would exceed limits
-                is_over_limit = (
-                    (daily_tokens_used + tokens_to_use) > daily_token_limit or
-                    (monthly_tokens_used + tokens_to_use) > monthly_token_limit or
-                    (daily_cost_used_cents + estimated_new_cost_cents) > daily_cost_limit_cents or
-                    (hourly_tokens_used + tokens_to_use) > hourly_token_limit or
-                    (minute_requests_used + 1) > minutely_request_limit  # +1 for this request
-                )
-                
-                # Determine which limit was exceeded for better error messages
-                limit_exceeded_reason = None
-                if (daily_tokens_used + tokens_to_use) > daily_token_limit:
-                    limit_exceeded_reason = f"Daily token limit exceeded: {daily_tokens_used + tokens_to_use}/{daily_token_limit}"
-                elif (monthly_tokens_used + tokens_to_use) > monthly_token_limit:
-                    limit_exceeded_reason = f"Monthly token limit exceeded: {monthly_tokens_used + tokens_to_use}/{monthly_token_limit}"
-                elif (daily_cost_used_cents + estimated_new_cost_cents) > daily_cost_limit_cents:
-                    limit_exceeded_reason = f"Daily cost limit exceeded: ${(daily_cost_used_cents + estimated_new_cost_cents)/100:.2f}/${daily_cost_limit_cents/100:.2f}"
-                elif (hourly_tokens_used + tokens_to_use) > hourly_token_limit:
-                    limit_exceeded_reason = f"Hourly token limit exceeded: {hourly_tokens_used + tokens_to_use}/{hourly_token_limit}"
-                elif (minute_requests_used + 1) > minutely_request_limit:
-                    limit_exceeded_reason = f"Rate limit exceeded: {minute_requests_used + 1}/{minutely_request_limit} requests per minute"
-                
-                # Next reset time (tomorrow at midnight)
-                limit_reset_time = today_start + timedelta(days=1)
-                
-                return UsageLimitsResponse(
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    daily_token_limit=daily_token_limit,
-                    daily_tokens_used=daily_tokens_used,
-                    daily_tokens_remaining=daily_tokens_remaining,
-                    monthly_token_limit=monthly_token_limit,
-                    monthly_tokens_used=monthly_tokens_used,
-                    monthly_tokens_remaining=monthly_tokens_remaining,
-                    daily_cost_limit_cents=daily_cost_limit_cents,
-                    daily_cost_used_cents=daily_cost_used_cents,
-                    daily_cost_remaining_cents=daily_cost_remaining_cents,
-                    limit_reset_time=limit_reset_time,
-                    is_over_limit=is_over_limit,
-                    # New short-term limits
-                    hourly_token_limit=hourly_token_limit,
-                    hourly_tokens_used=hourly_tokens_used,
-                    hourly_tokens_remaining=hourly_tokens_remaining,
-                    minutely_request_limit=minutely_request_limit,
-                    minutely_requests_used=minute_requests_used,
-                    minutely_requests_remaining=minutely_requests_remaining,
-                    limit_exceeded_reason=limit_exceeded_reason
-                )
-                
+            # Query monthly usage
+            monthly_match = {
+                "user_id": user_id,
+                "created_at": {"$gte": month_start},
+                "success": True
+            }
+            
+            if api_key_id:
+                monthly_match["api_key_id"] = api_key_id
+            
+            monthly_pipeline = [
+                {"$match": monthly_match},
+                {"$group": {
+                    "_id": None,
+                    "total_tokens": {"$sum": "$total_tokens"}
+                }}
+            ]
+            
+            monthly_result = list(mongodb.llm_usage.aggregate(monthly_pipeline))
+            monthly_tokens_used = monthly_result[0]["total_tokens"] if monthly_result else 0
+            
+            # Query hourly usage
+            hourly_match = {
+                "user_id": user_id,
+                "created_at": {"$gte": hour_start},
+                "success": True
+            }
+            
+            if api_key_id:
+                hourly_match["api_key_id"] = api_key_id
+            
+            hourly_pipeline = [
+                {"$match": hourly_match},
+                {"$group": {
+                    "_id": None,
+                    "total_tokens": {"$sum": "$total_tokens"}
+                }}
+            ]
+            
+            hourly_result = list(mongodb.llm_usage.aggregate(hourly_pipeline))
+            hourly_tokens_used = hourly_result[0]["total_tokens"] if hourly_result else 0
+            
+            # Query minute usage (request count)
+            minute_match = {
+                "user_id": user_id,
+                "created_at": {"$gte": minute_start},
+                "success": True
+            }
+            
+            if api_key_id:
+                minute_match["api_key_id"] = api_key_id
+            
+            minute_pipeline = [
+                {"$match": minute_match},
+                {"$group": {
+                    "_id": None,
+                    "request_count": {"$sum": 1}
+                }}
+            ]
+            
+            minute_result = list(mongodb.llm_usage.aggregate(minute_pipeline))
+            minute_requests_used = minute_result[0]["request_count"] if minute_result else 0
+            
+            # Calculate limits and remaining usage
+            daily_token_limit = self.DEFAULT_DAILY_TOKEN_LIMIT
+            monthly_token_limit = self.DEFAULT_MONTHLY_TOKEN_LIMIT
+            daily_cost_limit_cents = self.DEFAULT_DAILY_COST_LIMIT_CENTS
+            hourly_token_limit = self.DEFAULT_HOURLY_TOKEN_LIMIT
+            minutely_request_limit = self.DEFAULT_MINUTELY_REQUEST_LIMIT
+            
+            daily_tokens_remaining = max(0, daily_token_limit - daily_tokens_used)
+            monthly_tokens_remaining = max(0, monthly_token_limit - monthly_tokens_used)
+            daily_cost_remaining_cents = max(0, daily_cost_limit_cents - daily_cost_used_cents)
+            hourly_tokens_remaining = max(0, hourly_token_limit - hourly_tokens_used)
+            minutely_requests_remaining = max(0, minutely_request_limit - minute_requests_used)
+            
+            # Estimate cost for the new tokens
+            estimated_new_cost_cents = self._calculate_cost_cents(
+                "gpt-5-mini",  # Use default model for estimation
+                tokens_to_use // 2,  # Rough split between input/output
+                tokens_to_use // 2
+            )
+            
+            # Check if adding the new tokens would exceed limits
+            is_over_limit = (
+                (daily_tokens_used + tokens_to_use) > daily_token_limit or
+                (monthly_tokens_used + tokens_to_use) > monthly_token_limit or
+                (daily_cost_used_cents + estimated_new_cost_cents) > daily_cost_limit_cents or
+                (hourly_tokens_used + tokens_to_use) > hourly_token_limit or
+                (minute_requests_used + 1) > minutely_request_limit  # +1 for this request
+            )
+            
+            # Determine which limit was exceeded for better error messages
+            limit_exceeded_reason = None
+            if (daily_tokens_used + tokens_to_use) > daily_token_limit:
+                limit_exceeded_reason = f"Daily token limit exceeded: {daily_tokens_used + tokens_to_use}/{daily_token_limit}"
+            elif (monthly_tokens_used + tokens_to_use) > monthly_token_limit:
+                limit_exceeded_reason = f"Monthly token limit exceeded: {monthly_tokens_used + tokens_to_use}/{monthly_token_limit}"
+            elif (daily_cost_used_cents + estimated_new_cost_cents) > daily_cost_limit_cents:
+                limit_exceeded_reason = f"Daily cost limit exceeded: ${(daily_cost_used_cents + estimated_new_cost_cents)/100:.2f}/${daily_cost_limit_cents/100:.2f}"
+            elif (hourly_tokens_used + tokens_to_use) > hourly_token_limit:
+                limit_exceeded_reason = f"Hourly token limit exceeded: {hourly_tokens_used + tokens_to_use}/{hourly_token_limit}"
+            elif (minute_requests_used + 1) > minutely_request_limit:
+                limit_exceeded_reason = f"Rate limit exceeded: {minute_requests_used + 1}/{minutely_request_limit} requests per minute"
+            
+            # Next reset time (tomorrow at midnight)
+            limit_reset_time = today_start + timedelta(days=1)
+            
+            return UsageLimitsResponse(
+                user_id=user_id,
+                api_key_id=api_key_id,
+                daily_token_limit=daily_token_limit,
+                daily_tokens_used=daily_tokens_used,
+                daily_tokens_remaining=daily_tokens_remaining,
+                monthly_token_limit=monthly_token_limit,
+                monthly_tokens_used=monthly_tokens_used,
+                monthly_tokens_remaining=monthly_tokens_remaining,
+                daily_cost_limit_cents=daily_cost_limit_cents,
+                daily_cost_used_cents=daily_cost_used_cents,
+                daily_cost_remaining_cents=daily_cost_remaining_cents,
+                limit_reset_time=limit_reset_time,
+                is_over_limit=is_over_limit,
+                # New short-term limits
+                hourly_token_limit=hourly_token_limit,
+                hourly_tokens_used=hourly_tokens_used,
+                hourly_tokens_remaining=hourly_tokens_remaining,
+                minutely_request_limit=minutely_request_limit,
+                minutely_requests_used=minute_requests_used,
+                minutely_requests_remaining=minutely_requests_remaining,
+                limit_exceeded_reason=limit_exceeded_reason
+            )
+            
         except Exception as e:
             logger.error(f"Failed to check usage limits: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to check usage limits: {str(e)}")
@@ -386,94 +394,88 @@ class UsageService:
         """Get usage statistics for a user."""
         
         try:
-            async with AsyncSessionLocal() as session:
-                now = datetime.utcnow()
-                period_start = now - timedelta(days=days)
+            now = datetime.utcnow()
+            period_start = now - timedelta(days=days)
+            
+            # Build base query
+            base_match = {
+                "user_id": user_id,
+                "created_at": {"$gte": period_start},
+                "success": True
+            }
+            
+            if api_key_id:
+                base_match["api_key_id"] = api_key_id
+            
+            usage_records = list(mongodb.llm_usage.find(base_match))
+            
+            # Calculate totals
+            total_requests = len(usage_records)
+            total_tokens = sum(record["total_tokens"] for record in usage_records)
+            total_cost_cents = sum(record["estimated_cost_cents"] for record in usage_records)
+            
+            # Group by service
+            by_service = {}
+            by_operation = {}
+            
+            for record in usage_records:
+                # By service
+                if record["service_type"] not in by_service:
+                    by_service[record["service_type"]] = {
+                        'requests': 0, 'tokens': 0, 'cost_cents': 0
+                    }
+                by_service[record["service_type"]]['requests'] += 1
+                by_service[record["service_type"]]['tokens'] += record["total_tokens"]
+                by_service[record["service_type"]]['cost_cents'] += record["estimated_cost_cents"]
                 
-                # Build base query
-                base_query = select(LLMUsageDB).where(
-                    and_(
-                        LLMUsageDB.user_id == user_id,
-                        LLMUsageDB.created_at >= period_start,
-                        LLMUsageDB.success == True
-                    )
+                # By operation
+                if record["operation_type"] not in by_operation:
+                    by_operation[record["operation_type"]] = {
+                        'requests': 0, 'tokens': 0, 'cost_cents': 0
+                    }
+                by_operation[record["operation_type"]]['requests'] += 1
+                by_operation[record["operation_type"]]['tokens'] += record["total_tokens"]
+                by_operation[record["operation_type"]]['cost_cents'] += record["estimated_cost_cents"]
+            
+            # Get recent usage (last 10 records)
+            recent_records = list(mongodb.llm_usage.find(base_match).sort("created_at", -1).limit(10))
+            
+            recent_usage = [
+                Usage(
+                    user_id=record["user_id"],
+                    api_key_id=record["api_key_id"],
+                    service_type=record["service_type"],
+                    operation_type=record["operation_type"],
+                    model_name=record["model_name"],
+                    input_tokens=record["input_tokens"],
+                    output_tokens=record["output_tokens"],
+                    total_tokens=record["total_tokens"],
+                    estimated_cost_cents=record["estimated_cost_cents"],
+                    prompt_length=record["prompt_length"],
+                    response_length=record["response_length"],
+                    request_duration_ms=record["request_duration_ms"],
+                    operation_context=record["operation_context"],
+                    api_slug=record["api_slug"],
+                    created_at=record["created_at"],
+                    completed_at=record["completed_at"],
+                    success=record["success"],
+                    error_message=record["error_message"]
                 )
-                
-                if api_key_id:
-                    base_query = base_query.where(LLMUsageDB.api_key_id == api_key_id)
-                
-                result = await session.execute(base_query)
-                usage_records = result.scalars().all()
-                
-                # Calculate totals
-                total_requests = len(usage_records)
-                total_tokens = sum(record.total_tokens for record in usage_records)
-                total_cost_cents = sum(record.estimated_cost_cents for record in usage_records)
-                
-                # Group by service
-                by_service = {}
-                by_operation = {}
-                
-                for record in usage_records:
-                    # By service
-                    if record.service_type not in by_service:
-                        by_service[record.service_type] = {
-                            'requests': 0, 'tokens': 0, 'cost_cents': 0
-                        }
-                    by_service[record.service_type]['requests'] += 1
-                    by_service[record.service_type]['tokens'] += record.total_tokens
-                    by_service[record.service_type]['cost_cents'] += record.estimated_cost_cents
-                    
-                    # By operation
-                    if record.operation_type not in by_operation:
-                        by_operation[record.operation_type] = {
-                            'requests': 0, 'tokens': 0, 'cost_cents': 0
-                        }
-                    by_operation[record.operation_type]['requests'] += 1
-                    by_operation[record.operation_type]['tokens'] += record.total_tokens
-                    by_operation[record.operation_type]['cost_cents'] += record.estimated_cost_cents
-                
-                # Get recent usage (last 10 records)
-                recent_query = base_query.order_by(LLMUsageDB.created_at.desc()).limit(10)
-                recent_result = await session.execute(recent_query)
-                recent_records = recent_result.scalars().all()
-                
-                recent_usage = [
-                    Usage(
-                        user_id=record.user_id,
-                        api_key_id=record.api_key_id,
-                        service_type=record.service_type,
-                        operation_type=record.operation_type,
-                        model_name=record.model_name,
-                        input_tokens=record.input_tokens,
-                        output_tokens=record.output_tokens,
-                        total_tokens=record.total_tokens,
-                        estimated_cost_cents=record.estimated_cost_cents,
-                        prompt_length=record.prompt_length,
-                        response_length=record.response_length,
-                        request_duration_ms=record.request_duration_ms,
-                        operation_context=record.operation_context,
-                        api_slug=record.api_slug,
-                        created_at=record.created_at,
-                        completed_at=record.completed_at,
-                        success=record.success,
-                        error_message=record.error_message
-                    )
-                    for record in recent_records
-                ]
-                
-                return UsageStatsResponse(
-                    user_id=user_id,
-                    total_requests=total_requests,
-                    total_tokens=total_tokens,
-                    total_cost_cents=total_cost_cents,
-                    by_service=by_service,
-                    by_operation=by_operation,
-                    recent_usage=recent_usage,
-                    period_start=period_start,
-                    period_end=now
-                )
-                
+                for record in recent_records
+            ]
+            
+            return UsageStatsResponse(
+                user_id=user_id,
+                total_requests=total_requests,
+                total_tokens=total_tokens,
+                total_cost_cents=total_cost_cents,
+                by_service=by_service,
+                by_operation=by_operation,
+                recent_usage=recent_usage,
+                period_start=period_start,
+                period_end=now
+            )
+            
         except Exception as e:
             logger.error(f"Failed to get usage stats: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to get usage stats: {str(e)}")

@@ -55,7 +55,7 @@ async def register(user_data: UserCreate, request: Request):
     
     try:
         # Create user
-        user = await auth_service.create_user(user_data)
+        user = auth_service.create_user(user_data)
         
         # Allocate starter tokens for new users
         try:
@@ -96,7 +96,7 @@ async def login(login_data: UserLogin, request: Request, response: Response):
     
     try:
         # Authenticate user
-        user = await auth_service.authenticate_user(login_data.email, login_data.password)
+        user = auth_service.authenticate_user(login_data.email, login_data.password)
         
         if not user:
             raise HTTPException(
@@ -105,7 +105,7 @@ async def login(login_data: UserLogin, request: Request, response: Response):
             )
         
         # Create session
-        session_id = await auth_service.create_session(
+        session_id = auth_service.create_session(
             user_id=user.id,
             request=request,
             remember_me=login_data.remember_me
@@ -146,7 +146,7 @@ async def logout(request: Request, response: Response):
         
         if session_id:
             # Destroy session
-            await auth_service.destroy_session(session_id)
+            auth_service.destroy_session(session_id)
         
         # Clear session cookie
         response.delete_cookie("session_id")
@@ -173,7 +173,7 @@ async def get_current_user_info(request: Request):
     if not session_id:
         return {"authenticated": False, "user": None}
     
-    user = await auth_service.validate_session(session_id)
+    user = auth_service.validate_session(session_id)
     
     if user:
         return {"authenticated": True, "user": user}
@@ -189,12 +189,12 @@ async def logout_all_sessions(request: Request, response: Response):
         if not session_id:
             raise HTTPException(status_code=401, detail="Not authenticated")
         
-        user = await auth_service.validate_session(session_id)
+        user = auth_service.validate_session(session_id)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid session")
         
         # Destroy all user sessions
-        count = await auth_service.destroy_all_user_sessions(user.id)
+        count = auth_service.destroy_all_user_sessions(user.id)
         
         # Clear session cookie
         response.delete_cookie("session_id")
@@ -220,7 +220,14 @@ async def get_current_user(request: Request) -> Optional[User]:
     if not session_id:
         return None
     
-    user = await auth_service.validate_session(session_id)
+    user = auth_service.validate_session(session_id)
+    return user
+
+async def get_current_user_required(request: Request) -> User:
+    """Get current authenticated user from session, raise exception if not authenticated"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
     return user
 
 async def require_auth(request: Request) -> User:

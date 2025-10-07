@@ -3,14 +3,13 @@ import json
 import logging
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
-from sqlalchemy import select, and_, func, text, or_
-from sqlalchemy.ext.asyncio import AsyncSession
+# MongoDB operations handled through mongodb service
 from ..models import (
     APIMetadata, InternalToken, InternalTokenBalance, APIExecutionCost,
     APIExecutionTokenUsage, EstimateAPIUsageCostRequest, EstimateAPIUsageCostResponse,
     CreateInternalTokenRequest, InternalTokenUsageStatsResponse, SeparatedTokenBalance
 )
-from .database import APIMetadataDB, InternalTokenDB, APIExecutionTokenUsageDB, AsyncSessionLocal
+from .mongodb import mongodb
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
@@ -61,20 +60,15 @@ class APIPricingService:
     async def check_ai_model_access(self, user_id: str, ai_model: str) -> bool:
         """Check if user can access a specific AI model based on their subscription tier."""
         try:
-            from .database import UserDB
-            async with AsyncSessionLocal() as session:
-                user_result = await session.execute(
-                    select(UserDB).where(UserDB.id == user_id)
-                )
-                user = user_result.scalar_one_or_none()
-                
-                if not user:
-                    return False
-                
-                tier = user.subscription_tier or 'free'
-                allowed_models = self.TIER_AI_MODELS.get(tier, self.TIER_AI_MODELS['free'])
-                
-                return ai_model in allowed_models
+            user = mongodb.users.find_one({"_id": user_id})
+            
+            if not user:
+                return False
+            
+            tier = user.get("subscription_tier", "free")
+            allowed_models = self.TIER_AI_MODELS.get(tier, self.TIER_AI_MODELS['free'])
+            
+            return ai_model in allowed_models
                 
         except Exception as e:
             logger.error(f"Failed to check AI model access: {str(e)}")
@@ -84,18 +78,13 @@ class APIPricingService:
     async def get_available_ai_models(self, user_id: str) -> List[str]:
         """Get list of AI models available to a user based on their subscription tier."""
         try:
-            from .database import UserDB
-            async with AsyncSessionLocal() as session:
-                user_result = await session.execute(
-                    select(UserDB).where(UserDB.id == user_id)
-                )
-                user = user_result.scalar_one_or_none()
-                
-                if not user:
-                    return self.TIER_AI_MODELS['free']
-                
-                tier = user.subscription_tier or 'free'
-                return self.TIER_AI_MODELS.get(tier, self.TIER_AI_MODELS['free'])
+            user = mongodb.users.find_one({"_id": user_id})
+            
+            if not user:
+                return self.TIER_AI_MODELS['free']
+            
+            tier = user.get("subscription_tier", "free")
+            return self.TIER_AI_MODELS.get(tier, self.TIER_AI_MODELS['free'])
                 
         except Exception as e:
             logger.error(f"Failed to get available AI models: {str(e)}")
@@ -125,57 +114,53 @@ class APIPricingService:
             
             metadata_id = str(uuid.uuid4())
             
-            async with AsyncSessionLocal() as session:
-                # Check if metadata already exists
-                existing = await session.execute(
-                    select(APIMetadataDB).where(
-                        and_(
-                            APIMetadataDB.api_slug == api_slug,
-                            APIMetadataDB.user_id == user_id
-                        )
-                    )
+            # Check if metadata already exists
+            existing = mongodb.api_metadata.find_one({
+                "api_slug": api_slug,
+                "user_id": user_id
+            })
+            
+            if existing:
+                # Update existing
+                mongodb.api_metadata.update_one(
+                    {"_id": existing["_id"]},
+                    {"$set": {
+                        "ai_model_used": ai_model_used,
+                        "estimated_tokens_per_call": estimated_tokens_per_call,
+                        "estimated_cost_per_call_cents": estimated_cost_cents,
+                        "base_complexity": base_complexity,
+                        "last_updated": datetime.utcnow()
+                    }}
                 )
+                db_metadata = mongodb.api_metadata.find_one({"_id": existing["_id"]})
+            else:
+                # Create new
+                db_metadata = {
+                    "_id": metadata_id,
+                    "api_slug": api_slug,
+                    "user_id": user_id,
+                    "ai_model_used": ai_model_used,
+                    "estimated_tokens_per_call": estimated_tokens_per_call,
+                    "estimated_cost_per_call_cents": estimated_cost_cents,
+                    "base_complexity": base_complexity,
+                    "created_at": datetime.utcnow(),
+                    "last_updated": datetime.utcnow()
+                }
+                mongodb.api_metadata.insert_one(db_metadata)
                 
-                db_metadata = existing.scalar_one_or_none()
+            metadata = APIMetadata(
+                api_slug=db_metadata["api_slug"],
+                user_id=db_metadata["user_id"],
+                ai_model_used=db_metadata["ai_model_used"],
+                estimated_tokens_per_call=db_metadata["estimated_tokens_per_call"],
+                estimated_cost_per_call_cents=db_metadata["estimated_cost_per_call_cents"],
+                base_complexity=db_metadata["base_complexity"],
+                created_at=db_metadata["created_at"],
+                last_updated=db_metadata["last_updated"]
+            )
                 
-                if db_metadata:
-                    # Update existing
-                    db_metadata.ai_model_used = ai_model_used
-                    db_metadata.estimated_tokens_per_call = estimated_tokens_per_call
-                    db_metadata.estimated_cost_per_call_cents = estimated_cost_cents
-                    db_metadata.base_complexity = base_complexity
-                    db_metadata.last_updated = datetime.utcnow()
-                else:
-                    # Create new
-                    db_metadata = APIMetadataDB(
-                        id=metadata_id,
-                        api_slug=api_slug,
-                        user_id=user_id,
-                        ai_model_used=ai_model_used,
-                        estimated_tokens_per_call=estimated_tokens_per_call,
-                        estimated_cost_per_call_cents=estimated_cost_cents,
-                        base_complexity=base_complexity,
-                        created_at=datetime.utcnow(),
-                        last_updated=datetime.utcnow()
-                    )
-                    session.add(db_metadata)
-                
-                await session.commit()
-                await session.refresh(db_metadata)
-                
-                metadata = APIMetadata(
-                    api_slug=db_metadata.api_slug,
-                    user_id=db_metadata.user_id,
-                    ai_model_used=db_metadata.ai_model_used,
-                    estimated_tokens_per_call=db_metadata.estimated_tokens_per_call,
-                    estimated_cost_per_call_cents=db_metadata.estimated_cost_per_call_cents,
-                    base_complexity=db_metadata.base_complexity,
-                    created_at=db_metadata.created_at,
-                    last_updated=db_metadata.last_updated
-                )
-                
-                logger.info(f"Saved API metadata for {api_slug}: {estimated_cost_cents} cents per call")
-                return metadata
+            logger.info(f"Saved API metadata for {api_slug}: {estimated_cost_cents} cents per call")
+            return metadata
                 
         except Exception as e:
             logger.error(f"Failed to save API metadata: {str(e)}")
@@ -189,39 +174,32 @@ class APIPricingService:
         """Get the execution cost for a specific API."""
         
         try:
-            async with AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(APIMetadataDB).where(
-                        and_(
-                            APIMetadataDB.api_slug == api_slug,
-                            APIMetadataDB.user_id == user_id
-                        )
-                    )
+            metadata = mongodb.api_metadata.find_one({
+                "api_slug": api_slug,
+                "user_id": user_id
+            })
+            
+            if not metadata:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"API metadata not found for {api_slug}"
                 )
-                
-                metadata = result.scalar_one_or_none()
-                
-                if not metadata:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"API metadata not found for {api_slug}"
-                    )
-                
-                # Convert cost to internal tokens
-                internal_tokens_per_call = metadata.estimated_cost_per_call_cents * self.TOKENS_PER_CENT
-                complexity_multiplier = self.COMPLEXITY_MULTIPLIERS.get(metadata.base_complexity, 1.5)
-                
-                return APIExecutionCost(
-                    api_slug=metadata.api_slug,
-                    user_id=metadata.user_id,
-                    cost_per_call_cents=metadata.estimated_cost_per_call_cents,
-                    internal_tokens_per_call=internal_tokens_per_call,
-                    ai_model_used=metadata.ai_model_used,
-                    complexity_multiplier=complexity_multiplier,
-                    base_cost_cents=int(metadata.estimated_cost_per_call_cents / complexity_multiplier),
-                    estimated_tokens_used=metadata.estimated_tokens_per_call,
-                    last_calculated=metadata.last_updated
-                )
+            
+            # Convert cost to internal tokens
+            internal_tokens_per_call = metadata["estimated_cost_per_call_cents"] * self.TOKENS_PER_CENT
+            complexity_multiplier = self.COMPLEXITY_MULTIPLIERS.get(metadata["base_complexity"], 1.5)
+            
+            return APIExecutionCost(
+                api_slug=metadata["api_slug"],
+                user_id=metadata["user_id"],
+                cost_per_call_cents=metadata["estimated_cost_per_call_cents"],
+                internal_tokens_per_call=internal_tokens_per_call,
+                ai_model_used=metadata["ai_model_used"],
+                complexity_multiplier=complexity_multiplier,
+                base_cost_cents=int(metadata["estimated_cost_per_call_cents"] / complexity_multiplier),
+                estimated_tokens_used=metadata["estimated_tokens_per_call"],
+                last_calculated=metadata["last_updated"]
+            )
                 
         except HTTPException:
             raise
@@ -242,25 +220,20 @@ class APIPricingService:
         if generation_tokens is None or execution_tokens is None:
             # Get user's subscription tier to determine allocation
             from .subscription_service import subscription_service
-            from .database import UserDB
             
-            async with AsyncSessionLocal() as session:
-                user_result = await session.execute(
-                    select(UserDB).where(UserDB.id == user_id)
-                )
-                user = user_result.scalar_one_or_none()
-                
-                if user and user.subscription_tier:
-                    tier_info = subscription_service.SUBSCRIPTION_TIERS.get(user.subscription_tier)
-                    if tier_info:
-                        generation_tokens = tier_info.monthly_generation_tokens
-                        execution_tokens = tier_info.monthly_execution_tokens
-                    else:
-                        generation_tokens = 3000  # Free tier default
-                        execution_tokens = 7000
+            user = mongodb.users.find_one({"_id": user_id})
+            
+            if user and user.get("subscription_tier"):
+                tier_info = subscription_service.SUBSCRIPTION_TIERS.get(user["subscription_tier"])
+                if tier_info:
+                    generation_tokens = tier_info.monthly_generation_tokens
+                    execution_tokens = tier_info.monthly_execution_tokens
                 else:
                     generation_tokens = 3000  # Free tier default
                     execution_tokens = 7000
+            else:
+                generation_tokens = 3000  # Free tier default
+                execution_tokens = 7000
         
         allocated_tokens = []
         
@@ -298,58 +271,50 @@ class APIPricingService:
         
         if amount is None:
             # Get user's subscription tier to determine allocation
-            from .database import UserDB
-            async with AsyncSessionLocal() as session:
-                user_result = await session.execute(
-                    select(UserDB).where(UserDB.id == user_id)
-                )
-                user = user_result.scalar_one_or_none()
-                
-                if user and user.monthly_token_allocation:
-                    amount = user.monthly_token_allocation
-                else:
-                    amount = self.DEFAULT_MONTHLY_TOKEN_ALLOCATION
+            user = mongodb.users.find_one({"_id": user_id})
+            
+            if user and user.get("monthly_token_allocation"):
+                amount = user["monthly_token_allocation"]
+            else:
+                amount = self.DEFAULT_MONTHLY_TOKEN_ALLOCATION
         
         try:
             token_id = str(uuid.uuid4())
             
-            async with AsyncSessionLocal() as session:
-                # Set expiration to end of next month
-                now = datetime.utcnow()
-                next_month = now.replace(day=1) + timedelta(days=32)
-                expires_at = next_month.replace(day=1) - timedelta(days=1)
-                
-                db_token = InternalTokenDB(
-                    id=token_id,
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    token_type='api_execution',
-                    amount=amount,
-                    source=source,
-                    expires_at=expires_at,
-                    created_at=datetime.utcnow(),
-                    is_used=False
-                )
-                
-                session.add(db_token)
-                await session.commit()
-                await session.refresh(db_token)
-                
-                token = InternalToken(
-                    id=db_token.id,
-                    user_id=db_token.user_id,
-                    api_key_id=db_token.api_key_id,
-                    token_type=db_token.token_type,
-                    amount=db_token.amount,
-                    source=db_token.source,
-                    expires_at=db_token.expires_at,
-                    created_at=db_token.created_at,
-                    used_at=db_token.used_at,
-                    is_used=db_token.is_used
-                )
-                
-                logger.info(f"Allocated {amount} monthly tokens to user {user_id}")
-                return token
+            # Set expiration to end of next month
+            now = datetime.utcnow()
+            next_month = now.replace(day=1) + timedelta(days=32)
+            expires_at = next_month.replace(day=1) - timedelta(days=1)
+            
+            db_token = {
+                "_id": token_id,
+                "user_id": user_id,
+                "api_key_id": api_key_id,
+                "token_type": 'api_execution',
+                "amount": amount,
+                "source": source,
+                "expires_at": expires_at,
+                "created_at": datetime.utcnow(),
+                "is_used": False
+            }
+            
+            mongodb.internal_tokens.insert_one(db_token)
+            
+            token = InternalToken(
+                id=db_token["_id"],
+                user_id=db_token["user_id"],
+                api_key_id=db_token["api_key_id"],
+                token_type=db_token["token_type"],
+                amount=db_token["amount"],
+                source=db_token["source"],
+                expires_at=db_token["expires_at"],
+                created_at=db_token["created_at"],
+                used_at=None,
+                is_used=db_token["is_used"]
+            )
+            
+            logger.info(f"Allocated {amount} monthly tokens to user {user_id}")
+            return token
                 
         except Exception as e:
             logger.error(f"Failed to allocate monthly tokens: {str(e)}")
@@ -363,64 +328,63 @@ class APIPricingService:
         """Get the current internal token balance for a user."""
         
         try:
-            async with AsyncSessionLocal() as session:
-                now = datetime.utcnow()
-                seven_days_from_now = now + timedelta(days=7)
+            now = datetime.utcnow()
+            seven_days_from_now = now + timedelta(days=7)
+            
+            # Get all unused tokens
+            query = {
+                "user_id": user_id,
+                "is_used": False,
+                "$or": [
+                    {"expires_at": None},
+                    {"expires_at": {"$gt": now}}
+                ]
+            }
+            
+            if api_key_id:
+                query["api_key_id"] = api_key_id
+            
+            unused_tokens = list(mongodb.internal_tokens.find(query))
+            
+            total_tokens = sum(token["amount"] for token in unused_tokens)
+            
+            # Get tokens expiring soon
+            expires_soon_tokens = sum(
+                token["amount"] for token in unused_tokens 
+                if token.get("expires_at") and token["expires_at"] <= seven_days_from_now
+            )
+            
+            # Get used tokens this month
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+            used_query = {
+                "user_id": user_id,
+                "created_at": {"$gte": month_start}
+            }
+            
+            if api_key_id:
+                used_query["api_key_id"] = api_key_id
+            
+            used_tokens_result = mongodb.api_execution_token_usage.aggregate([
+                {"$match": used_query},
+                {"$group": {"_id": None, "total": {"$sum": "$internal_tokens_used"}}}
+            ])
+            
+            used_tokens = 0
+            for result in used_tokens_result:
+                used_tokens = result.get("total", 0)
+                break
                 
-                # Get all unused tokens
-                query = select(InternalTokenDB).where(
-                    and_(
-                        InternalTokenDB.user_id == user_id,
-                        InternalTokenDB.is_used == False,
-                        or_(
-                            InternalTokenDB.expires_at.is_(None),
-                            InternalTokenDB.expires_at > now
-                        )
-                    )
-                )
-                
-                if api_key_id:
-                    query = query.where(InternalTokenDB.api_key_id == api_key_id)
-                
-                result = await session.execute(query)
-                unused_tokens = result.scalars().all()
-                
-                total_tokens = sum(token.amount for token in unused_tokens)
-                
-                # Get tokens expiring soon
-                expires_soon_tokens = sum(
-                    token.amount for token in unused_tokens 
-                    if token.expires_at and token.expires_at <= seven_days_from_now
-                )
-                
-                # Get used tokens this month
-                month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                
-                used_query = select(
-                    func.sum(APIExecutionTokenUsageDB.internal_tokens_used)
-                ).where(
-                    and_(
-                        APIExecutionTokenUsageDB.user_id == user_id,
-                        APIExecutionTokenUsageDB.created_at >= month_start
-                    )
-                )
-                
-                if api_key_id:
-                    used_query = used_query.where(APIExecutionTokenUsageDB.api_key_id == api_key_id)
-                
-                used_result = await session.execute(used_query)
-                used_tokens = used_result.scalar() or 0
-                
-                return InternalTokenBalance(
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    total_tokens=total_tokens,
-                    used_tokens=used_tokens,
-                    remaining_tokens=total_tokens,
-                    monthly_allocation=self.DEFAULT_MONTHLY_TOKEN_ALLOCATION,
-                    expires_soon_tokens=expires_soon_tokens,
-                    last_updated=now
-                )
+            return InternalTokenBalance(
+                user_id=user_id,
+                api_key_id=api_key_id,
+                total_tokens=total_tokens,
+                used_tokens=used_tokens,
+                remaining_tokens=total_tokens,
+                monthly_allocation=self.DEFAULT_MONTHLY_TOKEN_ALLOCATION,
+                expires_soon_tokens=expires_soon_tokens,
+                last_updated=now
+            )
                 
         except Exception as e:
             logger.error(f"Failed to get token balance: {str(e)}")
@@ -440,103 +404,100 @@ class APIPricingService:
         try:
             usage_id = str(uuid.uuid4())
             
-            async with AsyncSessionLocal() as session:
-                # Only deduct tokens if execution was successful
-                if execution_successful and internal_tokens_needed > 0:
-                    # Get available tokens (oldest first to use expiring tokens first)
-                    now = datetime.utcnow()
+            # Only deduct tokens if execution was successful
+            if execution_successful and internal_tokens_needed > 0:
+                # Get available tokens (oldest first to use expiring tokens first)
+                now = datetime.utcnow()
+                
+                query = {
+                    "user_id": user_id,
+                    "is_used": False,
+                    "$or": [
+                        {"expires_at": None},
+                        {"expires_at": {"$gt": now}}
+                    ]
+                }
+                
+                if api_key_id:
+                    query["api_key_id"] = api_key_id
+                
+                available_tokens = list(mongodb.internal_tokens.find(query).sort("expires_at", 1))
+                
+                total_available = sum(token["amount"] for token in available_tokens)
+                
+                if total_available < internal_tokens_needed:
+                    raise HTTPException(
+                        status_code=402,  # Payment Required
+                        detail=f"Insufficient internal tokens. Need {internal_tokens_needed}, have {total_available}"
+                    )
+                
+                # Deduct tokens (mark as used)
+                tokens_remaining = internal_tokens_needed
+                for token in available_tokens:
+                    if tokens_remaining <= 0:
+                        break
                     
-                    query = select(InternalTokenDB).where(
-                        and_(
-                            InternalTokenDB.user_id == user_id,
-                            InternalTokenDB.is_used == False,
-                            or_(
-                                InternalTokenDB.expires_at.is_(None),
-                                InternalTokenDB.expires_at > now
-                            )
+                    if token["amount"] <= tokens_remaining:
+                        # Use entire token
+                        mongodb.internal_tokens.update_one(
+                            {"_id": token["_id"]},
+                            {"$set": {"is_used": True, "used_at": datetime.utcnow()}}
                         )
-                    ).order_by(InternalTokenDB.expires_at.asc().nulls_last())
-                    
-                    if api_key_id:
-                        query = query.where(InternalTokenDB.api_key_id == api_key_id)
-                    
-                    result = await session.execute(query)
-                    available_tokens = result.scalars().all()
-                    
-                    total_available = sum(token.amount for token in available_tokens)
-                    
-                    if total_available < internal_tokens_needed:
-                        raise HTTPException(
-                            status_code=402,  # Payment Required
-                            detail=f"Insufficient internal tokens. Need {internal_tokens_needed}, have {total_available}"
-                        )
-                    
-                    # Deduct tokens (mark as used)
-                    tokens_remaining = internal_tokens_needed
-                    for token in available_tokens:
-                        if tokens_remaining <= 0:
-                            break
+                        tokens_remaining -= token["amount"]
+                    else:
+                        # Split token (create new token with remaining amount)
+                        new_token_id = str(uuid.uuid4())
+                        remaining_amount = token["amount"] - tokens_remaining
                         
-                        if token.amount <= tokens_remaining:
-                            # Use entire token
-                            token.is_used = True
-                            token.used_at = datetime.utcnow()
-                            tokens_remaining -= token.amount
-                        else:
-                            # Split token (create new token with remaining amount)
-                            new_token_id = str(uuid.uuid4())
-                            remaining_amount = token.amount - tokens_remaining
-                            
-                            # Mark original as used
-                            token.is_used = True
-                            token.used_at = datetime.utcnow()
-                            token.amount = tokens_remaining
-                            
-                            # Create new token with remaining amount
-                            new_token = InternalTokenDB(
-                                id=new_token_id,
-                                user_id=token.user_id,
-                                api_key_id=token.api_key_id,
-                                token_type=token.token_type,
-                                amount=remaining_amount,
-                                source=token.source,
-                                expires_at=token.expires_at,
-                                created_at=datetime.utcnow(),
-                                is_used=False
-                            )
-                            session.add(new_token)
-                            
-                            tokens_remaining = 0
-                
-                # Record usage
-                db_usage = APIExecutionTokenUsageDB(
-                    id=usage_id,
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    api_slug=api_slug,
-                    internal_tokens_used=internal_tokens_needed if execution_successful else 0,
-                    cost_cents=cost_cents,
-                    execution_successful=execution_successful,
-                    created_at=datetime.utcnow()
-                )
-                
-                session.add(db_usage)
-                await session.commit()
-                await session.refresh(db_usage)
-                
-                usage = APIExecutionTokenUsage(
-                    id=db_usage.id,
-                    user_id=db_usage.user_id,
-                    api_key_id=db_usage.api_key_id,
-                    api_slug=db_usage.api_slug,
-                    internal_tokens_used=db_usage.internal_tokens_used,
-                    cost_cents=db_usage.cost_cents,
-                    execution_successful=db_usage.execution_successful,
-                    created_at=db_usage.created_at
-                )
-                
-                logger.info(f"Deducted {internal_tokens_needed} tokens for {api_slug} execution")
-                return usage
+                        # Mark original as used
+                        mongodb.internal_tokens.update_one(
+                            {"_id": token["_id"]},
+                            {"$set": {"is_used": True, "used_at": datetime.utcnow(), "amount": tokens_remaining}}
+                        )
+                        
+                        # Create new token with remaining amount
+                        new_token = {
+                            "_id": new_token_id,
+                            "user_id": token["user_id"],
+                            "api_key_id": token["api_key_id"],
+                            "token_type": token["token_type"],
+                            "amount": remaining_amount,
+                            "source": token["source"],
+                            "expires_at": token["expires_at"],
+                            "created_at": datetime.utcnow(),
+                            "is_used": False
+                        }
+                        mongodb.internal_tokens.insert_one(new_token)
+                        
+                        tokens_remaining = 0
+            
+            # Record usage
+            db_usage = {
+                "_id": usage_id,
+                "user_id": user_id,
+                "api_key_id": api_key_id,
+                "api_slug": api_slug,
+                "internal_tokens_used": internal_tokens_needed if execution_successful else 0,
+                "cost_cents": cost_cents,
+                "execution_successful": execution_successful,
+                "created_at": datetime.utcnow()
+            }
+            
+            mongodb.api_execution_token_usage.insert_one(db_usage)
+            
+            usage = APIExecutionTokenUsage(
+                id=db_usage["_id"],
+                user_id=db_usage["user_id"],
+                api_key_id=db_usage["api_key_id"],
+                api_slug=db_usage["api_slug"],
+                internal_tokens_used=db_usage["internal_tokens_used"],
+                cost_cents=db_usage["cost_cents"],
+                execution_successful=db_usage["execution_successful"],
+                created_at=db_usage["created_at"]
+            )
+            
+            logger.info(f"Deducted {internal_tokens_needed} tokens for {api_slug} execution")
+            return usage
                 
         except HTTPException:
             raise
@@ -617,40 +578,37 @@ class APIPricingService:
         try:
             token_id = str(uuid.uuid4())
             
-            async with AsyncSessionLocal() as session:
-                # Set expiration to end of next month
-                now = datetime.utcnow()
-                next_month = now.replace(day=1) + timedelta(days=32)
-                expires_at = next_month.replace(day=1) - timedelta(days=1)
-                
-                db_token = InternalTokenDB(
-                    id=token_id,
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    token_type=token_type,
-                    amount=amount,
-                    source=source,
-                    expires_at=expires_at,
-                    created_at=datetime.utcnow(),
-                    is_used=False
-                )
-                
-                session.add(db_token)
-                await session.commit()
-                await session.refresh(db_token)
-                
-                return InternalToken(
-                    id=db_token.id,
-                    user_id=db_token.user_id,
-                    api_key_id=db_token.api_key_id,
-                    token_type=db_token.token_type,
-                    amount=db_token.amount,
-                    source=db_token.source,
-                    expires_at=db_token.expires_at,
-                    created_at=db_token.created_at,
-                    used_at=db_token.used_at,
-                    is_used=db_token.is_used
-                )
+            # Set expiration to end of next month
+            now = datetime.utcnow()
+            next_month = now.replace(day=1) + timedelta(days=32)
+            expires_at = next_month.replace(day=1) - timedelta(days=1)
+            
+            db_token = {
+                "_id": token_id,
+                "user_id": user_id,
+                "api_key_id": api_key_id,
+                "token_type": token_type,
+                "amount": amount,
+                "source": source,
+                "expires_at": expires_at,
+                "created_at": datetime.utcnow(),
+                "is_used": False
+            }
+            
+            mongodb.internal_tokens.insert_one(db_token)
+            
+            return InternalToken(
+                id=db_token["_id"],
+                user_id=db_token["user_id"],
+                api_key_id=db_token["api_key_id"],
+                token_type=db_token["token_type"],
+                amount=db_token["amount"],
+                source=db_token["source"],
+                expires_at=db_token["expires_at"],
+                created_at=db_token["created_at"],
+                used_at=None,
+                is_used=db_token["is_used"]
+            )
                 
         except Exception as e:
             logger.error(f"Failed to create token allocation: {str(e)}")
@@ -663,108 +621,98 @@ class APIPricingService:
     ) -> SeparatedTokenBalance:
         """Get separated token balance (generation vs execution) for a user."""
         try:
-            async with AsyncSessionLocal() as session:
-                now = datetime.utcnow()
-                
-                # Get generation tokens
-                gen_query = select(InternalTokenDB).where(
-                    and_(
-                        InternalTokenDB.user_id == user_id,
-                        InternalTokenDB.token_type == "api_generation",
-                        InternalTokenDB.is_used == False,
-                        or_(
-                            InternalTokenDB.expires_at.is_(None),
-                            InternalTokenDB.expires_at > now
-                        )
-                    )
-                )
-                
-                if api_key_id:
-                    gen_query = gen_query.where(InternalTokenDB.api_key_id == api_key_id)
-                
-                gen_result = await session.execute(gen_query)
-                gen_tokens = gen_result.scalars().all()
-                
-                # Get execution tokens
-                exec_query = select(InternalTokenDB).where(
-                    and_(
-                        InternalTokenDB.user_id == user_id,
-                        InternalTokenDB.token_type == "api_execution",
-                        InternalTokenDB.is_used == False,
-                        or_(
-                            InternalTokenDB.expires_at.is_(None),
-                            InternalTokenDB.expires_at > now
-                        )
-                    )
-                )
-                
-                if api_key_id:
-                    exec_query = exec_query.where(InternalTokenDB.api_key_id == api_key_id)
-                
-                exec_result = await session.execute(exec_query)
-                exec_tokens = exec_result.scalars().all()
-                
-                # Calculate totals
-                generation_total = sum(token.amount for token in gen_tokens)
-                execution_total = sum(token.amount for token in exec_tokens)
-                
-                # Get used tokens this month
-                month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-                
-                # Generation tokens used
-                gen_used_query = select(
-                    func.sum(APIExecutionTokenUsageDB.internal_tokens_used)
-                ).where(
-                    and_(
-                        APIExecutionTokenUsageDB.user_id == user_id,
-                        APIExecutionTokenUsageDB.created_at >= month_start,
-                        # Assuming we add a field to track token type in usage
-                    )
-                )
-                
-                # For now, we'll use the existing usage tracking
-                # TODO: Add token_type field to APIExecutionTokenUsageDB
-                gen_used_result = await session.execute(gen_used_query)
-                total_used = gen_used_result.scalar() or 0
-                
-                # For now, split usage 30/70 between generation and execution
-                gen_used = int(total_used * 0.3)
-                exec_used = int(total_used * 0.7)
-                
-                # Get monthly allocations from subscription tier
-                from .subscription_service import subscription_service
-                from .database import UserDB
-                
-                user_result = await session.execute(
-                    select(UserDB).where(UserDB.id == user_id)
-                )
-                user = user_result.scalar_one_or_none()
-                
-                gen_allocation = 3000  # Default free tier
-                exec_allocation = 7000
-                
-                if user and user.subscription_tier:
-                    tier_info = subscription_service.SUBSCRIPTION_TIERS.get(user.subscription_tier)
-                    if tier_info:
-                        gen_allocation = tier_info.monthly_generation_tokens
-                        exec_allocation = tier_info.monthly_execution_tokens
-                
-                return SeparatedTokenBalance(
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    generation_tokens_total=generation_total,
-                    generation_tokens_used=gen_used,
-                    generation_tokens_remaining=generation_total,
-                    generation_monthly_allocation=gen_allocation,
-                    execution_tokens_total=execution_total,
-                    execution_tokens_used=exec_used,
-                    execution_tokens_remaining=execution_total,
-                    execution_monthly_allocation=exec_allocation,
-                    total_tokens=generation_total + execution_total,
-                    total_used=gen_used + exec_used,
-                    total_remaining=generation_total + execution_total,
-                    last_updated=now
-                )
+            now = datetime.utcnow()
+            
+            # Get generation tokens
+            gen_query = {
+                "user_id": user_id,
+                "token_type": "api_generation",
+                "is_used": False,
+                "$or": [
+                    {"expires_at": None},
+                    {"expires_at": {"$gt": now}}
+                ]
+            }
+            
+            if api_key_id:
+                gen_query["api_key_id"] = api_key_id
+            
+            gen_tokens = list(mongodb.internal_tokens.find(gen_query))
+            
+            # Get execution tokens
+            exec_query = {
+                "user_id": user_id,
+                "token_type": "api_execution",
+                "is_used": False,
+                "$or": [
+                    {"expires_at": None},
+                    {"expires_at": {"$gt": now}}
+                ]
+            }
+            
+            if api_key_id:
+                exec_query["api_key_id"] = api_key_id
+            
+            exec_tokens = list(mongodb.internal_tokens.find(exec_query))
+            
+            # Calculate totals
+            generation_total = sum(token["amount"] for token in gen_tokens)
+            execution_total = sum(token["amount"] for token in exec_tokens)
+            
+            # Get used tokens this month
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+            # Generation tokens used
+            used_query = {
+                "user_id": user_id,
+                "created_at": {"$gte": month_start}
+            }
+            
+            # For now, we'll use the existing usage tracking
+            # TODO: Add token_type field to APIExecutionTokenUsageDB
+            total_used_result = mongodb.api_execution_token_usage.aggregate([
+                {"$match": used_query},
+                {"$group": {"_id": None, "total": {"$sum": "$internal_tokens_used"}}}
+            ])
+            
+            total_used = 0
+            for result in total_used_result:
+                total_used = result.get("total", 0)
+                break
+            
+            # For now, split usage 30/70 between generation and execution
+            gen_used = int(total_used * 0.3)
+            exec_used = int(total_used * 0.7)
+            
+            # Get monthly allocations from subscription tier
+            from .subscription_service import subscription_service
+            user = mongodb.users.find_one({"_id": user_id})
+            
+            gen_allocation = 3000  # Default free tier
+            exec_allocation = 7000
+            
+            if user and user.get("subscription_tier"):
+                tier_info = subscription_service.SUBSCRIPTION_TIERS.get(user["subscription_tier"])
+                if tier_info:
+                    gen_allocation = tier_info.monthly_generation_tokens
+                    exec_allocation = tier_info.monthly_execution_tokens
+            
+            return SeparatedTokenBalance(
+                user_id=user_id,
+                api_key_id=api_key_id,
+                generation_tokens_total=generation_total,
+                generation_tokens_used=gen_used,
+                generation_tokens_remaining=generation_total,
+                generation_monthly_allocation=gen_allocation,
+                execution_tokens_total=execution_total,
+                execution_tokens_used=exec_used,
+                execution_tokens_remaining=execution_total,
+                execution_monthly_allocation=exec_allocation,
+                total_tokens=generation_total + execution_total,
+                total_used=gen_used + exec_used,
+                total_remaining=generation_total + execution_total,
+                last_updated=now
+            )
                 
         except Exception as e:
             logger.error(f"Failed to get separated token balance: {str(e)}")

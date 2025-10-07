@@ -9,6 +9,10 @@ class Settings:
     # Some Settings
     ENABLE_TEST_VALIDATION_DEBUGGING: bool = "true"
 
+    # MongoDB Configuration
+    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb+srv://ernosto2003:axaxwwqA1@bucketapi.3v3mkyg.mongodb.net/?retryWrites=true&w=majority&appName=Bucketapi")
+    MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME", "Bucketapi")
+
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5-mini")

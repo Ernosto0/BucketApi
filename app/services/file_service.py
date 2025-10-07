@@ -5,12 +5,10 @@ import sys
 from pathlib import Path
 from typing import Optional, Any, Dict, List
 from datetime import datetime
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import settings
 from ..models import SavedAPI, SaveAPIRequest, User, UserCreate
 from ..services.auth_service import auth_service
-from .database import SavedAPIDB, AsyncSessionLocal
+from .mongodb import mongodb
 import logging
 from .sandbox_service import sandbox_service
 from ..services.api_execution_usage_service import api_execution_usage_service
@@ -94,17 +92,17 @@ class FileService:
         return str(resolved_path)
     
     # User Management Methods (delegated to auth_service)
-    async def save_user(self, user_data: UserCreate, hashed_password: str) -> User:
+    def save_user(self, user_data: UserCreate, hashed_password: str) -> User:
         """Save a new user (delegated to auth_service)."""
-        return await auth_service.save_user(user_data, hashed_password)
+        return auth_service.save_user(user_data, hashed_password)
 
-    async def get_user_by_email(self, email: str) -> Optional[User]:
+    def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email (delegated to auth_service)."""
-        return await auth_service.get_user_by_email(email)
+        return auth_service.get_user_by_email(email)
 
-    async def authenticate_user(self, email: str, password: str) -> Optional[User]:
+    def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """Authenticate a user (delegated to auth_service)."""
-        return await auth_service.authenticate_user(email, password)
+        return auth_service.authenticate_user(email, password)
 
     # API Management Methods
     def generate_api_slug(self, user_id: str, api_name: Optional[str] = None) -> str:
@@ -246,101 +244,88 @@ class FileService:
             logger.error(f"Failed to load API code for {user_id}/{api_slug}: {e}")
             raise Exception("Failed to load API code. The API may not exist or be corrupted.")
     
-    async def save_api_metadata(self, request: SaveAPIRequest) -> SavedAPI:
+    def save_api_metadata(self, request: SaveAPIRequest) -> SavedAPI:
         """Save API metadata to database."""
-        async with AsyncSessionLocal() as session:
-            # Get creation time from the Python file
-            full_slug = f"{request.user_id}_{request.api_slug}"
-            python_file_path = self._get_api_file_path(full_slug)
-            created_at = self._get_file_creation_time_from_path(python_file_path)
-            
-            # Check if API metadata already exists
-            existing_api = await session.execute(
-                select(SavedAPIDB).where(
-                    and_(
-                        SavedAPIDB.user_id == request.user_id,
-                        SavedAPIDB.api_slug == request.api_slug
-                    )
-                )
-            )
-            
-            if existing_api.scalar_one_or_none():
-                raise Exception("API metadata already exists")
-            
-            # Create database entry
-            db_api = SavedAPIDB(
-                api_slug=request.api_slug,
-                user_id=request.user_id,
-                api_name=request.api_name,
-                prompt=request.prompt,
-                endpoint_url=request.endpoint_url,
-                documentation=request.documentation,
-                curl_example=request.curl_example,
-                openapi_spec=request.openapi_spec,
-                sample_input=request.sample_input,
-                expected_output=request.expected_output,
-                created_at=created_at,
-                saved_at=datetime.utcnow(),
-                is_saved=True
-            )
-            
-            session.add(db_api)
-            await session.commit()
-            await session.refresh(db_api)
-            
-            # Return SavedAPI model
-            return SavedAPI(
-                api_slug=db_api.api_slug,
-                user_id=db_api.user_id,
-                api_name=db_api.api_name,
-                prompt=db_api.prompt,
-                endpoint_url=db_api.endpoint_url,
-                documentation=db_api.documentation,
-                curl_example=db_api.curl_example,
-                openapi_spec=db_api.openapi_spec,
-                sample_input=db_api.sample_input,
-                expected_output=db_api.expected_output,
-                created_at=db_api.created_at,
-                saved_at=db_api.saved_at,
-                is_saved=db_api.is_saved
-            )
+        # Get creation time from the Python file
+        full_slug = f"{request.user_id}_{request.api_slug}"
+        python_file_path = self._get_api_file_path(full_slug)
+        created_at = self._get_file_creation_time_from_path(python_file_path)
+        
+        # Check if API metadata already exists
+        existing_api = mongodb.saved_apis.find_one({
+            "user_id": request.user_id,
+            "api_slug": request.api_slug
+        })
+        
+        if existing_api:
+            raise Exception("API metadata already exists")
+        
+        # Create database entry
+        db_api = {
+            "api_slug": request.api_slug,
+            "user_id": request.user_id,
+            "api_name": request.api_name,
+            "prompt": request.prompt,
+            "endpoint_url": request.endpoint_url,
+            "documentation": request.documentation,
+            "curl_example": request.curl_example,
+            "openapi_spec": request.openapi_spec,
+            "sample_input": request.sample_input,
+            "expected_output": request.expected_output,
+            "created_at": created_at,
+            "saved_at": datetime.utcnow(),
+            "is_saved": True
+        }
+        
+        mongodb.saved_apis.insert_one(db_api)
+        
+        # Return SavedAPI model
+        return SavedAPI(
+            api_slug=db_api["api_slug"],
+            user_id=db_api["user_id"],
+            api_name=db_api["api_name"],
+            prompt=db_api["prompt"],
+            endpoint_url=db_api["endpoint_url"],
+            documentation=db_api["documentation"],
+            curl_example=db_api["curl_example"],
+            openapi_spec=db_api["openapi_spec"],
+            sample_input=db_api["sample_input"],
+            expected_output=db_api["expected_output"],
+            created_at=db_api["created_at"],
+            saved_at=db_api["saved_at"],
+            is_saved=db_api["is_saved"]
+        )
     
-    async def get_api_metadata(self, user_id: str, api_slug: str) -> Optional[SavedAPI]:
+    def get_api_metadata(self, user_id: str, api_slug: str) -> Optional[SavedAPI]:
         """Get API metadata from database."""
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(SavedAPIDB).where(
-                    and_(
-                        SavedAPIDB.user_id == user_id,
-                        SavedAPIDB.api_slug == api_slug
-                    )
-                )
-            )
-            
-            db_api = result.scalar_one_or_none()
-            if not db_api:
-                return None
-            
-            return SavedAPI(
-                api_slug=db_api.api_slug,
-                user_id=db_api.user_id,
-                api_name=db_api.api_name,
-                prompt=db_api.prompt,
-                endpoint_url=db_api.endpoint_url,
-                documentation=db_api.documentation,
-                curl_example=db_api.curl_example,
-                openapi_spec=db_api.openapi_spec,
-                sample_input=db_api.sample_input,
-                expected_output=db_api.expected_output,
-                created_at=db_api.created_at,
-                saved_at=db_api.saved_at,
-                is_saved=db_api.is_saved
-            )
+        db_api = mongodb.saved_apis.find_one({
+            "user_id": user_id,
+            "api_slug": api_slug
+        })
+        
+        if not db_api:
+            return None
+        
+        return SavedAPI(
+            api_slug=db_api["api_slug"],
+            user_id=db_api["user_id"],
+            api_name=db_api["api_name"],
+            prompt=db_api["prompt"],
+            endpoint_url=db_api["endpoint_url"],
+            documentation=db_api["documentation"],
+            curl_example=db_api["curl_example"],
+            openapi_spec=db_api.get("openapi_spec"),
+            sample_input=db_api.get("sample_input"),
+            expected_output=db_api.get("expected_output"),
+            created_at=db_api["created_at"],
+            saved_at=db_api["saved_at"],
+            is_saved=db_api.get("is_saved", True)
+        )
     
-    async def get_api_details(self, user_id: str, api_slug: str) -> Dict[str, Any]:
+    def get_api_details(self, user_id: str, api_slug: str) -> Dict[str, Any]:
         """Get comprehensive API details including metadata, code, and execution statistics."""
         # Get API metadata from database
-        api_metadata = await self.get_api_metadata(user_id, api_slug)
+        api_metadata = self.get_api_metadata(user_id, api_slug)
         
         if not api_metadata:
             # Check if API file exists but not saved to database
@@ -409,18 +394,12 @@ class FileService:
         
         return api_details
     
-    async def is_api_saved(self, user_id: str, api_slug: str) -> bool:
+    def is_api_saved(self, user_id: str, api_slug: str) -> bool:
         """Check if an API has been saved with metadata in database."""
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(SavedAPIDB.id).where(
-                    and_(
-                        SavedAPIDB.user_id == user_id,
-                        SavedAPIDB.api_slug == api_slug
-                    )
-                )
-            )
-            return result.scalar_one_or_none() is not None
+        return mongodb.saved_apis.find_one({
+            "user_id": user_id,
+            "api_slug": api_slug
+        }) is not None
     
     async def load_and_execute_api(self, user_id: str, api_slug: str, 
                            file_bytes: Optional[bytes] = None, 
@@ -457,33 +436,30 @@ class FileService:
         full_slug = f"{user_id}_{api_slug}"
         return self._api_file_exists(full_slug)
     
-    async def get_user_apis(self, user_id: str) -> List[SavedAPI]:
+    def get_user_apis(self, user_id: str) -> List[SavedAPI]:
         """Get list of saved APIs with full metadata for a specific user from database."""
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(SavedAPIDB).where(SavedAPIDB.user_id == user_id).order_by(SavedAPIDB.saved_at.desc())
-            )
-            
-            db_apis = result.scalars().all()
-            
-            saved_apis = []
-            for db_api in db_apis:
-                saved_apis.append(SavedAPI(
-                    api_slug=db_api.api_slug,
-                    user_id=db_api.user_id,
-                    api_name=db_api.api_name,
-                    prompt=db_api.prompt,
-                    endpoint_url=db_api.endpoint_url,
-                    documentation=db_api.documentation,
-                    curl_example=db_api.curl_example,
-                    sample_input=db_api.sample_input,
-                    expected_output=db_api.expected_output,
-                    created_at=db_api.created_at,
-                    saved_at=db_api.saved_at,
-                    is_saved=db_api.is_saved
-                ))
-            
-            return saved_apis
+        db_apis = mongodb.saved_apis.find(
+            {"user_id": user_id}
+        ).sort("saved_at", -1)
+        
+        saved_apis = []
+        for db_api in db_apis:
+            saved_apis.append(SavedAPI(
+                api_slug=db_api["api_slug"],
+                user_id=db_api["user_id"],
+                api_name=db_api["api_name"],
+                prompt=db_api["prompt"],
+                endpoint_url=db_api["endpoint_url"],
+                documentation=db_api["documentation"],
+                curl_example=db_api["curl_example"],
+                sample_input=db_api.get("sample_input"),
+                expected_output=db_api.get("expected_output"),
+                created_at=db_api["created_at"],
+                saved_at=db_api["saved_at"],
+                is_saved=db_api.get("is_saved", True)
+            ))
+        
+        return saved_apis
     
     def get_user_apis_basic(self, user_id: str) -> list:
         """Get basic list of APIs for a specific user (legacy method - file-based)."""
@@ -504,7 +480,7 @@ class FileService:
         
         return sorted(apis, key=lambda x: x['created_at'], reverse=True)
     
-    async def delete_api(self, user_id: str, api_slug: str) -> bool:
+    def delete_api(self, user_id: str, api_slug: str) -> bool:
         """Delete an API file and its metadata from both filesystem and database."""
         full_slug = f"{user_id}_{api_slug}"
         file_path = self._get_api_file_path(full_slug)
@@ -520,20 +496,10 @@ class FileService:
         
         # Delete metadata from database
         try:
-            async with AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(SavedAPIDB).where(
-                        and_(
-                            SavedAPIDB.user_id == user_id,
-                            SavedAPIDB.api_slug == api_slug
-                        )
-                    )
-                )
-                
-                db_api = result.scalar_one_or_none()
-                if db_api:
-                    await session.delete(db_api)
-                    await session.commit()
+            mongodb.saved_apis.delete_one({
+                "user_id": user_id,
+                "api_slug": api_slug
+            })
         except Exception:
             success = False
         

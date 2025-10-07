@@ -96,11 +96,11 @@ async def google_callback(request: Request, response: Response):
             return RedirectResponse(url="/login?error=missing_info")
         
         # Check if this is a new user
-        existing_user = await auth_service.get_user_by_email(email)
+        existing_user = auth_service.get_user_by_email(email)
         is_new_user = existing_user is None
         
         # Get or create user
-        user = await auth_service.get_or_create_oauth_user(
+        user = auth_service.get_or_create_oauth_user(
             email=email,
             oauth_provider='google',
             oauth_id=google_id,
@@ -121,7 +121,7 @@ async def google_callback(request: Request, response: Response):
                 logger.warning(f"Failed to allocate starter tokens: {e}")
         
         # Create session
-        session_id = await auth_service.create_session(
+        session_id = auth_service.create_session(
             user_id=user.id,
             request=request,
             remember_me=True  # Always remember OAuth users

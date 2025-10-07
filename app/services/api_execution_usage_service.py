@@ -5,13 +5,12 @@ import sys
 import psutil
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any, Tuple
-from sqlalchemy import select, and_, func, text
-from sqlalchemy.ext.asyncio import AsyncSession
+# MongoDB operations handled through mongodb service
 from ..models import (
     APIExecutionUsage, APIExecutionStatsResponse, APIExecutionLimitsResponse, 
     CreateAPIExecutionUsageRequest, APIExecutionUsageRequest
 )
-from .database import APIExecutionUsageDB, AsyncSessionLocal
+from .mongodb import mongodb
 from .sandbox_service import sandbox_service
 from fastapi import HTTPException
 
@@ -48,41 +47,39 @@ class APIExecutionUsageService:
             # Create usage record
             usage_id = str(uuid.uuid4())
             
-            async with AsyncSessionLocal() as session:
-                db_usage = APIExecutionUsageDB(
-                    id=usage_id,
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    api_slug=api_slug,
-                    execution_time_ms=execution_time_ms,
-                    input_data_size=input_data_size,
-                    output_data_size=output_data_size,
-                    success=success,
-                    error_message=error_message,
-                    created_at=datetime.utcnow()
-                )
+            # Create usage record in MongoDB
+            db_usage = {
+                "_id": usage_id,
+                "user_id": user_id,
+                "api_key_id": api_key_id,
+                "api_slug": api_slug,
+                "execution_time_ms": execution_time_ms,
+                "input_data_size": input_data_size,
+                "output_data_size": output_data_size,
+                "success": success,
+                "error_message": error_message,
+                "created_at": datetime.utcnow()
+            }
+            
+            mongodb.api_execution_usage.insert_one(db_usage)
                 
-                session.add(db_usage)
-                await session.commit()
-                await session.refresh(db_usage)
+            # Convert to Pydantic model
+            usage = APIExecutionUsage(
+                id=db_usage["_id"],
+                user_id=db_usage["user_id"],
+                api_key_id=db_usage["api_key_id"],
+                api_slug=db_usage["api_slug"],
+                execution_time_ms=db_usage["execution_time_ms"],
+                input_data_size=db_usage["input_data_size"],
+                output_data_size=db_usage["output_data_size"],
+                success=db_usage["success"],
+                error_message=db_usage["error_message"],
+                created_at=db_usage["created_at"]
+            )
                 
-                # Convert to Pydantic model
-                usage = APIExecutionUsage(
-                    id=db_usage.id,
-                    user_id=db_usage.user_id,
-                    api_key_id=db_usage.api_key_id,
-                    api_slug=db_usage.api_slug,
-                    execution_time_ms=db_usage.execution_time_ms,
-                    input_data_size=db_usage.input_data_size,
-                    output_data_size=db_usage.output_data_size,
-                    success=db_usage.success,
-                    error_message=db_usage.error_message,
-                    created_at=db_usage.created_at
-                )
-                
-                total_data = input_data_size + output_data_size
-                logger.info(f"Recorded API execution for user {user_id}: {api_slug}, {execution_time_ms}ms, {total_data} bytes")
-                return usage
+            total_data = input_data_size + output_data_size
+            logger.info(f"Recorded API execution for user {user_id}: {api_slug}, {execution_time_ms}ms, {total_data} bytes")
+            return usage
                 
         except Exception as e:
             logger.error(f"Failed to record API execution usage: {str(e)}")
@@ -97,88 +94,93 @@ class APIExecutionUsageService:
         """Check if user is within API execution limits."""
         
         try:
-            async with AsyncSessionLocal() as session:
-                now = datetime.utcnow()
-                today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-                month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            now = datetime.utcnow()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            
+            # Build base match conditions
+            base_match = {
+                "user_id": user_id,
+                "created_at": {"$gte": today_start},
+                "success": True
+            }
+            
+            if api_key_id:
+                base_match["api_key_id"] = api_key_id
+            
+            # Query daily usage
+            daily_pipeline = [
+                {"$match": base_match},
+                {"$group": {
+                    "_id": None,
+                    "total_executions": {"$sum": 1},
+                    "total_data": {"$sum": {"$add": ["$input_data_size", "$output_data_size"]}}
+                }}
+            ]
+            
+            daily_result = list(mongodb.api_execution_usage.aggregate(daily_pipeline))
+            daily_executions_used = daily_result[0]["total_executions"] if daily_result else 0
+            daily_data_used_bytes = daily_result[0]["total_data"] if daily_result else 0
                 
-                # Query daily usage
-                daily_query = select(
-                    func.count(APIExecutionUsageDB.id).label('total_executions'),
-                    func.sum(APIExecutionUsageDB.input_data_size + APIExecutionUsageDB.output_data_size).label('total_data')
-                ).where(
-                    and_(
-                        APIExecutionUsageDB.user_id == user_id,
-                        APIExecutionUsageDB.created_at >= today_start,
-                        APIExecutionUsageDB.success == True
-                    )
-                )
+            # Query monthly usage
+            monthly_match = {
+                "user_id": user_id,
+                "created_at": {"$gte": month_start},
+                "success": True
+            }
+            
+            if api_key_id:
+                monthly_match["api_key_id"] = api_key_id
+            
+            monthly_pipeline = [
+                {"$match": monthly_match},
+                {"$group": {
+                    "_id": None,
+                    "total_executions": {"$sum": 1}
+                }}
+            ]
+            
+            monthly_result = list(mongodb.api_execution_usage.aggregate(monthly_pipeline))
+            monthly_executions_used = monthly_result[0]["total_executions"] if monthly_result else 0
                 
-                if api_key_id:
-                    daily_query = daily_query.where(APIExecutionUsageDB.api_key_id == api_key_id)
-                
-                daily_result = await session.execute(daily_query)
-                daily_row = daily_result.first()
-                
-                daily_executions_used = daily_row.total_executions or 0
-                daily_data_used_bytes = daily_row.total_data or 0
-                
-                # Query monthly usage
-                monthly_query = select(
-                    func.count(APIExecutionUsageDB.id).label('total_executions')
-                ).where(
-                    and_(
-                        APIExecutionUsageDB.user_id == user_id,
-                        APIExecutionUsageDB.created_at >= month_start,
-                        APIExecutionUsageDB.success == True
-                    )
-                )
-                
-                if api_key_id:
-                    monthly_query = monthly_query.where(APIExecutionUsageDB.api_key_id == api_key_id)
-                
-                monthly_result = await session.execute(monthly_query)
-                monthly_row = monthly_result.first()
-                monthly_executions_used = monthly_row.total_executions or 0
-                
-                # Calculate limits and remaining usage
-                daily_execution_limit = self.DEFAULT_DAILY_EXECUTION_LIMIT
-                monthly_execution_limit = self.DEFAULT_MONTHLY_EXECUTION_LIMIT
-                daily_data_limit_bytes = self.DEFAULT_DAILY_DATA_LIMIT_BYTES
-                
-                daily_executions_remaining = max(0, daily_execution_limit - daily_executions_used)
-                monthly_executions_remaining = max(0, monthly_execution_limit - monthly_executions_used)
-                daily_data_remaining_bytes = max(0, daily_data_limit_bytes - daily_data_used_bytes)
-                
-                # Check if adding the new execution would exceed limits
-                is_over_execution_limit = (
-                    (daily_executions_used + 1) > daily_execution_limit or
-                    (monthly_executions_used + 1) > monthly_execution_limit
-                )
-                
-                is_over_data_limit = (
-                    (daily_data_used_bytes + data_size_to_use) > daily_data_limit_bytes
-                )
-                
-                # Next reset time (tomorrow at midnight)
-                limit_reset_time = today_start + timedelta(days=1)
-                
-                return APIExecutionLimitsResponse(
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    daily_execution_limit=daily_execution_limit,
-                    daily_executions_used=daily_executions_used,
-                    daily_executions_remaining=daily_executions_remaining,
-                    monthly_execution_limit=monthly_execution_limit,
-                    monthly_executions_used=monthly_executions_used,
-                    monthly_executions_remaining=monthly_executions_remaining,
-                    daily_data_limit_bytes=daily_data_limit_bytes,
-                    daily_data_used_bytes=daily_data_used_bytes,
-                    daily_data_remaining_bytes=daily_data_remaining_bytes,
-                    limit_reset_time=limit_reset_time,
-                    is_over_execution_limit=is_over_execution_limit,
-                    is_over_data_limit=is_over_data_limit
-                )
+            # Calculate limits and remaining usage
+            daily_execution_limit = self.DEFAULT_DAILY_EXECUTION_LIMIT
+            monthly_execution_limit = self.DEFAULT_MONTHLY_EXECUTION_LIMIT
+            daily_data_limit_bytes = self.DEFAULT_DAILY_DATA_LIMIT_BYTES
+            
+            daily_executions_remaining = max(0, daily_execution_limit - daily_executions_used)
+            monthly_executions_remaining = max(0, monthly_execution_limit - monthly_executions_used)
+            daily_data_remaining_bytes = max(0, daily_data_limit_bytes - daily_data_used_bytes)
+            
+            # Check if adding the new execution would exceed limits
+            is_over_execution_limit = (
+                (daily_executions_used + 1) > daily_execution_limit or
+                (monthly_executions_used + 1) > monthly_execution_limit
+            )
+            
+            is_over_data_limit = (
+                (daily_data_used_bytes + data_size_to_use) > daily_data_limit_bytes
+            )
+            
+            # Next reset time (tomorrow at midnight)
+            limit_reset_time = today_start + timedelta(days=1)
+            
+            return APIExecutionLimitsResponse(
+                user_id=user_id,
+                api_key_id=api_key_id,
+                daily_execution_limit=daily_execution_limit,
+                daily_executions_used=daily_executions_used,
+                daily_executions_remaining=daily_executions_remaining,
+                monthly_execution_limit=monthly_execution_limit,
+                monthly_executions_used=monthly_executions_used,
+                monthly_executions_remaining=monthly_executions_remaining,
+                daily_data_limit_bytes=daily_data_limit_bytes,
+                daily_data_used_bytes=daily_data_used_bytes,
+                daily_data_remaining_bytes=daily_data_remaining_bytes,
+                limit_reset_time=limit_reset_time,
+                is_over_execution_limit=is_over_execution_limit,
+                is_over_data_limit=is_over_data_limit
+            )
                 
         except Exception as e:
             logger.error(f"Failed to check execution limits: {str(e)}")
@@ -193,85 +195,80 @@ class APIExecutionUsageService:
         """Get API execution statistics for a user."""
         
         try:
-            async with AsyncSessionLocal() as session:
-                now = datetime.utcnow()
-                period_start = now - timedelta(days=days)
+            now = datetime.utcnow()
+            period_start = now - timedelta(days=days)
+            
+            # Build base query
+            base_match = {
+                "user_id": user_id,
+                "created_at": {"$gte": period_start}
+            }
+            
+            if api_key_id:
+                base_match["api_key_id"] = api_key_id
+            
+            execution_records = list(mongodb.api_execution_usage.find(base_match))
                 
-                # Build base query
-                base_query = select(APIExecutionUsageDB).where(
-                    and_(
-                        APIExecutionUsageDB.user_id == user_id,
-                        APIExecutionUsageDB.created_at >= period_start
-                    )
+            # Calculate totals
+            total_executions = len(execution_records)
+            successful_executions = sum(1 for record in execution_records if record["success"])
+            failed_executions = total_executions - successful_executions
+            total_execution_time_ms = sum(record["execution_time_ms"] for record in execution_records)
+            average_execution_time_ms = total_execution_time_ms / total_executions if total_executions > 0 else 0
+            total_data_processed_bytes = sum(
+                record["input_data_size"] + record["output_data_size"] for record in execution_records
+            )
+                
+            # Group by API
+            by_api = {}
+            for record in execution_records:
+                api_slug = record["api_slug"]
+                if api_slug not in by_api:
+                    by_api[api_slug] = {
+                        'executions': 0, 'successful': 0, 'failed': 0, 
+                        'total_time_ms': 0, 'data_bytes': 0
+                    }
+                by_api[api_slug]['executions'] += 1
+                if record["success"]:
+                    by_api[api_slug]['successful'] += 1
+                else:
+                    by_api[api_slug]['failed'] += 1
+                by_api[api_slug]['total_time_ms'] += record["execution_time_ms"]
+                by_api[api_slug]['data_bytes'] += record["input_data_size"] + record["output_data_size"]
+                
+            # Get recent executions (last 10 records)
+            recent_records = list(mongodb.api_execution_usage.find(base_match).sort("created_at", -1).limit(10))
+            
+            recent_executions = [
+                APIExecutionUsage(
+                    id=record["_id"],
+                    user_id=record["user_id"],
+                    api_key_id=record["api_key_id"],
+                    api_slug=record["api_slug"],
+                    execution_time_ms=record["execution_time_ms"],
+                    input_data_size=record["input_data_size"],
+                    output_data_size=record["output_data_size"],
+                    success=record["success"],
+                    error_message=record.get("error_message"),
+                    created_at=record["created_at"]
                 )
-                
-                if api_key_id:
-                    base_query = base_query.where(APIExecutionUsageDB.api_key_id == api_key_id)
-                
-                result = await session.execute(base_query)
-                execution_records = result.scalars().all()
-                
-                # Calculate totals
-                total_executions = len(execution_records)
-                successful_executions = sum(1 for record in execution_records if record.success)
-                failed_executions = total_executions - successful_executions
-                total_execution_time_ms = sum(record.execution_time_ms for record in execution_records)
-                average_execution_time_ms = total_execution_time_ms / total_executions if total_executions > 0 else 0
-                total_data_processed_bytes = sum(
-                    record.input_data_size + record.output_data_size for record in execution_records
-                )
-                
-                # Group by API
-                by_api = {}
-                for record in execution_records:
-                    if record.api_slug not in by_api:
-                        by_api[record.api_slug] = {
-                            'executions': 0, 'successful': 0, 'failed': 0, 
-                            'total_time_ms': 0, 'data_bytes': 0
-                        }
-                    by_api[record.api_slug]['executions'] += 1
-                    if record.success:
-                        by_api[record.api_slug]['successful'] += 1
-                    else:
-                        by_api[record.api_slug]['failed'] += 1
-                    by_api[record.api_slug]['total_time_ms'] += record.execution_time_ms
-                    by_api[record.api_slug]['data_bytes'] += record.input_data_size + record.output_data_size
-                
-                # Get recent executions (last 10 records)
-                recent_query = base_query.order_by(APIExecutionUsageDB.created_at.desc()).limit(10)
-                recent_result = await session.execute(recent_query)
-                recent_records = recent_result.scalars().all()
-                
-                recent_executions = [
-                    APIExecutionUsage(
-                        id=record.id,
-                        user_id=record.user_id,
-                        api_key_id=record.api_key_id,
-                        api_slug=record.api_slug,
-                        execution_time_ms=record.execution_time_ms,
-                        input_data_size=record.input_data_size,
-                        output_data_size=record.output_data_size,
-                        success=record.success,
-                        error_message=record.error_message,
-                        created_at=record.created_at
-                    )
-                    for record in recent_records
-                ]
-                
-                return APIExecutionStatsResponse(
-                    user_id=user_id,
-                    api_key_id=api_key_id,
-                    total_executions=total_executions,
-                    successful_executions=successful_executions,
-                    failed_executions=failed_executions,
-                    total_execution_time_ms=total_execution_time_ms,
-                    average_execution_time_ms=average_execution_time_ms,
-                    total_data_processed_bytes=total_data_processed_bytes,
-                    by_api=by_api,
-                    recent_executions=recent_executions,
-                    period_start=period_start,
-                    period_end=now
-                )
+                for record in recent_records
+            ]
+            
+            return APIExecutionStatsResponse(
+                user_id=user_id,
+                api_key_id=api_key_id,
+                total_executions=total_executions,
+                successful_executions=successful_executions,
+                failed_executions=failed_executions,
+                total_execution_time_ms=total_execution_time_ms,
+                average_execution_time_ms=average_execution_time_ms,
+                total_data_processed_bytes=total_data_processed_bytes,
+                by_api=by_api,
+                recent_executions=recent_executions,
+                period_start=period_start,
+                period_end=now
+            )
                 
         except Exception as e:
             logger.error(f"Failed to get execution stats: {str(e)}")

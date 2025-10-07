@@ -51,10 +51,10 @@ from .services.api_execution_usage_service import api_execution_usage_service
 from .services.api_pricing_service import api_pricing_service
 from .services.subscription_service import subscription_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
-from .services.database import init_database, UserDB, UserSessionDB, SavedAPIDB, APIKeyDB, AsyncSessionLocal
-from .routes.auth_routes import router as auth_router, get_current_user, require_auth, require_active_user
+from .services.mongodb import init_database, mongodb
+from .routes.auth_routes import router as auth_router, get_current_user, get_current_user_required, require_auth, require_active_user
 from .routes.oauth_routes import router as oauth_router
-from sqlalchemy import select
+# MongoDB imports handled through services
 from .services.test_service import test_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
 from .services.exceptions import create_secure_error, SecureHTTPException
@@ -79,8 +79,8 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup."""
-    await init_database()
-    logger.info("Database initialized successfully")
+    init_database()
+    logger.info("MongoDB initialized successfully")
     
     # Clean up any orphaned JSON files from old metadata storage
     cleaned_count = file_service.cleanup_orphaned_json_files()
@@ -235,7 +235,7 @@ async def logout_web(request: Request):
     session_id = request.cookies.get("session_id")
     if session_id:
         try:
-            await auth_service.destroy_session(session_id)
+            auth_service.destroy_session(session_id)
         except Exception as e:
             logger.warning(f"Session destruction failed during web logout: {e}")
     
@@ -323,7 +323,7 @@ async def api_documentation_page(request: Request, user_id: str, api_slug: str):
     """Serve the enhanced API documentation page."""
     try:
         # Get API details for documentation
-        api_details = await file_service.get_api_details(user_id, api_slug)
+        api_details = file_service.get_api_details(user_id, api_slug)
         
         # Build the base URL for the API
         base_url = f"{settings.API_PREFIX}/{user_id}/{api_slug}"
@@ -374,7 +374,7 @@ async def create_api_key(
 ):
     """Create a new API key for the authenticated user."""
     logger.info(f"🎯 POST /api-keys endpoint hit! Creating API key '{key_request.key_name}' for user {current_user.id}")
-    result = await api_key_service.create_api_key(current_user.id, key_request)
+    result = api_key_service.create_api_key(current_user.id, key_request)
     logger.info(f"🔄 API key creation result: success={result.success}")
     return result
 
@@ -382,7 +382,7 @@ async def create_api_key(
 async def list_api_keys(request: Request, current_user: User = Depends(require_auth_hybrid)):
     logger.info(f"🔑 GET /api-keys endpoint hit! Listing API keys for user {current_user.id}")
     """List all API keys for the authenticated user."""
-    api_keys = await api_key_service.get_user_api_keys(current_user.id)
+    api_keys = api_key_service.get_user_api_keys(current_user.id)
     return ListAPIKeysResponse(
         success=True,
         api_keys=api_keys,
@@ -398,7 +398,7 @@ async def update_api_key(
 ):
     logger.info(f"🔄 PUT /api-keys/{key_id} endpoint hit! Updating API key for user {current_user.id}")
     """Update an API key."""
-    success = await api_key_service.update_api_key(
+    success = api_key_service.update_api_key(
         current_user.id, 
         key_id, 
         update_request.key_name, 
@@ -413,7 +413,7 @@ async def update_api_key(
 async def delete_api_key(key_id: str, request: Request, current_user: User = Depends(require_auth_hybrid)):
     """Delete an API key."""
     logger.info(f"🔄 DELETE /api-keys/{key_id} endpoint hit! Deleting API key for user {current_user.id}")
-    success = await api_key_service.delete_api_key(current_user.id, key_id)
+    success = api_key_service.delete_api_key(current_user.id, key_id)
     if success:
         return DeleteAPIKeyResponse(
             success=True,
@@ -477,7 +477,7 @@ async def get_usage_limits(
 @app.post("/usage/record")
 async def record_manual_usage(
     request: CreateUsageRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_required)
 ):
     """
     Manually record usage (for testing or external integrations).
@@ -515,7 +515,7 @@ async def estimate_usage_cost(
     model_name: str,
     input_tokens: int,
     output_tokens: int = 1000,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_required)
 ):
     """
     Estimate the cost for a given token usage.
@@ -1253,7 +1253,7 @@ async def generate_api_stream(
                             sample_input=api_request.sample_input,
                             expected_output=api_request.expected_output
                         )
-                        await file_service.save_api_metadata(save_request)
+                        file_service.save_api_metadata(save_request)
                         logger.info(f"API documentation saved to database for {clean_slug}")
                     except Exception as e:
                         logger.warning(f"Failed to save API documentation to database: {e}")
@@ -1434,7 +1434,7 @@ async def generate_api(
             
             # Execute all steps and get final result
             result = await multi_step_generation_service.generate_normal_mode(session_id)
-            multi_step_generation_service.cleanup_session(session_id)
+            await multi_step_generation_service.cleanup_session(session_id)
             
             if result["success"]:
                 raw_code = result.get("final_code")
@@ -1774,7 +1774,7 @@ async def get_available_pipelines():
     """
     logger.info("Getting available generation pipelines")
     
-    pipeline_info = multi_step_generation_service.get_available_pipelines()
+    pipeline_info = await multi_step_generation_service.get_available_pipelines()
     return PipelineInfoResponse(
         success=True,
         **pipeline_info
@@ -1795,7 +1795,7 @@ async def save_api(request: SaveAPIRequest):
             )
         
         # Check if already saved
-        if await file_service.is_api_saved(request.user_id, request.api_slug):
+        if file_service.is_api_saved(request.user_id, request.api_slug):
             return SaveAPIResponse(
                 success=True,
                 message="API is already saved",
@@ -1857,7 +1857,7 @@ async def execute_api(
 
         api_key = input_data.apikey
         
-        validated_key = await api_key_service.validate_api_key(api_key)
+        validated_key = api_key_service.validate_api_key(api_key)
         if not validated_key:
             raise HTTPException(
                 status_code=401,
@@ -2029,7 +2029,7 @@ async def list_user_apis(user_id: str):
     List all saved APIs with full metadata for a specific user.
     """
     try:
-        saved_apis = await file_service.get_user_apis(user_id)
+        saved_apis = file_service.get_user_apis(user_id)
         return ListAPIsResponse(
             success=True,
             user_id=user_id,
@@ -2067,7 +2067,7 @@ async def delete_api(user_id: str, api_slug: str):
     Delete a specific API.
     """
     try:
-        success = await file_service.delete_api(user_id, api_slug)
+        success = file_service.delete_api(user_id, api_slug)
         if success:
             return {
                 "success": True,
@@ -2093,7 +2093,7 @@ async def delete_saved_api(api_slug: str, current_user: User = Depends(require_a
     This endpoint is used by the profile page.
     """
     try:
-        success = await file_service.delete_api(current_user.id, api_slug)
+        success = file_service.delete_api(current_user.id, api_slug)
         if success:
             return {
                 "success": True,
@@ -2118,7 +2118,7 @@ async def apidetails(user_id: str, api_slug: str):
     Get details of a specific API.
     """
     try:
-        api_details = await file_service.get_api_details(user_id, api_slug)
+        api_details = file_service.get_api_details(user_id, api_slug)
         return api_details
     except Exception as e:
         raise HTTPException(
@@ -2132,7 +2132,7 @@ async def get_openapi_spec(request: Request, user_id: str, api_slug: str):
     Get OpenAPI specification for a specific API.
     """
     try:
-        api_details = await file_service.get_api_details(user_id, api_slug)
+        api_details = file_service.get_api_details(user_id, api_slug)
         
         # Check if we have OpenAPI spec in the details
         if 'openapi_spec' in api_details and api_details['openapi_spec']:
@@ -2986,15 +2986,11 @@ async def get_system_stats(request: Request, admin_user: User = Depends(require_
     """Get system statistics."""
     try:
         # Get user count
-        async with AsyncSessionLocal() as session:
-            total_users_result = await session.execute(select(UserDB))
-            all_users = total_users_result.scalars().all()
-            total_users = len(all_users)
-            active_users = len([u for u in all_users if u.is_active])
-            
-            # Get API count
-            api_count_result = await session.execute(select(SavedAPIDB))
-            total_apis = len(api_count_result.scalars().all())
+        total_users = mongodb.users.count_documents({})
+        active_users = mongodb.users.count_documents({"is_active": True})
+        
+        # Get API count
+        total_apis = mongodb.saved_apis.count_documents({})
         
         # Get usage stats (rough estimation)
         total_tokens = 0
@@ -3102,42 +3098,47 @@ async def list_all_api_keys(
 ):
     """List all API keys in the system (admin only)."""
     try:
-        async with AsyncSessionLocal() as session:
-            query = select(APIKeyDB).join(UserDB, APIKeyDB.user_id == UserDB.id)
+        # Build MongoDB query
+        query = {}
+        if status == "active":
+            query["is_active"] = True
+        elif status == "inactive":
+            query["is_active"] = False
+        
+        # Get all API keys with filtering
+        all_keys = list(mongodb.api_keys.find(query))
+        
+        # Filter by search if provided
+        if search:
+            filtered_keys = []
+            for key in all_keys:
+                # Check key name
+                if search.lower() in key.get("key_name", "").lower():
+                    filtered_keys.append(key)
+                    continue
+                # Check user email
+                user = mongodb.users.find_one({"_id": key["user_id"]})
+                if user and search.lower() in user.get("email", "").lower():
+                    filtered_keys.append(key)
+            all_keys = filtered_keys
+        
+        # Get user emails for each key
+        api_keys = []
+        for db_key in all_keys:
+            user = mongodb.users.find_one({"_id": db_key["user_id"]})
             
-            if status == "active":
-                query = query.where(APIKeyDB.is_active == True)
-            elif status == "inactive":
-                query = query.where(APIKeyDB.is_active == False)
-                
-            if search:
-                query = query.where(
-                    (UserDB.email.contains(search)) |
-                    (APIKeyDB.key_name.contains(search))
-                )
-            
-            result = await session.execute(query)
-            db_keys = result.scalars().all()
-            
-            # Get user emails for each key
-            api_keys = []
-            for db_key in db_keys:
-                user_result = await session.execute(
-                    select(UserDB).where(UserDB.id == db_key.user_id)
-                )
-                user = user_result.scalar_one_or_none()
-                
-                api_keys.append({
-                    "id": db_key.id,
-                    "key_name": db_key.key_name,
-                    "user_id": db_key.user_id,
-                    "user_email": user.email if user else "Unknown",
-                    "is_active": db_key.is_active,
-                    "created_at": db_key.created_at.isoformat(),
-                    "last_used": db_key.last_used.isoformat() if db_key.last_used else None,
-                    "usage_count": db_key.usage_count,
-                    "expires_at": db_key.expires_at.isoformat() if db_key.expires_at else None
-                })
+            api_keys.append({
+                "id": db_key["_id"],
+                "key_name": db_key["key_name"],
+                "user_id": db_key["user_id"],
+                "user_email": user["email"] if user else "Unknown",
+                "full_key": db_key["full_key"],
+                "is_active": db_key["is_active"],
+                "created_at": db_key["created_at"].isoformat(),
+                "last_used": db_key["last_used"].isoformat() if db_key.get("last_used") else None,
+                "usage_count": db_key.get("usage_count", 0),
+                "expires_at": db_key["expires_at"].isoformat() if db_key.get("expires_at") else None
+            })
             
             return {
                 "success": True,
@@ -3164,22 +3165,18 @@ async def create_admin_api_key(
             raise HTTPException(status_code=400, detail="user_email and key_name are required")
         
         # Find user by email
-        async with AsyncSessionLocal() as session:
-            user_result = await session.execute(
-                select(UserDB).where(UserDB.email == user_email)
-            )
-            user = user_result.scalar_one_or_none()
+        user = mongodb.users.find_one({"email": user_email})
             
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+    
         # Create API key request
         create_request = CreateAPIKeyRequest(
             key_name=key_name,
             expires_at=datetime.fromisoformat(expires_at) if expires_at else None
         )
         
-        result = await api_key_service.create_api_key(user.id, create_request)
+        result = api_key_service.create_api_key(user.id, create_request)
         
         return {
             "success": True,
@@ -3199,36 +3196,38 @@ async def list_all_users(
 ):
     """List all users in the system (admin only)."""
     try:
-        async with AsyncSessionLocal() as session:
-            query = select(UserDB)
-            
-            if status == "active":
-                query = query.where(UserDB.is_active == True)
-            elif status == "inactive":
-                query = query.where(UserDB.is_active == False)
-                
-            if search:
-                query = query.where(UserDB.email.contains(search))
-            
-            result = await session.execute(query)
-            db_users = result.scalars().all()
-            
-            users = [
-                {
-                    "id": user.id,
-                    "email": user.email,
-                    "is_active": user.is_active,
-                    "created_at": user.created_at.isoformat(),
-                    "last_login": user.last_login.isoformat() if user.last_login else None
-                }
-                for user in db_users
-            ]
-            
-            return {
-                "success": True,
-                "users": users,
-                "count": len(users)
+        # Build MongoDB query
+        query = {}
+        if status == "active":
+            query["is_active"] = True
+        elif status == "inactive":
+            query["is_active"] = False
+        
+        if search:
+            query["email"] = {"$regex": search, "$options": "i"}
+        
+        # Get all users with filtering
+        db_users = list(mongodb.users.find(query))
+        
+        users = [
+            {
+                "id": user["_id"],
+                "email": user["email"],
+                "is_active": user.get("is_active", True),
+                "created_at": user["created_at"].isoformat(),
+                "last_login": user["last_login"].isoformat() if user.get("last_login") else None,
+                "subscription_tier": user.get("subscription_tier", "free"),
+                "subscription_status": user.get("subscription_status", "active"),
+                "oauth_provider": user.get("oauth_provider")
             }
+            for user in db_users
+        ]
+            
+        return {
+            "success": True,
+            "users": users,
+            "count": len(users)
+        }
     except Exception as e:
         logger.error(f"Failed to list users: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to list users: {str(e)}")

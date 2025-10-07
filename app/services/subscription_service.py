@@ -10,8 +10,7 @@ import hmac
 import hashlib
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
+# MongoDB operations handled through mongodb service
 from fastapi import HTTPException
 import httpx
 
@@ -21,7 +20,7 @@ from ..models import (
     SubscriptionEvent
 )
 from ..models_auth import User
-from .database import SubscriptionDB, SubscriptionEventDB, UserDB, AsyncSessionLocal
+from .mongodb import mongodb
 from .api_pricing_service import api_pricing_service
 
 logger = logging.getLogger(__name__)
@@ -127,38 +126,31 @@ class SubscriptionService:
     async def get_user_subscription(self, user_id: str) -> Optional[Subscription]:
         """Get current subscription for a user."""
         try:
-            async with AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(SubscriptionDB).where(
-                        and_(
-                            SubscriptionDB.user_id == user_id,
-                            SubscriptionDB.status.in_(["active", "past_due", "paused"])
-                        )
-                    ).order_by(SubscriptionDB.created_at.desc())
-                )
+            db_subscription = mongodb.subscriptions.find_one({
+                "user_id": user_id,
+                "status": {"$in": ["active", "past_due", "paused"]}
+            }, sort=[("created_at", -1)])
+            
+            if not db_subscription:
+                return None
                 
-                db_subscription = result.scalar_one_or_none()
-                
-                if not db_subscription:
-                    return None
-                
-                return Subscription(
-                    id=db_subscription.id,
-                    user_id=db_subscription.user_id,
-                    lemonsqueezy_subscription_id=db_subscription.lemonsqueezy_subscription_id,
-                    lemonsqueezy_customer_id=db_subscription.lemonsqueezy_customer_id,
-                    lemonsqueezy_product_id=db_subscription.lemonsqueezy_product_id,
-                    lemonsqueezy_variant_id=db_subscription.lemonsqueezy_variant_id,
-                    tier=db_subscription.tier,
-                    status=db_subscription.status,
-                    current_period_start=db_subscription.current_period_start,
-                    current_period_end=db_subscription.current_period_end,
-                    trial_start=db_subscription.trial_start,
-                    trial_end=db_subscription.trial_end,
-                    monthly_token_allocation=db_subscription.monthly_token_allocation,
-                    created_at=db_subscription.created_at,
-                    updated_at=db_subscription.updated_at
-                )
+            return Subscription(
+                id=db_subscription["_id"],
+                user_id=db_subscription["user_id"],
+                lemonsqueezy_subscription_id=db_subscription["lemonsqueezy_subscription_id"],
+                lemonsqueezy_customer_id=db_subscription["lemonsqueezy_customer_id"],
+                lemonsqueezy_product_id=db_subscription["lemonsqueezy_product_id"],
+                lemonsqueezy_variant_id=db_subscription["lemonsqueezy_variant_id"],
+                tier=db_subscription["tier"],
+                status=db_subscription["status"],
+                current_period_start=db_subscription.get("current_period_start"),
+                current_period_end=db_subscription.get("current_period_end"),
+                trial_start=db_subscription.get("trial_start"),
+                trial_end=db_subscription.get("trial_end"),
+                monthly_token_allocation=db_subscription["monthly_token_allocation"],
+                created_at=db_subscription["created_at"],
+                updated_at=db_subscription["updated_at"]
+            )
                 
         except Exception as e:
             logger.error(f"Failed to get user subscription: {str(e)}")
@@ -198,16 +190,13 @@ class SubscriptionService:
             event_id = payload.get("meta", {}).get("event_id", "")
             
             # Check if we've already processed this event
-            async with AsyncSessionLocal() as session:
-                existing_event = await session.execute(
-                    select(SubscriptionEventDB).where(
-                        SubscriptionEventDB.lemonsqueezy_event_id == event_id
-                    )
-                )
-                
-                if existing_event.scalar_one_or_none():
-                    logger.info(f"Event {event_id} already processed")
-                    return True
+            existing_event = mongodb.subscription_events.find_one({
+                "lemonsqueezy_event_id": event_id
+            })
+            
+            if existing_event:
+                logger.info(f"Event {event_id} already processed")
+                return True
             
             # Process the event based on type
             if event_type == "subscription_created":
@@ -263,38 +252,39 @@ class SubscriptionService:
         # Create subscription record
         subscription_id = str(uuid.uuid4())
         
-        async with AsyncSessionLocal() as session:
-            db_subscription = SubscriptionDB(
-                id=subscription_id,
-                user_id=user_id,
-                lemonsqueezy_subscription_id=lemonsqueezy_subscription_id,
-                lemonsqueezy_customer_id=lemonsqueezy_customer_id,
-                lemonsqueezy_product_id=product_id,
-                lemonsqueezy_variant_id=variant_id,
-                tier=tier,
-                status="active",
-                current_period_start=datetime.fromisoformat(attributes.get("current_period_start", "")),
-                current_period_end=datetime.fromisoformat(attributes.get("current_period_end", "")),
-                monthly_token_allocation=tier_info.monthly_tokens,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-            
-            session.add(db_subscription)
-            
-            # Update user's subscription info
-            user_result = await session.execute(
-                select(UserDB).where(UserDB.id == user_id)
-            )
-            user = user_result.scalar_one_or_none()
-            if user:
-                user.subscription_tier = tier
-                user.subscription_status = "active"
-                user.monthly_token_allocation = tier_info.monthly_tokens
-                user.lemonsqueezy_customer_id = lemonsqueezy_customer_id
-                user.lemonsqueezy_subscription_id = lemonsqueezy_subscription_id
-            
-            await session.commit()
+        # Create subscription document
+        subscription_doc = {
+            "_id": subscription_id,
+            "user_id": user_id,
+            "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id,
+            "lemonsqueezy_customer_id": lemonsqueezy_customer_id,
+            "lemonsqueezy_product_id": product_id,
+            "lemonsqueezy_variant_id": variant_id,
+            "tier": tier,
+            "status": "active",
+            "current_period_start": datetime.fromisoformat(attributes.get("current_period_start", "")),
+            "current_period_end": datetime.fromisoformat(attributes.get("current_period_end", "")),
+            "monthly_token_allocation": tier_info.monthly_tokens,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        # Insert subscription
+        mongodb.subscriptions.insert_one(subscription_doc)
+        
+        # Update user's subscription info
+        mongodb.users.update_one(
+            {"_id": user_id},
+            {
+                "$set": {
+                    "subscription_tier": tier,
+                    "subscription_status": "active",
+                    "monthly_token_allocation": tier_info.monthly_tokens,
+                    "lemonsqueezy_customer_id": lemonsqueezy_customer_id,
+                    "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id
+                }
+            }
+        )
         
         # Allocate separated tokens for the new subscription
         await api_pricing_service.allocate_separated_monthly_tokens(
@@ -353,12 +343,10 @@ class SubscriptionService:
     async def _get_user_by_customer_id(self, customer_id: str) -> Optional[str]:
         """Get user ID by LemonSqueezy customer ID."""
         try:
-            async with AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(UserDB.id).where(UserDB.lemonsqueezy_customer_id == customer_id)
-                )
-                user_id = result.scalar_one_or_none()
-                return user_id
+            user = mongodb.users.find_one({
+                "lemonsqueezy_customer_id": customer_id
+            })
+            return user["_id"] if user else None
         except Exception as e:
             logger.error(f"Failed to get user by customer ID: {str(e)}")
             return None
@@ -369,20 +357,20 @@ class SubscriptionService:
             event_id = str(uuid.uuid4())
             meta = payload.get("meta", {})
             
-            async with AsyncSessionLocal() as session:
-                db_event = SubscriptionEventDB(
-                    id=event_id,
-                    subscription_id="",  # Will be filled if available
-                    user_id="",  # Will be filled if available
-                    event_type=meta.get("event_name", ""),
-                    lemonsqueezy_event_id=meta.get("event_id", ""),
-                    event_data=json.dumps(payload),
-                    processed=processed,
-                    created_at=datetime.utcnow()
-                )
-                
-                session.add(db_event)
-                await session.commit()
+            # Create event document
+            event_doc = {
+                "_id": event_id,
+                "subscription_id": "",  # Will be filled if available
+                "user_id": "",  # Will be filled if available
+                "event_type": meta.get("event_name", ""),
+                "lemonsqueezy_event_id": meta.get("event_id", ""),
+                "event_data": json.dumps(payload),
+                "processed": processed,
+                "created_at": datetime.utcnow()
+            }
+            
+            # Insert event
+            mongodb.subscription_events.insert_one(event_doc)
                 
         except Exception as e:
             logger.error(f"Failed to record webhook event: {str(e)}")

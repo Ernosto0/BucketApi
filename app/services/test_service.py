@@ -412,7 +412,7 @@ class TestService:
             # Try to load API details, but continue even if not available
             api_details = {}
             try:
-                api_details = await file_service.get_api_details(user_id, api_slug)
+                api_details = file_service.get_api_details(user_id, api_slug)
                 logger.info(f"Loaded API details for {api_slug}: {list(api_details.keys())}")
             except Exception as e:
                 logger.warning(f"Could not load API details for {api_slug}: {str(e)}, trying to load code directly")
