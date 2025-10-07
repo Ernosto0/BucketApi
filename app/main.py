@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Request
+from starlette.middleware.sessions import SessionMiddleware
 from collections import defaultdict
 import asyncio
 import requests
@@ -87,6 +88,15 @@ async def startup_event():
         logger.info(f"Cleaned up {cleaned_count} orphaned JSON metadata files")
 
 
+
+# Add session middleware for OAuth (required by authlib)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    max_age=30 * 24 * 60 * 60,  # 30 days
+    same_site=settings.COOKIE_SAMESITE,
+    https_only=settings.COOKIE_SECURE
+)
 
 # Add CORS middleware with secure configuration
 app.add_middleware(

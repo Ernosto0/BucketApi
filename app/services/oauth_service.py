@@ -26,6 +26,11 @@ if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
         client_kwargs={
             'scope': 'openid email profile',
             'prompt': 'select_account'  # Always show account selection
+        },
+        # Add state parameter configuration
+        authorize_params={
+            'access_type': 'offline',
+            'prompt': 'consent'
         }
     )
     logger.info("✅ Google OAuth configured successfully")
@@ -76,4 +81,5 @@ class OAuthService:
 
 # Create singleton instance
 oauth_service = OAuthService()
+
 

@@ -195,6 +195,10 @@ class AuthService:
                 is_active=db_user.is_active,
                 created_at=db_user.created_at,
                 last_login=db_user.last_login,
+                oauth_provider=db_user.oauth_provider,
+                oauth_id=db_user.oauth_id,
+                profile_picture=db_user.profile_picture,
+                full_name=db_user.full_name,
                 subscription_tier=db_user.subscription_tier,
                 subscription_status=db_user.subscription_status,
                 monthly_token_allocation=db_user.monthly_token_allocation
@@ -234,6 +238,10 @@ class AuthService:
                 is_active=db_user.is_active,
                 created_at=db_user.created_at,
                 last_login=db_user.last_login,
+                oauth_provider=db_user.oauth_provider,
+                oauth_id=db_user.oauth_id,
+                profile_picture=db_user.profile_picture,
+                full_name=db_user.full_name,
                 subscription_tier=db_user.subscription_tier,
                 subscription_status=db_user.subscription_status,
                 monthly_token_allocation=db_user.monthly_token_allocation
@@ -256,6 +264,10 @@ class AuthService:
                 is_active=db_user.is_active,
                 created_at=db_user.created_at,
                 last_login=db_user.last_login,
+                oauth_provider=db_user.oauth_provider,
+                oauth_id=db_user.oauth_id,
+                profile_picture=db_user.profile_picture,
+                full_name=db_user.full_name,
                 subscription_tier=db_user.subscription_tier,
                 subscription_status=db_user.subscription_status,
                 monthly_token_allocation=db_user.monthly_token_allocation
@@ -278,6 +290,87 @@ class AuthService:
                 is_active=db_user.is_active,
                 created_at=db_user.created_at,
                 last_login=db_user.last_login,
+                oauth_provider=db_user.oauth_provider,
+                oauth_id=db_user.oauth_id,
+                profile_picture=db_user.profile_picture,
+                full_name=db_user.full_name,
+                subscription_tier=db_user.subscription_tier,
+                subscription_status=db_user.subscription_status,
+                monthly_token_allocation=db_user.monthly_token_allocation
+            )
+    
+    async def get_or_create_oauth_user(
+        self, 
+        email: str, 
+        oauth_provider: str, 
+        oauth_id: str,
+        full_name: Optional[str] = None,
+        profile_picture: Optional[str] = None
+    ) -> User:
+        """Get or create a user from OAuth login"""
+        async with AsyncSessionLocal() as session:
+            # Try to find existing user by OAuth ID
+            result = await session.execute(
+                select(UserDB).where(
+                    UserDB.oauth_provider == oauth_provider,
+                    UserDB.oauth_id == oauth_id
+                )
+            )
+            db_user = result.scalar_one_or_none()
+            
+            # If not found, try by email
+            if not db_user:
+                result = await session.execute(
+                    select(UserDB).where(UserDB.email == email)
+                )
+                db_user = result.scalar_one_or_none()
+            
+            if db_user:
+                # Update OAuth info if user exists
+                db_user.oauth_provider = oauth_provider
+                db_user.oauth_id = oauth_id
+                db_user.last_login = datetime.utcnow()
+                if full_name:
+                    db_user.full_name = full_name
+                if profile_picture:
+                    db_user.profile_picture = profile_picture
+                
+                await session.commit()
+                await session.refresh(db_user)
+                
+                logger.info(f"✅ OAuth user logged in: {email}")
+            else:
+                # Create new OAuth user
+                user_id = self.create_user_id()
+                db_user = UserDB(
+                    id=user_id,
+                    email=email,
+                    password_hash=None,  # OAuth users don't have passwords
+                    is_active=True,
+                    created_at=datetime.utcnow(),
+                    last_login=datetime.utcnow(),
+                    oauth_provider=oauth_provider,
+                    oauth_id=oauth_id,
+                    full_name=full_name,
+                    profile_picture=profile_picture
+                )
+                
+                session.add(db_user)
+                await session.commit()
+                await session.refresh(db_user)
+                
+                logger.info(f"✅ New OAuth user created: {email} ({oauth_provider})")
+            
+            return User(
+                id=db_user.id,
+                email=db_user.email,
+                is_active=db_user.is_active,
+                created_at=db_user.created_at,
+                last_login=db_user.last_login,
+                oauth_provider=db_user.oauth_provider,
+                oauth_id=db_user.oauth_id,
+                profile_picture=db_user.profile_picture,
+                full_name=db_user.full_name,
                 subscription_tier=db_user.subscription_tier,
                 subscription_status=db_user.subscription_status,
                 monthly_token_allocation=db_user.monthly_token_allocation

@@ -43,10 +43,16 @@ class UserDB(Base):
 
     id = Column(String, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=True)  # Nullable for OAuth users
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login = Column(DateTime, nullable=True)
+    
+    # OAuth fields
+    oauth_provider = Column(String, nullable=True)  # 'google', 'github', etc.
+    oauth_id = Column(String, nullable=True, index=True)  # User ID from OAuth provider
+    profile_picture = Column(String, nullable=True)  # Profile picture URL
+    full_name = Column(String, nullable=True)  # Full name from OAuth
     
     # Subscription fields
     subscription_tier = Column(String, default="free", nullable=False)  # free, starter, professional, enterprise

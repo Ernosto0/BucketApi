@@ -36,8 +36,13 @@ async def google_login(request: Request):
         # Get the OAuth client
         google = oauth_service.oauth.google
         
-        # Generate authorization URL
+        # Generate authorization URL with explicit state handling
         redirect_uri = settings.OAUTH_REDIRECT_URI
+        
+        # Clear any existing session state to prevent conflicts
+        if hasattr(request, 'session'):
+            request.session.clear()
+        
         return await google.authorize_redirect(request, redirect_uri)
         
     except Exception as e:
@@ -57,8 +62,21 @@ async def google_callback(request: Request, response: Response):
         # Get the OAuth client
         google = oauth_service.oauth.google
         
-        # Get the access token
-        token = await google.authorize_access_token(request)
+        # Check for error in callback
+        error = request.query_params.get('error')
+        if error:
+            logger.error(f"OAuth error from Google: {error}")
+            return RedirectResponse(url="/login?error=oauth_failed")
+        
+        # Get the access token with better error handling
+        try:
+            token = await google.authorize_access_token(request)
+        except Exception as token_error:
+            logger.error(f"Token authorization failed: {token_error}")
+            # Clear session state and try again
+            if hasattr(request, 'session'):
+                request.session.clear()
+            return RedirectResponse(url="/login?error=oauth_failed")
         
         # Get user info from Google
         user_info = await oauth_service.get_google_user_info(token)
@@ -123,10 +141,18 @@ async def google_callback(request: Request, response: Response):
             samesite=settings.COOKIE_SAMESITE
         )
         
+        # Clear OAuth session state after successful login
+        if hasattr(request, 'session'):
+            request.session.clear()
+        
         logger.info(f"✅ Google OAuth login successful: {email}")
         return redirect_response
         
     except Exception as e:
         logger.error(f"Google OAuth callback error: {e}", exc_info=True)
+        # Clear session state on error
+        if hasattr(request, 'session'):
+            request.session.clear()
         return RedirectResponse(url="/login?error=oauth_failed")
+
 
