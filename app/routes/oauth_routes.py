@@ -156,3 +156,142 @@ async def google_callback(request: Request, response: Response):
         return RedirectResponse(url="/login?error=oauth_failed")
 
 
+@router.get("/github/login")
+async def github_login(request: Request):
+    """Initiate GitHub OAuth login"""
+    if not settings.ENABLE_GITHUB_AUTH:
+        raise HTTPException(
+            status_code=503,
+            detail="GitHub authentication is currently disabled"
+        )
+    
+    if not oauth_service.validate_github_credentials():
+        raise HTTPException(
+            status_code=500,
+            detail="GitHub OAuth is not configured properly"
+        )
+    
+    try:
+        # Get the OAuth client
+        github = oauth_service.oauth.github
+        
+        # Generate authorization URL
+        redirect_uri = settings.GITHUB_REDIRECT_URI
+        
+        # Clear any existing session state to prevent conflicts
+        if hasattr(request, 'session'):
+            request.session.clear()
+        
+        return await github.authorize_redirect(request, redirect_uri)
+        
+    except Exception as e:
+        logger.error(f"Error initiating GitHub login: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to initiate GitHub login"
+        )
+
+@router.get("/github/callback")
+async def github_callback(request: Request, response: Response):
+    """Handle GitHub OAuth callback"""
+    if not settings.ENABLE_GITHUB_AUTH:
+        return RedirectResponse(url="/login?error=oauth_disabled")
+    
+    try:
+        # Get the OAuth client
+        github = oauth_service.oauth.github
+        
+        # Check for error in callback
+        error = request.query_params.get('error')
+        if error:
+            logger.error(f"OAuth error from GitHub: {error}")
+            return RedirectResponse(url="/login?error=oauth_failed")
+        
+        # Get the access token with better error handling
+        try:
+            token = await github.authorize_access_token(request)
+        except Exception as token_error:
+            logger.error(f"Token authorization failed: {token_error}")
+            # Clear session state and try again
+            if hasattr(request, 'session'):
+                request.session.clear()
+            return RedirectResponse(url="/login?error=oauth_failed")
+        
+        # Get user info from GitHub
+        user_info = await oauth_service.get_github_user_info(token)
+        
+        if not user_info:
+            logger.error("Failed to get user info from GitHub")
+            return RedirectResponse(url="/login?error=oauth_failed")
+        
+        # Extract user information
+        email = user_info.get('email')
+        github_id = str(user_info.get('id'))  # GitHub user ID
+        full_name = user_info.get('name') or user_info.get('login')  # Use login as fallback
+        profile_picture = user_info.get('avatar_url')
+        
+        if not email or not github_id:
+            logger.error("Missing required user information from GitHub")
+            return RedirectResponse(url="/login?error=missing_info")
+        
+        # Check if this is a new user
+        existing_user = auth_service.get_user_by_email(email)
+        is_new_user = existing_user is None
+        
+        # Get or create user
+        user = auth_service.get_or_create_oauth_user(
+            email=email,
+            oauth_provider='github',
+            oauth_id=github_id,
+            full_name=full_name,
+            profile_picture=profile_picture
+        )
+        
+        # Allocate starter tokens for new users
+        if is_new_user:
+            try:
+                await api_pricing_service.allocate_monthly_tokens(
+                    user_id=user.id,
+                    amount=1000,
+                    source="new_user_bonus"
+                )
+                logger.info(f"✅ Allocated 1000 starter tokens to new GitHub user: {email}")
+            except Exception as e:
+                logger.warning(f"Failed to allocate starter tokens: {e}")
+        
+        # Create session
+        session_id = auth_service.create_session(
+            user_id=user.id,
+            request=request,
+            remember_me=True  # Always remember OAuth users
+        )
+        
+        # Set session cookie
+        max_age = 30 * 24 * 60 * 60  # 30 days
+        
+        # Create response and set cookie
+        redirect_response = RedirectResponse(url="/dashboard", status_code=302)
+        redirect_response.set_cookie(
+            key="session_id",
+            value=session_id,
+            max_age=max_age,
+            httponly=True,
+            secure=settings.COOKIE_SECURE,
+            samesite=settings.COOKIE_SAMESITE
+        )
+        
+        # Clear OAuth session state after successful login
+        if hasattr(request, 'session'):
+            request.session.clear()
+        
+        logger.info(f"✅ GitHub OAuth login successful: {email}")
+        return redirect_response
+        
+    except Exception as e:
+        logger.error(f"GitHub OAuth callback error: {e}", exc_info=True)
+        # Clear session state on error
+        if hasattr(request, 'session'):
+            request.session.clear()
+        return RedirectResponse(url="/login?error=oauth_failed")
+
+
