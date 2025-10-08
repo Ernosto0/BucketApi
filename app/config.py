@@ -10,8 +10,8 @@ class Settings:
     ENABLE_TEST_VALIDATION_DEBUGGING: bool = "true"
 
     # MongoDB Configuration
-    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb+srv://ernosto2003:axaxwwqA1@bucketapi.3v3mkyg.mongodb.net/?retryWrites=true&w=majority&appName=Bucketapi")
-    MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME", "Bucketapi")
+    MONGODB_URL: str = os.getenv("MONGODB_URL")
+    MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME")
 
     # OpenAI Configuration
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
@@ -83,9 +83,15 @@ class Settings:
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     OAUTH_REDIRECT_URI: str = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8001/auth/google/callback")
     
+    # GitHub OAuth Configuration
+    GITHUB_CLIENT_ID: str = os.getenv("GITHUB_CLIENT_ID", "")
+    GITHUB_CLIENT_SECRET: str = os.getenv("GITHUB_CLIENT_SECRET", "")
+    GITHUB_REDIRECT_URI: str = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8001/auth/github/callback")
+    
     # Feature Flags
     ENABLE_CUSTOM_AUTH: bool = os.getenv("ENABLE_CUSTOM_AUTH", "false").lower() == "true"  # Disabled by default
     ENABLE_GOOGLE_AUTH: bool = os.getenv("ENABLE_GOOGLE_AUTH", "true").lower() == "true"  # Enabled by default
+    ENABLE_GITHUB_AUTH: bool = os.getenv("ENABLE_GITHUB_AUTH", "true").lower() == "true"  # Enabled by default
     
     # Security Configuration
     SECURITY_SERVICE_ENABLED: bool = os.getenv("SECURITY_SERVICE_ENABLED", "true").lower() == "true"
