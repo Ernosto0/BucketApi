@@ -3342,6 +3342,8 @@ async def handle_subscription_webhook(
         body = await request.body()
         signature = request.headers.get("X-LemonSqueezy-Signature", "")
         
+        # Log all headers for debugging
+        logger.info(f"All webhook headers: {dict(request.headers)}")
         logger.info(f"Received webhook with signature: {signature}")
         logger.info(f"Webhook body: {body.decode()}")
         
