@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription Success - AI API Generator{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white text-center">
+                    <h3 class="mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Subscription Activated Successfully!
+                    </h3>
+                </div>
+                <div class="card-body text-center">
+                    {% if subscription %}
+                        <div class="alert alert-success" role="alert">
+                            <h4 class="alert-heading">Welcome to {{ subscription.tier|title }} Plan!</h4>
+                            <p>Your subscription has been successfully activated. You now have access to enhanced features and increased token limits.</p>
+                            <hr>
+                            <p class="mb-0">
+                                <strong>Status:</strong> {{ subscription.status|title }}<br>
+                                <strong>Plan:</strong> {{ subscription.tier|title }}<br>
+                                <strong>Monthly Tokens:</strong> {{ subscription.monthly_token_allocation }}
+                            </p>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning" role="alert">
+                            <h4 class="alert-heading">Payment Processed!</h4>
+                            <p>Your payment has been processed successfully. Your subscription is being activated and should be available shortly.</p>
+                            <p class="mb-0">If you don't see your subscription active within a few minutes, please contact support.</p>
+                        </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <h5>What's Next?</h5>
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-rocket fa-2x text-primary mb-3"></i>
+                                        <h6>Start Generating</h6>
+                                        <p class="small">Create powerful APIs with your new subscription benefits</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-chart-line fa-2x text-success mb-3"></i>
+                                        <h6>Track Usage</h6>
+                                        <p class="small">Monitor your token usage and API analytics</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-cog fa-2x text-info mb-3"></i>
+                                        <h6>Manage Subscription</h6>
+                                        <p class="small">Update or cancel your subscription anytime</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <a href="/" class="btn btn-primary btn-lg me-3">
+                            <i class="fas fa-home me-2"></i>
+                            Go to Dashboard
+                        </a>
+                        <a href="/subscription" class="btn btn-outline-primary btn-lg">
+                            <i class="fas fa-cog me-2"></i>
+                            Manage Subscription
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-refresh subscription status every 30 seconds for the first 5 minutes
+let refreshCount = 0;
+const maxRefreshes = 10; // 5 minutes with 30-second intervals
+
+function refreshSubscriptionStatus() {
+    if (refreshCount >= maxRefreshes) {
+        return;
+    }
+    
+    fetch('/subscription/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.subscription && data.subscription.status === 'active') {
+                // Subscription is active, reload the page to show updated status
+                window.location.reload();
+            }
+        })
+        .catch(error => {
+            console.error('Error checking subscription status:', error);
+        });
+    
+    refreshCount++;
+}
+
+// Start checking subscription status after 30 seconds
+setTimeout(() => {
+    refreshSubscriptionStatus();
+    // Check every 30 seconds
+    setInterval(refreshSubscriptionStatus, 30000);
+}, 30000);
+</script>
+{% endblock %}

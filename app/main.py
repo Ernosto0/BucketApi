@@ -281,6 +281,27 @@ async def profile_page(request: Request):
 async def subscription_page(request: Request):
     """Subscription management page."""
     return templates.TemplateResponse("subscription.html", {"request": request})
+
+@app.get("/subscription/success", response_class=HTMLResponse)
+async def subscription_success_page(request: Request):
+    """Subscription success page after payment."""
+    try:
+        # Get current user
+        user = await get_current_user(request)
+        if not user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        # Get user's subscription status
+        subscription = await subscription_service.get_user_subscription(user.id)
+        
+        return templates.TemplateResponse("subscription_success.html", {
+            "request": request, 
+            "user": user,
+            "subscription": subscription
+        })
+    except Exception as e:
+        logger.error(f"Failed to load subscription success page: {str(e)}")
+        return RedirectResponse(url="/subscription", status_code=302)
     
 
 @app.get("/logs", response_class=HTMLResponse)
@@ -3337,6 +3358,65 @@ async def handle_subscription_webhook(
     except Exception as e:
         logger.error(f"Failed to handle webhook: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to handle webhook: {str(e)}")
+
+@app.post("/subscription/manual-activate")
+async def manual_activate_subscription(
+    tier: str,
+    current_user: User = Depends(require_active_user)
+):
+    """Temporary endpoint to manually activate subscription for testing."""
+    try:
+        # Get tier info
+        tier_info = subscription_service.SUBSCRIPTION_TIERS.get(tier)
+        if not tier_info:
+            raise HTTPException(status_code=400, detail=f"Invalid tier: {tier}")
+        
+        # Create subscription record manually
+        subscription_id = str(uuid.uuid4())
+        subscription_doc = {
+            "_id": subscription_id,
+            "user_id": current_user.id,
+            "lemonsqueezy_subscription_id": f"manual_{subscription_id}",
+            "lemonsqueezy_customer_id": f"manual_customer_{current_user.id}",
+            "lemonsqueezy_product_id": "manual",
+            "lemonsqueezy_variant_id": "manual",
+            "tier": tier,
+            "status": "active",
+            "current_period_start": datetime.utcnow(),
+            "current_period_end": datetime.utcnow() + timedelta(days=30),
+            "monthly_token_allocation": tier_info.monthly_tokens,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        # Insert subscription
+        mongodb.subscriptions.insert_one(subscription_doc)
+        
+        # Update user's subscription info
+        mongodb.users.update_one(
+            {"_id": current_user.id},
+            {
+                "$set": {
+                    "subscription_tier": tier,
+                    "subscription_status": "active",
+                    "monthly_token_allocation": tier_info.monthly_tokens
+                }
+            }
+        )
+        
+        # Allocate tokens
+        await api_pricing_service.allocate_separated_monthly_tokens(
+            user_id=current_user.id,
+            generation_tokens=tier_info.monthly_generation_tokens,
+            execution_tokens=tier_info.monthly_execution_tokens,
+            source="manual_activation"
+        )
+        
+        return {"success": True, "message": f"Subscription {tier} activated manually"}
+        
+    except Exception as e:
+        logger.error(f"Failed to manually activate subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to activate subscription: {str(e)}")
 
 @app.post("/subscription/update")
 async def update_subscription(

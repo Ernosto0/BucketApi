@@ -158,25 +158,101 @@ class SubscriptionService:
     
     async def create_lemonsqueezy_checkout(self, user_id: str, tier: str) -> str:
         """Create a LemonSqueezy checkout URL for a subscription tier."""
-        # This is a placeholder - you'll need to implement actual LemonSqueezy API calls
-        # For now, return a mock checkout URL
         
         if tier not in self.SUBSCRIPTION_TIERS:
             raise HTTPException(status_code=400, detail=f"Invalid subscription tier: {tier}")
         
         tier_info = self.SUBSCRIPTION_TIERS[tier]
         
-        # TODO: Implement actual LemonSqueezy API integration
-        # This would involve:
-        # 1. Creating a customer in LemonSqueezy
-        # 2. Creating a checkout session
-        # 3. Returning the checkout URL
+        # Get LemonSqueezy configuration directly from environment
+        import os
         
-        # For now, return a placeholder URL
-        checkout_url = f"https://your-store.lemonsqueezy.com/checkout/custom/{tier}?user_id={user_id}"
+        store_id = os.getenv("LEMONSQUEEZY_STORE_ID")
+        if not store_id:
+            raise HTTPException(status_code=500, detail="LemonSqueezy store ID not configured")
         
-        logger.info(f"Created checkout URL for user {user_id}, tier {tier}")
-        return checkout_url
+        # Get variant ID for the tier (LemonSqueezy checkout uses variant ID)
+        variant_id = None
+        if tier == "starter":
+            variant_id = os.getenv("LEMONSQUEEZY_STARTER_VARIANT_ID")
+            logger.info(f"Starter variant ID from env: {variant_id}")
+        elif tier == "professional":
+            variant_id = os.getenv("LEMONSQUEEZY_PROFESSIONAL_VARIANT_ID")
+        elif tier == "enterprise":
+            variant_id = os.getenv("LEMONSQUEEZY_ENTERPRISE_VARIANT_ID")
+        
+        if not variant_id:
+            logger.error(f"Variant ID not found for tier: {tier}. Available env vars: LEMONSQUEEZY_STARTER_VARIANT_ID={os.getenv('LEMONSQUEEZY_STARTER_VARIANT_ID')}")
+            raise HTTPException(status_code=500, detail=f"Variant ID not configured for tier: {tier}")
+        
+        try:
+            # Create checkout using LemonSqueezy Checkouts API
+            api_key = os.getenv("LEMONSQUEEZY_API_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
+            
+            checkout_data = {
+                "data": {
+                    "type": "checkouts",
+                    "attributes": {
+                        "checkout_data": {
+                            "custom": {
+                                "user_id": user_id,
+                                "tier": tier,
+                                "source": "api_generator"
+                            }
+                        },
+                        "product_options": {
+                            "name": f"{tier_info.display_name} Plan",
+                            "description": f"Upgrade to {tier_info.display_name} for enhanced features and {tier_info.monthly_tokens:,} tokens per month.",
+                            "redirect_url": "http://localhost:8001/subscription/success"
+                        }
+                    },
+                    "relationships": {
+                        "store": {
+                            "data": {
+                                "type": "stores",
+                                "id": str(store_id)
+                            }
+                        },
+                        "variant": {
+                            "data": {
+                                "type": "variants",
+                                "id": str(variant_id)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            # Make API request to create checkout
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.lemonsqueezy.com/v1/checkouts",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/vnd.api+json",
+                        "Accept": "application/vnd.api+json"
+                    },
+                    json=checkout_data
+                )
+                
+                if response.status_code != 201:
+                    logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
+                    raise HTTPException(status_code=500, detail=f"Failed to create checkout: {response.text}")
+                
+                checkout_response = response.json()
+                checkout_url = checkout_response["data"]["attributes"]["url"]
+                
+                logger.info(f"Created LemonSqueezy checkout URL for user {user_id}, tier {tier}: {checkout_url}")
+                return checkout_url
+            
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error creating LemonSqueezy checkout: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to create checkout: {str(e)}")
+        except Exception as e:
+            logger.error(f"Failed to create LemonSqueezy checkout URL: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to create checkout URL: {str(e)}")
     
     async def handle_subscription_webhook(self, payload: Dict[str, Any], signature: str) -> bool:
         """Handle LemonSqueezy webhook events."""
