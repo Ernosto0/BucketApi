@@ -254,11 +254,11 @@ class SubscriptionService:
             logger.error(f"Failed to create LemonSqueezy checkout URL: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to create checkout URL: {str(e)}")
     
-    async def handle_subscription_webhook(self, payload: Dict[str, Any], signature: str) -> bool:
+    async def handle_subscription_webhook(self, payload: Dict[str, Any], signature: str, raw_body: bytes = None) -> bool:
         """Handle LemonSqueezy webhook events."""
         try:
             # Verify webhook signature
-            if not self._verify_webhook_signature(payload, signature):
+            if not self._verify_webhook_signature(payload, signature, raw_body):
                 logger.warning("Invalid webhook signature")
                 return False
             
@@ -396,15 +396,51 @@ class SubscriptionService:
         # Send notification to user
         pass
     
-    def _verify_webhook_signature(self, payload: Dict[str, Any], signature: str) -> bool:
+    def _verify_webhook_signature(self, payload: Dict[str, Any], signature: str, raw_body: bytes = None) -> bool:
         """Verify LemonSqueezy webhook signature."""
-        if not self.webhook_secret:
+        import os
+        webhook_secret = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET")
+        
+        if not webhook_secret:
             logger.warning("Webhook secret not configured")
             return False
         
-        # Implement LemonSqueezy signature verification
-        # This is a placeholder implementation
-        return True
+        if not signature:
+            logger.warning("No signature provided")
+            return False
+        
+        try:
+            # Use raw body if available, otherwise serialize payload
+            if raw_body:
+                payload_bytes = raw_body
+            else:
+                import json
+                payload_bytes = json.dumps(payload, separators=(',', ':')).encode('utf-8')
+            
+            # LemonSqueezy uses HMAC-SHA256 for webhook signatures
+            expected_signature = hmac.new(
+                webhook_secret.encode('utf-8'),
+                payload_bytes,
+                hashlib.sha256
+            ).hexdigest()
+            
+            # LemonSqueezy sends signature as "sha256=<hash>"
+            if signature.startswith("sha256="):
+                received_signature = signature[7:]  # Remove "sha256=" prefix
+            else:
+                received_signature = signature
+            
+            # Compare signatures
+            is_valid = hmac.compare_digest(expected_signature, received_signature)
+            
+            if not is_valid:
+                logger.warning(f"Signature mismatch. Expected: {expected_signature}, Received: {received_signature}")
+            
+            return is_valid
+            
+        except Exception as e:
+            logger.error(f"Error verifying webhook signature: {str(e)}")
+            return False
     
     def _map_variant_to_tier(self, variant_id: str) -> str:
         """Map LemonSqueezy variant ID to subscription tier."""

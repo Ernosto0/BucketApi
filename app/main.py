@@ -3342,11 +3342,14 @@ async def handle_subscription_webhook(
         body = await request.body()
         signature = request.headers.get("X-LemonSqueezy-Signature", "")
         
+        logger.info(f"Received webhook with signature: {signature}")
+        logger.info(f"Webhook body: {body.decode()}")
+        
         # Parse JSON payload
         payload = json.loads(body.decode())
         
-        # Process webhook
-        success = await subscription_service.handle_subscription_webhook(payload, signature)
+        # Process webhook with raw body for signature verification
+        success = await subscription_service.handle_subscription_webhook(payload, signature, body)
         
         if success:
             return {"success": True, "message": "Webhook processed successfully"}
