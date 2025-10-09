@@ -205,7 +205,7 @@ class SubscriptionService:
                         "product_options": {
                             "name": f"{tier_info.display_name} Plan",
                             "description": f"Upgrade to {tier_info.display_name} for enhanced features and {tier_info.monthly_tokens:,} tokens per month.",
-                            "redirect_url": f"{os.getenv('HOST', 'https://bucketapi.com').rstrip('/')}/subscription/success"
+                            "redirect_url": f"https://bucketapi.com/subscription/success"
                         }
                     },
                     "relationships": {
