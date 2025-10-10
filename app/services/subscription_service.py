@@ -275,7 +275,10 @@ class SubscriptionService:
                 return True
             
             # Process the event based on type
-            if event_type == "subscription_created":
+            if event_type == "order_created":
+                # Order created is the first event when a subscription is purchased
+                await self._handle_order_created(payload)
+            elif event_type == "subscription_created":
                 await self._handle_subscription_created(payload)
             elif event_type == "subscription_updated":
                 await self._handle_subscription_updated(payload)
@@ -299,78 +302,234 @@ class SubscriptionService:
             await self._record_webhook_event(payload, processed=False)
             return False
     
-    async def _handle_subscription_created(self, payload: Dict[str, Any]):
-        """Handle subscription creation webhook."""
-        data = payload.get("data", {})
-        attributes = data.get("attributes", {})
-        
-        # Extract subscription data
-        lemonsqueezy_subscription_id = str(data.get("id", ""))
-        lemonsqueezy_customer_id = str(attributes.get("customer_id", ""))
-        product_id = str(attributes.get("product_id", ""))
-        variant_id = str(attributes.get("variant_id", ""))
-        
-        # Map variant to tier (you'll need to configure this based on your LemonSqueezy setup)
-        tier = self._map_variant_to_tier(variant_id)
-        
-        # Find user by customer ID (you'll need to store this mapping)
-        user_id = await self._get_user_by_customer_id(lemonsqueezy_customer_id)
-        
-        if not user_id:
-            logger.error(f"User not found for customer ID: {lemonsqueezy_customer_id}")
-            return
-        
-        tier_info = self.SUBSCRIPTION_TIERS.get(tier)
-        if not tier_info:
-            logger.error(f"Invalid tier: {tier}")
-            return
-        
-        # Create subscription record
-        subscription_id = str(uuid.uuid4())
-        
-        # Create subscription document
-        subscription_doc = {
-            "_id": subscription_id,
-            "user_id": user_id,
-            "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id,
-            "lemonsqueezy_customer_id": lemonsqueezy_customer_id,
-            "lemonsqueezy_product_id": product_id,
-            "lemonsqueezy_variant_id": variant_id,
-            "tier": tier,
-            "status": "active",
-            "current_period_start": datetime.fromisoformat(attributes.get("current_period_start", "")),
-            "current_period_end": datetime.fromisoformat(attributes.get("current_period_end", "")),
-            "monthly_token_allocation": tier_info.monthly_tokens,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        # Insert subscription
-        mongodb.subscriptions.insert_one(subscription_doc)
-        
-        # Update user's subscription info
-        mongodb.users.update_one(
-            {"_id": user_id},
-            {
-                "$set": {
-                    "subscription_tier": tier,
-                    "subscription_status": "active",
-                    "monthly_token_allocation": tier_info.monthly_tokens,
-                    "lemonsqueezy_customer_id": lemonsqueezy_customer_id,
-                    "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id
-                }
+    async def _handle_order_created(self, payload: Dict[str, Any]):
+        """Handle order creation webhook - this fires first when a subscription is purchased."""
+        try:
+            data = payload.get("data", {})
+            attributes = data.get("attributes", {})
+            
+            # Check if this is a subscription order
+            first_order_item = attributes.get("first_order_item", {})
+            if not first_order_item:
+                logger.info("Order created but no subscription items found")
+                return
+            
+            # Extract order data
+            order_id = str(data.get("id", ""))
+            customer_id = str(attributes.get("customer_id", ""))
+            user_email = attributes.get("user_email", "")
+            variant_id = str(first_order_item.get("variant_id", ""))
+            product_id = str(first_order_item.get("product_id", ""))
+            
+            # Get custom data from meta (this is where our user_id lives!)
+            custom_data = payload.get("meta", {}).get("custom_data", {})
+            user_id = custom_data.get("user_id")
+            tier = custom_data.get("tier")
+            
+            logger.info(f"Order created - Order ID: {order_id}, User ID from custom: {user_id}, Tier: {tier}, Email: {user_email}")
+            
+            # Fallback: try to get user by email if custom data missing
+            if not user_id and user_email:
+                user_id = await self._get_user_by_email(user_email)
+                logger.info(f"Found user by email: {user_id}")
+            
+            # Fallback: try variant mapping if tier is missing
+            if not tier and variant_id:
+                tier = self._map_variant_to_tier(variant_id)
+                logger.info(f"Mapped variant {variant_id} to tier: {tier}")
+            
+            if not user_id:
+                logger.error(f"Cannot process order - user not found. Email: {user_email}, Custom data: {custom_data}")
+                return
+            
+            if not tier:
+                logger.error(f"Cannot process order - tier not found. Variant: {variant_id}, Custom data: {custom_data}")
+                return
+            
+            tier_info = self.SUBSCRIPTION_TIERS.get(tier)
+            if not tier_info:
+                logger.error(f"Invalid tier: {tier}")
+                return
+            
+            # Check if user already has an active subscription
+            existing_sub = await self.get_user_subscription(user_id)
+            if existing_sub and existing_sub.status == "active":
+                logger.info(f"User {user_id} already has active subscription, skipping order creation")
+                return
+            
+            # Create subscription record from order
+            subscription_id = str(uuid.uuid4())
+            current_time = datetime.utcnow()
+            
+            # For subscriptions, we'll get the actual subscription_id later in subscription_created event
+            # For now, use order_id as temporary identifier
+            subscription_doc = {
+                "_id": subscription_id,
+                "user_id": user_id,
+                "lemonsqueezy_subscription_id": "",  # Will be filled by subscription_created event
+                "lemonsqueezy_customer_id": customer_id,
+                "lemonsqueezy_product_id": product_id,
+                "lemonsqueezy_variant_id": variant_id,
+                "lemonsqueezy_order_id": order_id,  # Track the order
+                "tier": tier,
+                "status": "active",
+                "current_period_start": current_time,
+                "current_period_end": current_time + timedelta(days=30),  # Default 30 days
+                "monthly_token_allocation": tier_info.monthly_tokens,
+                "created_at": current_time,
+                "updated_at": current_time
             }
-        )
-        
-        # Allocate separated tokens for the new subscription
-        await api_pricing_service.allocate_separated_monthly_tokens(
-            user_id=user_id,
-            generation_tokens=tier_info.monthly_generation_tokens,
-            execution_tokens=tier_info.monthly_execution_tokens,
-            source="subscription_created"
-        )
-        
-        logger.info(f"Created subscription for user {user_id}, tier {tier}")
+            
+            # Insert subscription
+            mongodb.subscriptions.insert_one(subscription_doc)
+            
+            # Update user's subscription info
+            mongodb.users.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "subscription_tier": tier,
+                        "subscription_status": "active",
+                        "monthly_token_allocation": tier_info.monthly_tokens,
+                        "lemonsqueezy_customer_id": customer_id
+                    }
+                }
+            )
+            
+            # Allocate separated tokens for the new subscription
+            await api_pricing_service.allocate_separated_monthly_tokens(
+                user_id=user_id,
+                generation_tokens=tier_info.monthly_generation_tokens,
+                execution_tokens=tier_info.monthly_execution_tokens,
+                source="order_created"
+            )
+            
+            logger.info(f"✅ Successfully activated {tier} subscription for user {user_id} from order {order_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle order_created: {str(e)}", exc_info=True)
+    
+    async def _handle_subscription_created(self, payload: Dict[str, Any]):
+        """Handle subscription creation webhook - updates the subscription with actual subscription ID."""
+        try:
+            data = payload.get("data", {})
+            attributes = data.get("attributes", {})
+            
+            # Extract subscription data
+            lemonsqueezy_subscription_id = str(data.get("id", ""))
+            lemonsqueezy_customer_id = str(attributes.get("customer_id", ""))
+            product_id = str(attributes.get("product_id", ""))
+            variant_id = str(attributes.get("variant_id", ""))
+            order_id = str(attributes.get("order_id", ""))
+            
+            # Try to find existing subscription from order_created event
+            existing_sub = mongodb.subscriptions.find_one({
+                "lemonsqueezy_order_id": order_id,
+                "user_id": {"$exists": True}
+            })
+            
+            if existing_sub:
+                # Update existing subscription with actual subscription ID
+                mongodb.subscriptions.update_one(
+                    {"_id": existing_sub["_id"]},
+                    {
+                        "$set": {
+                            "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id,
+                            "current_period_start": datetime.fromisoformat(attributes.get("current_period_start", "")),
+                            "current_period_end": datetime.fromisoformat(attributes.get("current_period_end", "")),
+                            "updated_at": datetime.utcnow()
+                        }
+                    }
+                )
+                
+                # Update user record
+                mongodb.users.update_one(
+                    {"_id": existing_sub["user_id"]},
+                    {
+                        "$set": {
+                            "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id
+                        }
+                    }
+                )
+                
+                logger.info(f"Updated subscription {existing_sub['_id']} with LemonSqueezy subscription ID {lemonsqueezy_subscription_id}")
+                return
+            
+            # If no existing subscription (order_created event didn't fire), create one
+            logger.warning(f"No existing subscription found for order {order_id}, creating new one")
+            
+            # Map variant to tier
+            tier = self._map_variant_to_tier(variant_id)
+            
+            # Get user_id from custom data or fallbacks
+            custom_data = payload.get("meta", {}).get("custom_data", {})
+            user_id = custom_data.get("user_id")
+            
+            if not user_id:
+                user_id = await self._get_user_by_customer_id(lemonsqueezy_customer_id)
+            
+            if not user_id:
+                user_email = attributes.get("user_email")
+                if user_email:
+                    user_id = await self._get_user_by_email(user_email)
+            
+            if not user_id:
+                logger.error(f"User not found for subscription. Customer ID: {lemonsqueezy_customer_id}")
+                return
+            
+            tier_info = self.SUBSCRIPTION_TIERS.get(tier)
+            if not tier_info:
+                logger.error(f"Invalid tier: {tier}")
+                return
+            
+            # Create new subscription record
+            subscription_id = str(uuid.uuid4())
+            
+            subscription_doc = {
+                "_id": subscription_id,
+                "user_id": user_id,
+                "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id,
+                "lemonsqueezy_customer_id": lemonsqueezy_customer_id,
+                "lemonsqueezy_product_id": product_id,
+                "lemonsqueezy_variant_id": variant_id,
+                "lemonsqueezy_order_id": order_id,
+                "tier": tier,
+                "status": "active",
+                "current_period_start": datetime.fromisoformat(attributes.get("current_period_start", "")),
+                "current_period_end": datetime.fromisoformat(attributes.get("current_period_end", "")),
+                "monthly_token_allocation": tier_info.monthly_tokens,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow()
+            }
+            
+            mongodb.subscriptions.insert_one(subscription_doc)
+            
+            # Update user's subscription info
+            mongodb.users.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "subscription_tier": tier,
+                        "subscription_status": "active",
+                        "monthly_token_allocation": tier_info.monthly_tokens,
+                        "lemonsqueezy_customer_id": lemonsqueezy_customer_id,
+                        "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id
+                    }
+                }
+            )
+            
+            # Allocate separated tokens
+            await api_pricing_service.allocate_separated_monthly_tokens(
+                user_id=user_id,
+                generation_tokens=tier_info.monthly_generation_tokens,
+                execution_tokens=tier_info.monthly_execution_tokens,
+                source="subscription_created"
+            )
+            
+            logger.info(f"Created subscription for user {user_id}, tier {tier}")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle subscription_created: {str(e)}", exc_info=True)
     
     async def _handle_subscription_updated(self, payload: Dict[str, Any]):
         """Handle subscription update webhook."""
@@ -451,13 +610,23 @@ class SubscriptionService:
     
     def _map_variant_to_tier(self, variant_id: str) -> str:
         """Map LemonSqueezy variant ID to subscription tier."""
-        # You'll need to configure this mapping based on your LemonSqueezy products
+        import os
+        
+        # Get actual variant IDs from environment
         variant_mapping = {
-            "starter_variant_id": "starter",
-            "professional_variant_id": "professional", 
-            "enterprise_variant_id": "enterprise"
+            os.getenv("LEMONSQUEEZY_STARTER_VARIANT_ID"): "starter",
+            os.getenv("LEMONSQUEEZY_PROFESSIONAL_VARIANT_ID"): "professional", 
+            os.getenv("LEMONSQUEEZY_ENTERPRISE_VARIANT_ID"): "enterprise"
         }
-        return variant_mapping.get(variant_id, "starter")
+        
+        tier = variant_mapping.get(variant_id)
+        if tier:
+            logger.info(f"Mapped variant {variant_id} to tier {tier}")
+            return tier
+        
+        # Log unmapped variant for debugging
+        logger.warning(f"Unknown variant ID: {variant_id}. Using 'starter' as fallback. Configured variants: {list(variant_mapping.keys())}")
+        return "starter"
     
     async def _get_user_by_customer_id(self, customer_id: str) -> Optional[str]:
         """Get user ID by LemonSqueezy customer ID."""
@@ -468,6 +637,17 @@ class SubscriptionService:
             return user["_id"] if user else None
         except Exception as e:
             logger.error(f"Failed to get user by customer ID: {str(e)}")
+            return None
+    
+    async def _get_user_by_email(self, email: str) -> Optional[str]:
+        """Get user ID by email address."""
+        try:
+            user = mongodb.users.find_one({
+                "email": email
+            })
+            return user["_id"] if user else None
+        except Exception as e:
+            logger.error(f"Failed to get user by email: {str(e)}")
             return None
     
     async def _record_webhook_event(self, payload: Dict[str, Any], processed: bool = False):
