@@ -434,14 +434,26 @@ class SubscriptionService:
             })
             
             if existing_sub:
+                # Parse period dates with fallbacks
+                current_time = datetime.utcnow()
+                try:
+                    period_start = datetime.fromisoformat(attributes.get("current_period_start", "")) if attributes.get("current_period_start") else current_time
+                except (ValueError, TypeError):
+                    period_start = current_time
+                
+                try:
+                    period_end = datetime.fromisoformat(attributes.get("current_period_end", "")) if attributes.get("current_period_end") else current_time + timedelta(days=30)
+                except (ValueError, TypeError):
+                    period_end = current_time + timedelta(days=30)
+                
                 # Update existing subscription with actual subscription ID
                 mongodb.subscriptions.update_one(
                     {"_id": existing_sub["_id"]},
                     {
                         "$set": {
                             "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id,
-                            "current_period_start": datetime.fromisoformat(attributes.get("current_period_start", "")),
-                            "current_period_end": datetime.fromisoformat(attributes.get("current_period_end", "")),
+                            "current_period_start": period_start,
+                            "current_period_end": period_end,
                             "updated_at": datetime.utcnow()
                         }
                     }
@@ -490,6 +502,18 @@ class SubscriptionService:
             # Create new subscription record
             subscription_id = str(uuid.uuid4())
             
+            # Parse period dates with fallbacks
+            current_time = datetime.utcnow()
+            try:
+                current_period_start = datetime.fromisoformat(attributes.get("current_period_start", "")) if attributes.get("current_period_start") else current_time
+            except (ValueError, TypeError):
+                current_period_start = current_time
+            
+            try:
+                current_period_end = datetime.fromisoformat(attributes.get("current_period_end", "")) if attributes.get("current_period_end") else current_time + timedelta(days=30)
+            except (ValueError, TypeError):
+                current_period_end = current_time + timedelta(days=30)
+            
             subscription_doc = {
                 "_id": subscription_id,
                 "user_id": user_id,
@@ -500,8 +524,8 @@ class SubscriptionService:
                 "lemonsqueezy_order_id": order_id,
                 "tier": tier,
                 "status": "active",
-                "current_period_start": datetime.fromisoformat(attributes.get("current_period_start", "")),
-                "current_period_end": datetime.fromisoformat(attributes.get("current_period_end", "")),
+                "current_period_start": current_period_start,
+                "current_period_end": current_period_end,
                 "monthly_token_allocation": tier_info.monthly_tokens,
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()

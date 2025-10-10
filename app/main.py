@@ -3374,6 +3374,41 @@ async def handle_subscription_webhook(
         logger.error(f"Failed to handle webhook: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to handle webhook: {str(e)}")
 
+@app.post("/subscription/fix-dates")
+async def fix_subscription_dates(
+    current_user: User = Depends(require_active_user)
+):
+    """Fix subscription dates for existing subscriptions that have None values."""
+    try:
+        # Find user's subscription
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        if not subscription:
+            raise HTTPException(status_code=404, detail="No subscription found")
+        
+        # Check if dates need fixing
+        if subscription.current_period_start is None or subscription.current_period_end is None:
+            current_time = datetime.utcnow()
+            
+            # Update with default dates
+            mongodb.subscriptions.update_one(
+                {"user_id": current_user.id, "status": {"$in": ["active", "past_due", "paused"]}},
+                {
+                    "$set": {
+                        "current_period_start": current_time,
+                        "current_period_end": current_time + timedelta(days=30),
+                        "updated_at": current_time
+                    }
+                }
+            )
+            
+            return {"success": True, "message": "Subscription dates fixed successfully"}
+        else:
+            return {"success": True, "message": "Subscription dates are already valid"}
+            
+    except Exception as e:
+        logger.error(f"Failed to fix subscription dates: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fix subscription dates: {str(e)}")
+
 @app.post("/subscription/manual-activate")
 async def manual_activate_subscription(
     tier: str,
