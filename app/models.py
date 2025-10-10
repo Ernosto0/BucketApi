@@ -838,6 +838,7 @@ class CreateSubscriptionResponse(BaseModel):
 class SubscriptionStatusResponse(BaseModel):
     success: bool
     subscription: Optional[Subscription] = None
+    current_tier: Optional[SubscriptionTier] = None
     current_usage: Optional[Dict[str, Any]] = None
     days_until_renewal: Optional[int] = None
 

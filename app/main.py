@@ -3277,6 +3277,15 @@ async def get_subscription_status(
     try:
         subscription = await subscription_service.get_user_subscription(current_user.id)
         
+        # Get current tier details
+        current_tier = None
+        if subscription:
+            tier_name = subscription.tier
+            current_tier = subscription_service.SUBSCRIPTION_TIERS.get(tier_name)
+        else:
+            # If no subscription, user is on free tier
+            current_tier = subscription_service.SUBSCRIPTION_TIERS.get("free")
+        
         # Get current usage
         current_usage = None
         if subscription:
@@ -3295,6 +3304,7 @@ async def get_subscription_status(
         return SubscriptionStatusResponse(
             success=True,
             subscription=subscription,
+            current_tier=current_tier,
             current_usage=current_usage,
             days_until_renewal=days_until_renewal
         )
