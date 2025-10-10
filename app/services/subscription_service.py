@@ -264,15 +264,20 @@ class SubscriptionService:
             
             event_type = payload.get("meta", {}).get("event_name", "")
             event_id = payload.get("meta", {}).get("event_id", "")
+            webhook_id = payload.get("meta", {}).get("webhook_id", "")
             
-            # Check if we've already processed this event
-            existing_event = mongodb.subscription_events.find_one({
-                "lemonsqueezy_event_id": event_id
-            })
+            # Use webhook_id as fallback if event_id is missing
+            dedup_id = event_id if event_id else webhook_id
             
-            if existing_event:
-                logger.info(f"Event {event_id} already processed")
-                return True
+            # Check if we've already processed this event (only if we have a valid ID)
+            if dedup_id:
+                existing_event = mongodb.subscription_events.find_one({
+                    "lemonsqueezy_event_id": dedup_id
+                })
+                
+                if existing_event:
+                    logger.info(f"Event {event_type} ({dedup_id}) already processed")
+                    return True
             
             # Process the event based on type
             if event_type == "order_created":
@@ -532,10 +537,151 @@ class SubscriptionService:
             logger.error(f"Failed to handle subscription_created: {str(e)}", exc_info=True)
     
     async def _handle_subscription_updated(self, payload: Dict[str, Any]):
-        """Handle subscription update webhook."""
-        # Similar implementation to subscription_created
-        # Update existing subscription record
-        pass
+        """Handle subscription update webhook - can also activate new subscriptions."""
+        try:
+            data = payload.get("data", {})
+            attributes = data.get("attributes", {})
+            
+            # Extract subscription data
+            lemonsqueezy_subscription_id = str(data.get("id", ""))
+            lemonsqueezy_customer_id = str(attributes.get("customer_id", ""))
+            product_id = str(attributes.get("product_id", ""))
+            variant_id = str(attributes.get("variant_id", ""))
+            order_id = str(attributes.get("order_id", ""))
+            status = attributes.get("status", "")
+            
+            logger.info(f"Subscription updated - ID: {lemonsqueezy_subscription_id}, Status: {status}, Order: {order_id}")
+            
+            # Try to find existing subscription
+            existing_sub = mongodb.subscriptions.find_one({
+                "$or": [
+                    {"lemonsqueezy_subscription_id": lemonsqueezy_subscription_id},
+                    {"lemonsqueezy_order_id": order_id}
+                ]
+            })
+            
+            # Get user_id from custom data or find user
+            custom_data = payload.get("meta", {}).get("custom_data", {})
+            user_id = custom_data.get("user_id")
+            tier = custom_data.get("tier")
+            
+            # If no existing subscription or no user_id yet, try to find user
+            if not user_id:
+                if existing_sub and existing_sub.get("user_id"):
+                    user_id = existing_sub["user_id"]
+                else:
+                    user_id = await self._get_user_by_customer_id(lemonsqueezy_customer_id)
+                    if not user_id:
+                        user_email = attributes.get("user_email")
+                        if user_email:
+                            user_id = await self._get_user_by_email(user_email)
+            
+            if not user_id:
+                logger.error(f"Cannot process subscription_updated - user not found. Customer: {lemonsqueezy_customer_id}, Custom data: {custom_data}")
+                return
+            
+            # Get tier from variant if not in custom data
+            if not tier:
+                tier = self._map_variant_to_tier(variant_id)
+            
+            tier_info = self.SUBSCRIPTION_TIERS.get(tier)
+            if not tier_info:
+                logger.error(f"Invalid tier: {tier}")
+                return
+            
+            current_time = datetime.utcnow()
+            
+            # Parse period dates if available
+            period_start = current_time
+            period_end = current_time + timedelta(days=30)
+            
+            renews_at = attributes.get("renews_at")
+            if renews_at:
+                try:
+                    period_end = datetime.fromisoformat(renews_at.replace('Z', '+00:00'))
+                except:
+                    pass
+            
+            if existing_sub:
+                # Update existing subscription
+                update_data = {
+                    "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id,
+                    "status": status,
+                    "current_period_end": period_end,
+                    "updated_at": current_time
+                }
+                
+                mongodb.subscriptions.update_one(
+                    {"_id": existing_sub["_id"]},
+                    {"$set": update_data}
+                )
+                
+                # Update user record
+                mongodb.users.update_one(
+                    {"_id": user_id},
+                    {
+                        "$set": {
+                            "subscription_tier": tier,
+                            "subscription_status": status,
+                            "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id,
+                            "lemonsqueezy_customer_id": lemonsqueezy_customer_id
+                        }
+                    }
+                )
+                
+                logger.info(f"✅ Updated existing subscription {existing_sub['_id']} for user {user_id}")
+                
+            else:
+                # No existing subscription - create new one (this handles the case where order_created didn't fire)
+                logger.warning(f"No existing subscription found, creating new one from subscription_updated event")
+                
+                subscription_id = str(uuid.uuid4())
+                
+                subscription_doc = {
+                    "_id": subscription_id,
+                    "user_id": user_id,
+                    "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id,
+                    "lemonsqueezy_customer_id": lemonsqueezy_customer_id,
+                    "lemonsqueezy_product_id": product_id,
+                    "lemonsqueezy_variant_id": variant_id,
+                    "lemonsqueezy_order_id": order_id,
+                    "tier": tier,
+                    "status": status,
+                    "current_period_start": period_start,
+                    "current_period_end": period_end,
+                    "monthly_token_allocation": tier_info.monthly_tokens,
+                    "created_at": current_time,
+                    "updated_at": current_time
+                }
+                
+                mongodb.subscriptions.insert_one(subscription_doc)
+                
+                # Update user's subscription info
+                mongodb.users.update_one(
+                    {"_id": user_id},
+                    {
+                        "$set": {
+                            "subscription_tier": tier,
+                            "subscription_status": status,
+                            "monthly_token_allocation": tier_info.monthly_tokens,
+                            "lemonsqueezy_customer_id": lemonsqueezy_customer_id,
+                            "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id
+                        }
+                    }
+                )
+                
+                # Allocate tokens for new subscription
+                await api_pricing_service.allocate_separated_monthly_tokens(
+                    user_id=user_id,
+                    generation_tokens=tier_info.monthly_generation_tokens,
+                    execution_tokens=tier_info.monthly_execution_tokens,
+                    source="subscription_updated"
+                )
+                
+                logger.info(f"✅ Created new {tier} subscription for user {user_id} from subscription_updated event")
+                
+        except Exception as e:
+            logger.error(f"Failed to handle subscription_updated: {str(e)}", exc_info=True)
     
     async def _handle_subscription_cancelled(self, payload: Dict[str, Any]):
         """Handle subscription cancellation webhook."""
@@ -656,13 +802,16 @@ class SubscriptionService:
             event_id = str(uuid.uuid4())
             meta = payload.get("meta", {})
             
+            # Use webhook_id as fallback if event_id is missing
+            lemonsqueezy_event_id = meta.get("event_id", "") or meta.get("webhook_id", "")
+            
             # Create event document
             event_doc = {
                 "_id": event_id,
                 "subscription_id": "",  # Will be filled if available
                 "user_id": "",  # Will be filled if available
                 "event_type": meta.get("event_name", ""),
-                "lemonsqueezy_event_id": meta.get("event_id", ""),
+                "lemonsqueezy_event_id": lemonsqueezy_event_id,
                 "event_data": json.dumps(payload),
                 "processed": processed,
                 "created_at": datetime.utcnow()
