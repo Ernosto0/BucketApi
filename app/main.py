@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Tuple
 import logging
 from .models import (
-    User, UserCreate, UserLogin, RegisterResponse, LoginResponse, UserProfile, AuthResponse,
+    User, UserLogin, LoginResponse, UserProfile, AuthResponse,
     ProposalRequest, ProposalResponse, ProposalModificationRequest, ProposalModificationResponse,
     APIGenerationRequest, APIGenerationResponse, APIModificationRequest, APIModificationResponse,
     APIExecutionRequest, APIExecutionResponse, SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
@@ -257,17 +257,6 @@ async def login_page(request: Request):
         "settings": settings
     })
 
-@app.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
-    """Serve the register page."""
-    # Check if user is already logged in
-    user = await get_current_user(request)
-    if user:
-        return RedirectResponse(url="/dashboard", status_code=302)
-    return templates.TemplateResponse("auth/register.html", {
-        "request": request,
-        "settings": settings
-    })
 
 @app.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request):
@@ -3408,65 +3397,6 @@ async def fix_subscription_dates(
     except Exception as e:
         logger.error(f"Failed to fix subscription dates: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to fix subscription dates: {str(e)}")
-
-@app.post("/subscription/manual-activate")
-async def manual_activate_subscription(
-    tier: str,
-    current_user: User = Depends(require_active_user)
-):
-    """Temporary endpoint to manually activate subscription for testing."""
-    try:
-        # Get tier info
-        tier_info = subscription_service.SUBSCRIPTION_TIERS.get(tier)
-        if not tier_info:
-            raise HTTPException(status_code=400, detail=f"Invalid tier: {tier}")
-        
-        # Create subscription record manually
-        subscription_id = str(uuid.uuid4())
-        subscription_doc = {
-            "_id": subscription_id,
-            "user_id": current_user.id,
-            "lemonsqueezy_subscription_id": f"manual_{subscription_id}",
-            "lemonsqueezy_customer_id": f"manual_customer_{current_user.id}",
-            "lemonsqueezy_product_id": "manual",
-            "lemonsqueezy_variant_id": "manual",
-            "tier": tier,
-            "status": "active",
-            "current_period_start": datetime.utcnow(),
-            "current_period_end": datetime.utcnow() + timedelta(days=30),
-            "monthly_token_allocation": tier_info.monthly_tokens,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
-        }
-        
-        # Insert subscription
-        mongodb.subscriptions.insert_one(subscription_doc)
-        
-        # Update user's subscription info
-        mongodb.users.update_one(
-            {"_id": current_user.id},
-            {
-                "$set": {
-                    "subscription_tier": tier,
-                    "subscription_status": "active",
-                    "monthly_token_allocation": tier_info.monthly_tokens
-                }
-            }
-        )
-        
-        # Allocate tokens
-        await api_pricing_service.allocate_separated_monthly_tokens(
-            user_id=current_user.id,
-            generation_tokens=tier_info.monthly_generation_tokens,
-            execution_tokens=tier_info.monthly_execution_tokens,
-            source="manual_activation"
-        )
-        
-        return {"success": True, "message": f"Subscription {tier} activated manually"}
-        
-    except Exception as e:
-        logger.error(f"Failed to manually activate subscription: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to activate subscription: {str(e)}")
 
 @app.post("/subscription/update")
 async def update_subscription(

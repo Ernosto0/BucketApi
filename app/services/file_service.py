@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional, Any, Dict, List
 from datetime import datetime
 from ..config import settings
-from ..models import SavedAPI, SaveAPIRequest, User, UserCreate
+from ..models import SavedAPI, SaveAPIRequest, User
 from ..services.auth_service import auth_service
 from .mongodb import mongodb
 import logging
@@ -92,9 +92,6 @@ class FileService:
         return str(resolved_path)
     
     # User Management Methods (delegated to auth_service)
-    def save_user(self, user_data: UserCreate, hashed_password: str) -> User:
-        """Save a new user (delegated to auth_service)."""
-        return auth_service.save_user(user_data, hashed_password)
 
     def get_user_by_email(self, email: str) -> Optional[User]:
         """Get user by email (delegated to auth_service)."""

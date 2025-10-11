@@ -11,7 +11,7 @@ from typing import Optional
 from passlib.context import CryptContext
 from fastapi import HTTPException, Request
 
-from ..models_auth import User, UserCreate, UserSession
+from ..models_auth import User, UserSession
 from ..config import settings
 from .mongodb import mongodb
 
@@ -144,64 +144,6 @@ class AuthService:
         """Generate a secure session ID"""
         return secrets.token_urlsafe(32)
     
-    def create_user(self, user_data: UserCreate) -> User:
-        """Create a new user account"""
-        logger.info(f"Creating user with email: {user_data.email}")
-        logger.debug(f"Password type: {type(user_data.password)}, length: {len(user_data.password) if user_data.password else 0}")
-        
-        # Validate password strength
-        is_strong, message = self.validate_password_strength(user_data.password)
-        if not is_strong:
-            raise HTTPException(status_code=400, detail=message)
-        
-        # Check if email already exists
-        existing_user = mongodb.users.find_one({"email": user_data.email})
-        if existing_user:
-            raise HTTPException(
-                status_code=400,
-                detail="An account with this email already exists"
-            )
-        
-        # Create user
-        user_id = self.create_user_id()
-        logger.debug(f"Attempting to hash password...")
-        password_hash = self.hash_password(user_data.password)
-        logger.debug(f"Password hashed successfully, hash length: {len(password_hash)}")
-        
-        user_doc = {
-            "_id": user_id,
-            "email": user_data.email,
-            "password_hash": password_hash,
-            "is_active": True,
-            "created_at": datetime.utcnow(),
-            "last_login": None,
-            "oauth_provider": None,
-            "oauth_id": None,
-            "profile_picture": None,
-            "full_name": None,
-            "subscription_tier": "free",
-            "subscription_status": "active",
-            "monthly_token_allocation": 10000
-        }
-        
-        mongodb.users.insert_one(user_doc)
-        
-        logger.info(f"✅ New user created: {user_data.email}")
-        
-        return User(
-            id=user_doc["_id"],
-            email=user_doc["email"],
-            is_active=user_doc["is_active"],
-            created_at=user_doc["created_at"],
-            last_login=user_doc["last_login"],
-            oauth_provider=user_doc["oauth_provider"],
-            oauth_id=user_doc["oauth_id"],
-            profile_picture=user_doc["profile_picture"],
-            full_name=user_doc["full_name"],
-            subscription_tier=user_doc["subscription_tier"],
-            subscription_status=user_doc["subscription_status"],
-            monthly_token_allocation=user_doc["monthly_token_allocation"]
-        )
     
     def authenticate_user(self, email: str, password: str) -> Optional[User]:
         """Authenticate user with email and password"""

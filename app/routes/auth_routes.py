@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, Depends
 from fastapi.responses import RedirectResponse
 from typing import Optional
 
-from ..models_auth import UserCreate, UserLogin, RegisterResponse, LoginResponse, AuthResponse, User
+from ..models_auth import UserLogin, LoginResponse, AuthResponse, User
 from ..services.auth_service import auth_service
 from ..services.api_pricing_service import api_pricing_service
 
@@ -43,46 +43,6 @@ def check_rate_limit(request: Request) -> bool:
     rate_limit_storage[client_ip].append(current_time)
     return True
 
-@router.post("/register", response_model=RegisterResponse)
-async def register(user_data: UserCreate, request: Request):
-    """Register a new user account"""
-    # Rate limiting
-    if not check_rate_limit(request):
-        raise HTTPException(
-            status_code=429,
-            detail="Too many registration attempts. Please try again later."
-        )
-    
-    try:
-        # Create user
-        user = auth_service.create_user(user_data)
-        
-        # Allocate starter tokens for new users
-        try:
-            await api_pricing_service.allocate_monthly_tokens(
-                user_id=user.id,
-                amount=1000,
-                source="new_user_bonus"
-            )
-            logger.info(f"✅ Allocated 1000 starter tokens to new user: {user.email}")
-        except Exception as e:
-            logger.warning(f"Failed to allocate starter tokens: {e}")
-            # Don't fail registration if token allocation fails
-        
-        return RegisterResponse(
-            success=True,
-            message="Account created successfully! You've received 1000 starter tokens.",
-            user=user
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Registration failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="Registration failed. Please try again later."
-        )
 
 @router.post("/login", response_model=LoginResponse)
 async def login(login_data: UserLogin, request: Request, response: Response):

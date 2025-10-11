@@ -7,17 +7,6 @@ from typing import Optional
 from datetime import datetime
 
 # Core User Models
-class UserCreate(BaseModel):
-    """User registration data"""
-    email: EmailStr = Field(..., description="Valid email address")
-    password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
-    password_confirm: str = Field(..., description="Password confirmation")
-
-    @model_validator(mode='after')
-    def validate_passwords_match(self):
-        if self.password != self.password_confirm:
-            raise ValueError('Passwords do not match')
-        return self
 
 class UserLogin(BaseModel):
     """User login data"""
@@ -56,9 +45,6 @@ class AuthResponse(BaseModel):
     message: str
     user: Optional[User] = None
 
-class RegisterResponse(AuthResponse):
-    """Registration response"""
-    pass
 
 class LoginResponse(AuthResponse):
     """Login response"""

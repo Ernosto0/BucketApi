@@ -4,7 +4,7 @@ from datetime import datetime
 
 # Authentication Models (moved to models_auth.py for new system)
 # Import new auth models
-from .models_auth import User, UserCreate, UserLogin, RegisterResponse, LoginResponse, UserProfile, AuthResponse
+from .models_auth import User, UserLogin, LoginResponse, UserProfile, AuthResponse
 
 # API Generation Models
 class ProposalRequest(BaseModel):
