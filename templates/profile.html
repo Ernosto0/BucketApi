@@ -1896,16 +1896,37 @@
             statusElement.className = getStatusColor(status);
             
             // Update dates
-            const startedDate = subscription?.subscription_started_at ? 
-                new Date(subscription.subscription_started_at).toLocaleDateString('en-US', {
-                    year: 'numeric', month: 'short', day: 'numeric'
-                }) : 'N/A';
-            document.getElementById('subscriptionStarted').textContent = startedDate;
+            let startedDate = 'N/A';
+            let nextBillingDate = 'N/A';
             
-            const nextBillingDate = subscription?.subscription_expires_at ? 
-                new Date(subscription.subscription_expires_at).toLocaleDateString('en-US', {
-                    year: 'numeric', month: 'short', day: 'numeric'
-                }) : 'N/A';
+            if (subscription) {
+                // Try current_period_start first, then fall back to created_at
+                if (subscription.current_period_start) {
+                    startedDate = new Date(subscription.current_period_start).toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric'
+                    });
+                } else if (subscription.created_at) {
+                    startedDate = new Date(subscription.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric'
+                    });
+                }
+                
+                // Try current_period_end first, then calculate from created_at
+                if (subscription.current_period_end) {
+                    nextBillingDate = new Date(subscription.current_period_end).toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric'
+                    });
+                } else if (subscription.created_at) {
+                    // Add 1 month to created_at as fallback
+                    const createdDate = new Date(subscription.created_at);
+                    createdDate.setMonth(createdDate.getMonth() + 1);
+                    nextBillingDate = createdDate.toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric'
+                    });
+                }
+            }
+            
+            document.getElementById('subscriptionStarted').textContent = startedDate;
             document.getElementById('subscriptionNextBilling').textContent = nextBillingDate;
 
             // Update available plans
