@@ -33,11 +33,55 @@
                     </span>
                 </h1>
 
+                <!-- Compact Chat Input Bar -->
+                <div class="max-w-3xl mx-auto mb-8">
+                    <div class="relative">
+                        <div class="flex items-center bg-slate-800/80 backdrop-blur-xl rounded-full p-2 border border-slate-600/50 shadow-2xl hover:border-blue-500/50 transition-all duration-300">
+                            <!-- Input Field -->
+                            <input 
+                                type="text" 
+                                id="demo-chat-input" 
+                                placeholder="Describe your API idea... (e.g., 'Convert CSV to JSON with email validation')"
+                                class="flex-1 bg-transparent text-white placeholder-slate-400 border-none outline-none px-4 py-3 text-lg"
+                                style="font-family: inherit;"
+                            />
+                            
+                            <!-- Generate Button -->
+                            <button 
+                                id="demo-generate-btn"
+                                class="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl ml-2"
+                            >
+                                <span class="hidden sm:inline">Generate</span>
+                                <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <!-- Quick Examples -->
+                        <div class="flex flex-wrap justify-center gap-2 mt-4">
+                            <button class="example-suggestion text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white rounded-full border border-slate-600/30 hover:border-blue-500/50 transition-all duration-300">
+                                PDF to text
+                            </button>
+                            <button class="example-suggestion text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white rounded-full border border-slate-600/30 hover:border-blue-500/50 transition-all duration-300">
+                                Weather API
+                            </button>
+                            <button class="example-suggestion text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white rounded-full border border-slate-600/30 hover:border-blue-500/50 transition-all duration-300">
+                                Image resizer
+                            </button>
+                            <button class="example-suggestion text-xs px-3 py-1.5 bg-slate-700/50 hover:bg-slate-600/50 text-slate-300 hover:text-white rounded-full border border-slate-600/30 hover:border-blue-500/50 transition-all duration-300">
+                                URL shortener
+                            </button>
+                        </div>
+                        
+                    </div>
+                </div>
+
                 <!-- Hero Subtitle -->
                 <p class="text-xl md:text-2xl lg:text-3xl mb-6 max-w-5xl mx-auto leading-relaxed" style="color: #F9FAFB;">
                     The fastest way from idea to working API. Describe what you need in 
                     <span class="font-semibold" style="color: #3B82F6;">plain English</span>, 
-                    get a <span class="font-semibold" style="color: #6366F1;">production-ready API</span> 
+                    get a <span class="font-semibold" style="color: #6366F1;">hosted, production-ready API</span> 
                     in under 30 seconds.
                 </p>
                 
@@ -107,7 +151,7 @@
                     </a>
                     {% else %}
                     <!-- Non-authenticated user buttons -->
-                    <a href="" class="group relative px-10 py-5 font-bold text-lg rounded-2xl shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1" style="background: linear-gradient(135deg, #10B981, #06B6D4); color: #F9FAFB;">
+                    <a href="/login" class="group relative px-10 py-5 font-bold text-lg rounded-2xl shadow-2xl transition-all duration-300 transform hover:scale-105 hover:-translate-y-1" style="background: linear-gradient(135deg, #10B981, #06B6D4); color: #F9FAFB;">
                         <span class="relative z-10 flex items-center space-x-3">
                             <span>Build Your First API</span>
                             <svg class="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -349,7 +393,7 @@
                             </li>
                         </ul>
                         
-                        <a href="/register" class="block w-full px-4 py-3 border-2 border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white font-semibold rounded-xl transition-all duration-300 hover:bg-blue-500/10 text-center text-sm">
+                        <a href="/login" class="block w-full px-4 py-3 border-2 border-slate-600 hover:border-blue-500 text-slate-300 hover:text-white font-semibold rounded-xl transition-all duration-300 hover:bg-blue-500/10 text-center text-sm">
                             Get Started Free
                         </a>
                     </div>
@@ -396,7 +440,7 @@
                             </li>
                         </ul>
                         
-                        <a href="/register" class="block w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 text-center text-sm">
+                        <a href="/login" class="block w-full px-4 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 text-center text-sm">
                             Start Pro Trial
                         </a>
                     </div>
@@ -460,7 +504,7 @@
                     <p class="text-slate-400 mb-6">
                         Join our beta program and start creating production-ready APIs in seconds, not hours.
                     </p>
-                    <a href="/register" class="cta-button inline-flex items-center px-10 py-4 text-white font-bold text-lg rounded-xl shadow-2xl">
+                    <a href="/login" class="cta-button inline-flex items-center px-10 py-4 text-white font-bold text-lg rounded-xl shadow-2xl">
                         <span>Start Building Now</span>
                         <svg class="w-5 h-5 ml-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
@@ -650,7 +694,7 @@
                 </p>
                 
                 <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-                    <a href="/register" class="cta-button group relative px-10 py-4 text-white font-bold text-lg rounded-xl shadow-2xl">
+                    <a href="/login" class="cta-button group relative px-10 py-4 text-white font-bold text-lg rounded-xl shadow-2xl">
                         <span class="relative z-10 flex items-center space-x-3">
                             <span>Start Building Free</span>
                             <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -725,6 +769,12 @@
 @keyframes glow {
     0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
     50% { box-shadow: 0 0 40px rgba(59, 130, 246, 0.6); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
 }
 
 .glass-effect {
@@ -869,6 +919,32 @@ pre code {
         padding-top: 4rem;
         padding-bottom: 4rem;
     }
+    
+    /* Chat input mobile optimizations */
+    #demo-chat-input {
+        font-size: 16px; /* Prevent zoom on iOS */
+        padding: 0.75rem 1rem;
+    }
+    
+    #demo-generate-btn {
+        padding: 0.75rem 1rem;
+    }
+    
+    #demo-generate-btn span {
+        display: none; /* Hide "Generate" text on mobile, show only icon */
+    }
+    
+    .example-suggestion {
+        font-size: 0.75rem;
+        padding: 0.375rem 0.75rem;
+    }
+    
+    /* Mobile modal adjustments */
+    .fixed.inset-0 > div {
+        margin: 1rem;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
 }
 
 @media (max-width: 480px) {
@@ -985,6 +1061,9 @@ pre code {
         // Load subscription tiers
         loadSubscriptionTiers();
         
+        // Initialize chat input functionality
+        initializeChatInput();
+        
         // For API key auth users, check localStorage and redirect if needed
         const authToken = localStorage.getItem('authToken');
         const currentUser = localStorage.getItem('currentUser');
@@ -1010,6 +1089,95 @@ pre code {
         }
         {% endif %}
     });
+
+    function initializeChatInput() {
+        const chatInput = document.getElementById('demo-chat-input');
+        const generateBtn = document.getElementById('demo-generate-btn');
+        const exampleSuggestions = document.querySelectorAll('.example-suggestion');
+
+        // Handle example suggestion clicks
+        exampleSuggestions.forEach(button => {
+            button.addEventListener('click', function() {
+                const suggestionText = this.textContent.trim();
+                chatInput.value = suggestionText;
+                chatInput.focus();
+                
+                // Add a subtle animation to show the text was inserted
+                chatInput.style.transform = 'scale(1.02)';
+                setTimeout(() => {
+                    chatInput.style.transform = 'scale(1)';
+                }, 200);
+            });
+        });
+
+        // Handle generate button click
+        generateBtn.addEventListener('click', function() {
+            handleGenerateClick();
+        });
+
+        // Handle Enter key in input
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleGenerateClick();
+            }
+        });
+
+        // Focus animation
+        chatInput.addEventListener('focus', function() {
+            this.parentElement.style.borderColor = 'rgba(59, 130, 246, 0.8)';
+            this.parentElement.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+        });
+
+        chatInput.addEventListener('blur', function() {
+            this.parentElement.style.borderColor = 'rgba(71, 85, 105, 0.5)';
+            this.parentElement.style.boxShadow = 'none';
+        });
+    }
+
+    function handleGenerateClick() {
+        const chatInput = document.getElementById('demo-chat-input');
+        const generateBtn = document.getElementById('demo-generate-btn');
+        const inputText = chatInput.value.trim();
+
+        if (!inputText) {
+            // Shake animation for empty input
+            chatInput.style.animation = 'shake 0.5s ease-in-out';
+            chatInput.focus();
+            setTimeout(() => {
+                chatInput.style.animation = '';
+            }, 500);
+            return;
+        }
+
+        // Store the API idea in localStorage for the dashboard
+        localStorage.setItem('pendingApiIdea', inputText);
+
+        // Show loading state
+        const originalText = generateBtn.innerHTML;
+        generateBtn.innerHTML = `
+            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>Generating...</span>
+        `;
+        generateBtn.disabled = true;
+
+        // Check if user is authenticated
+        {% if user %}
+        // User is logged in, redirect to dashboard
+        setTimeout(() => {
+            window.location.href = '/dashboard';
+        }, 1000);
+        {% else %}
+        // User is not logged in, redirect to login page
+        setTimeout(() => {
+            // Store the API idea for after login
+            localStorage.setItem('pendingApiIdea', inputText);
+            window.location.href = '/login';
+        }, 1000);
+        {% endif %}
+    }
 
     async function loadSubscriptionTiers() {
         try {
@@ -1125,7 +1293,7 @@ pre code {
 
     function getCallToActionButton(tier, colorScheme) {
         if (tier.name === 'free') {
-            return `<a href="/register" class="block w-full px-4 py-3 border-2 ${colorScheme.button} font-semibold rounded-xl transition-all duration-300 text-center text-sm">
+            return `<a href="/login" class="block w-full px-4 py-3 border-2 ${colorScheme.button} font-semibold rounded-xl transition-all duration-300 text-center text-sm">
                         Get Started Free
                     </a>`;
         } else if (tier.name === 'enterprise') {
