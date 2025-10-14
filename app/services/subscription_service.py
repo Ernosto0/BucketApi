@@ -873,23 +873,52 @@ class SubscriptionService:
                     f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}",
                     headers={
                         "Authorization": f"Bearer {api_key}",
-                        "Accept": "application/vnd.api+json"
+                        "Accept": "application/vnd.api+json",
+                        "Content-Type": "application/vnd.api+json"
                     }
                 )
                 
-                if response.status_code not in [200, 204]:
+                if response.status_code not in [200, 201]:
                     logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
                     raise HTTPException(status_code=500, detail=f"Failed to cancel subscription: {response.text}")
+                
+                # Parse the response to get cancellation details
+                response_data = response.json()
+                cancelled_subscription = response_data.get("data", {})
+                attributes = cancelled_subscription.get("attributes", {})
+                
+                # Extract important dates from LemonSqueezy response
+                ends_at = attributes.get("ends_at")
+                renews_at = attributes.get("renews_at")
+                cancelled_status = attributes.get("cancelled", False)
+                status = attributes.get("status", "cancelled")
+                
+                logger.info(f"LemonSqueezy cancellation response - Status: {status}, Cancelled: {cancelled_status}, Ends at: {ends_at}")
             
-            # Update local subscription status
+            # Parse the ends_at date
+            ends_at_datetime = None
+            if ends_at:
+                try:
+                    # LemonSqueezy returns dates in ISO format
+                    ends_at_datetime = datetime.fromisoformat(ends_at.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    logger.warning(f"Could not parse ends_at date: {ends_at}")
+                    ends_at_datetime = subscription.current_period_end
+            else:
+                ends_at_datetime = subscription.current_period_end
+            
+            # Update local subscription status with LemonSqueezy data
+            update_data = {
+                "status": "cancelled",
+                "updated_at": datetime.utcnow()
+            }
+            
+            if ends_at_datetime:
+                update_data["current_period_end"] = ends_at_datetime
+            
             mongodb.subscriptions.update_one(
                 {"_id": subscription.id},
-                {
-                    "$set": {
-                        "status": "cancelled",
-                        "updated_at": datetime.utcnow()
-                    }
-                }
+                {"$set": update_data}
             )
             
             # Update user status
@@ -904,10 +933,17 @@ class SubscriptionService:
             
             logger.info(f"Successfully cancelled subscription for user {user_id}")
             
+            # Format the end date for user display
+            ends_at_display = None
+            if ends_at_datetime:
+                ends_at_display = ends_at_datetime.strftime("%B %d, %Y")
+            
             return {
                 "success": True,
-                "message": "Subscription cancelled successfully. You will retain access until the end of your billing period.",
-                "ends_at": subscription.current_period_end.isoformat() if subscription.current_period_end else None
+                "message": f"Subscription cancelled successfully. You will retain access until {ends_at_display or 'the end of your billing period'}.",
+                "ends_at": ends_at_datetime.isoformat() if ends_at_datetime else None,
+                "ends_at_formatted": ends_at_display,
+                "status": "cancelled"
             }
             
         except HTTPException:
@@ -931,7 +967,7 @@ class SubscriptionService:
             if not api_key:
                 raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
             
-            # Get customer portal URL from LemonSqueezy
+            # Get customer portal URL from LemonSqueezy subscription
             lemonsqueezy_sub_id = subscription.lemonsqueezy_subscription_id
             
             async with httpx.AsyncClient() as client:
@@ -948,13 +984,23 @@ class SubscriptionService:
                     raise HTTPException(status_code=500, detail=f"Failed to get customer portal URL: {response.text}")
                 
                 data = response.json()
-                portal_url = data.get("data", {}).get("attributes", {}).get("urls", {}).get("customer_portal")
+                subscription_data = data.get("data", {})
+                attributes = subscription_data.get("attributes", {})
+                urls = attributes.get("urls", {})
                 
-                if not portal_url:
+                # Get both URLs from the subscription response
+                update_payment_url = urls.get("update_payment_method")
+                portal_url = urls.get("customer_portal")
+                
+                # Prefer update_payment_method (more specific), fallback to customer_portal
+                final_url = update_payment_url or portal_url
+                
+                if not final_url:
+                    logger.error(f"No portal URLs found in response: {urls}")
                     raise HTTPException(status_code=500, detail="Customer portal URL not available")
                 
-                logger.info(f"Retrieved customer portal URL for user {user_id}")
-                return portal_url
+                logger.info(f"Retrieved customer portal URL for user {user_id}: {final_url}")
+                return final_url
             
         except HTTPException:
             raise
@@ -977,12 +1023,13 @@ class SubscriptionService:
             if not api_key:
                 raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
             
-            # Get invoices from LemonSqueezy
+            # Get invoices from LemonSqueezy using subscription-invoices endpoint
             lemonsqueezy_sub_id = subscription.lemonsqueezy_subscription_id
             
             async with httpx.AsyncClient() as client:
+                # Use the subscription-invoices relationship endpoint
                 response = await client.get(
-                    f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}/invoices",
+                    f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}/subscription-invoices",
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Accept": "application/vnd.api+json"
@@ -991,8 +1038,24 @@ class SubscriptionService:
                 )
                 
                 if response.status_code != 200:
-                    logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
-                    return []
+                    logger.warning(f"LemonSqueezy subscription-invoices API error: {response.status_code} - {response.text}")
+                    
+                    # Fallback: try to get invoices by filtering all subscription invoices
+                    response = await client.get(
+                        "https://api.lemonsqueezy.com/v1/subscription-invoices",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Accept": "application/vnd.api+json"
+                        },
+                        params={
+                            "filter[subscription_id]": lemonsqueezy_sub_id,
+                            "page[size]": limit
+                        }
+                    )
+                    
+                    if response.status_code != 200:
+                        logger.error(f"LemonSqueezy invoices API error: {response.status_code} - {response.text}")
+                        return []
                 
                 data = response.json()
                 invoices_data = data.get("data", [])
@@ -1001,14 +1064,25 @@ class SubscriptionService:
                 invoices = []
                 for invoice in invoices_data:
                     attrs = invoice.get("attributes", {})
+                    
+                    # Convert total from cents to dollars if needed
+                    total = attrs.get("total", 0)
+                    if isinstance(total, int) and total > 100:
+                        # Assume it's in cents, convert to dollars
+                        total_dollars = total / 100
+                    else:
+                        total_dollars = total
+                    
                     invoices.append({
                         "id": invoice.get("id"),
-                        "status": attrs.get("status"),
-                        "total": attrs.get("total"),
+                        "status": attrs.get("status", "unknown"),
+                        "total": total_dollars,
+                        "total_cents": attrs.get("total", 0),
                         "currency": attrs.get("currency", "USD"),
                         "created_at": attrs.get("created_at"),
                         "invoice_url": attrs.get("urls", {}).get("invoice_url"),
-                        "billing_reason": attrs.get("billing_reason")
+                        "billing_reason": attrs.get("billing_reason", "Subscription"),
+                        "subscription_id": attrs.get("subscription_id")
                     })
                 
                 logger.info(f"Retrieved {len(invoices)} invoices for user {user_id}")
