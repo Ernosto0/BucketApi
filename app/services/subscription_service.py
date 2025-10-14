@@ -846,6 +846,305 @@ class SubscriptionService:
                 
         except Exception as e:
             logger.error(f"Failed to record webhook event: {str(e)}")
+    
+    async def cancel_subscription(self, user_id: str) -> Dict[str, Any]:
+        """Cancel user's subscription via LemonSqueezy API."""
+        try:
+            import os
+            
+            # Get user's subscription
+            subscription = await self.get_user_subscription(user_id)
+            if not subscription:
+                raise HTTPException(status_code=404, detail="No active subscription found")
+            
+            if subscription.status in ["cancelled", "expired"]:
+                raise HTTPException(status_code=400, detail="Subscription is already cancelled")
+            
+            # Get LemonSqueezy API key
+            api_key = os.getenv("LEMONSQUEEZY_API_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
+            
+            # Cancel subscription via LemonSqueezy API
+            lemonsqueezy_sub_id = subscription.lemonsqueezy_subscription_id
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.delete(
+                    f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Accept": "application/vnd.api+json"
+                    }
+                )
+                
+                if response.status_code not in [200, 204]:
+                    logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
+                    raise HTTPException(status_code=500, detail=f"Failed to cancel subscription: {response.text}")
+            
+            # Update local subscription status
+            mongodb.subscriptions.update_one(
+                {"_id": subscription.id},
+                {
+                    "$set": {
+                        "status": "cancelled",
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Update user status
+            mongodb.users.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "subscription_status": "cancelled"
+                    }
+                }
+            )
+            
+            logger.info(f"Successfully cancelled subscription for user {user_id}")
+            
+            return {
+                "success": True,
+                "message": "Subscription cancelled successfully. You will retain access until the end of your billing period.",
+                "ends_at": subscription.current_period_end.isoformat() if subscription.current_period_end else None
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to cancel subscription: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to cancel subscription: {str(e)}")
+    
+    async def get_customer_portal_url(self, user_id: str) -> str:
+        """Get LemonSqueezy customer portal URL for payment method updates."""
+        try:
+            import os
+            
+            # Get user's subscription
+            subscription = await self.get_user_subscription(user_id)
+            if not subscription:
+                raise HTTPException(status_code=404, detail="No active subscription found")
+            
+            # Get LemonSqueezy API key
+            api_key = os.getenv("LEMONSQUEEZY_API_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
+            
+            # Get customer portal URL from LemonSqueezy
+            lemonsqueezy_sub_id = subscription.lemonsqueezy_subscription_id
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Accept": "application/vnd.api+json"
+                    }
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
+                    raise HTTPException(status_code=500, detail=f"Failed to get customer portal URL: {response.text}")
+                
+                data = response.json()
+                portal_url = data.get("data", {}).get("attributes", {}).get("urls", {}).get("customer_portal")
+                
+                if not portal_url:
+                    raise HTTPException(status_code=500, detail="Customer portal URL not available")
+                
+                logger.info(f"Retrieved customer portal URL for user {user_id}")
+                return portal_url
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get customer portal URL: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to get customer portal URL: {str(e)}")
+    
+    async def get_invoices(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get user's invoices from LemonSqueezy."""
+        try:
+            import os
+            
+            # Get user's subscription
+            subscription = await self.get_user_subscription(user_id)
+            if not subscription:
+                return []
+            
+            # Get LemonSqueezy API key
+            api_key = os.getenv("LEMONSQUEEZY_API_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
+            
+            # Get invoices from LemonSqueezy
+            lemonsqueezy_sub_id = subscription.lemonsqueezy_subscription_id
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}/invoices",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Accept": "application/vnd.api+json"
+                    },
+                    params={"page[size]": limit}
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
+                    return []
+                
+                data = response.json()
+                invoices_data = data.get("data", [])
+                
+                # Format invoices
+                invoices = []
+                for invoice in invoices_data:
+                    attrs = invoice.get("attributes", {})
+                    invoices.append({
+                        "id": invoice.get("id"),
+                        "status": attrs.get("status"),
+                        "total": attrs.get("total"),
+                        "currency": attrs.get("currency", "USD"),
+                        "created_at": attrs.get("created_at"),
+                        "invoice_url": attrs.get("urls", {}).get("invoice_url"),
+                        "billing_reason": attrs.get("billing_reason")
+                    })
+                
+                logger.info(f"Retrieved {len(invoices)} invoices for user {user_id}")
+                return invoices
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to get invoices: {str(e)}", exc_info=True)
+            return []
+    
+    async def change_subscription_tier(self, user_id: str, new_tier: str) -> Dict[str, Any]:
+        """Change user's subscription tier (upgrade/downgrade)."""
+        try:
+            import os
+            
+            if new_tier not in self.SUBSCRIPTION_TIERS:
+                raise HTTPException(status_code=400, detail=f"Invalid subscription tier: {new_tier}")
+            
+            # Get current subscription
+            current_subscription = await self.get_user_subscription(user_id)
+            if not current_subscription:
+                # No subscription - create new one
+                checkout_url = await self.create_lemonsqueezy_checkout(user_id, new_tier)
+                return {
+                    "success": True,
+                    "message": "Please complete checkout to subscribe",
+                    "checkout_url": checkout_url,
+                    "requires_checkout": True
+                }
+            
+            current_tier = current_subscription.tier
+            
+            # Check if it's the same tier
+            if current_tier == new_tier:
+                raise HTTPException(status_code=400, detail="You are already on this tier")
+            
+            # Check if downgrading to free
+            if new_tier == "free":
+                # Cancel current subscription
+                return await self.cancel_subscription(user_id)
+            
+            # Get LemonSqueezy API key
+            api_key = os.getenv("LEMONSQUEEZY_API_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
+            
+            # Get new variant ID
+            new_variant_id = None
+            if new_tier == "starter":
+                new_variant_id = os.getenv("LEMONSQUEEZY_STARTER_VARIANT_ID")
+            elif new_tier == "professional":
+                new_variant_id = os.getenv("LEMONSQUEEZY_PROFESSIONAL_VARIANT_ID")
+            elif new_tier == "enterprise":
+                new_variant_id = os.getenv("LEMONSQUEEZY_ENTERPRISE_VARIANT_ID")
+            
+            if not new_variant_id:
+                raise HTTPException(status_code=500, detail=f"Variant ID not configured for tier: {new_tier}")
+            
+            # Update subscription via LemonSqueezy API
+            lemonsqueezy_sub_id = current_subscription.lemonsqueezy_subscription_id
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.patch(
+                    f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/vnd.api+json",
+                        "Accept": "application/vnd.api+json"
+                    },
+                    json={
+                        "data": {
+                            "type": "subscriptions",
+                            "id": str(lemonsqueezy_sub_id),
+                            "attributes": {
+                                "variant_id": int(new_variant_id)
+                            }
+                        }
+                    }
+                )
+                
+                if response.status_code not in [200, 201]:
+                    logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
+                    raise HTTPException(status_code=500, detail=f"Failed to change subscription tier: {response.text}")
+            
+            # Update local subscription
+            new_tier_info = self.SUBSCRIPTION_TIERS[new_tier]
+            
+            mongodb.subscriptions.update_one(
+                {"_id": current_subscription.id},
+                {
+                    "$set": {
+                        "tier": new_tier,
+                        "lemonsqueezy_variant_id": new_variant_id,
+                        "monthly_token_allocation": new_tier_info.monthly_tokens,
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Update user
+            mongodb.users.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "subscription_tier": new_tier,
+                        "monthly_token_allocation": new_tier_info.monthly_tokens
+                    }
+                }
+            )
+            
+            # Allocate new token amounts
+            await api_pricing_service.allocate_separated_monthly_tokens(
+                user_id=user_id,
+                generation_tokens=new_tier_info.monthly_generation_tokens,
+                execution_tokens=new_tier_info.monthly_execution_tokens,
+                source="tier_change"
+            )
+            
+            action = "upgraded" if self.SUBSCRIPTION_TIERS[new_tier].price_cents > self.SUBSCRIPTION_TIERS[current_tier].price_cents else "downgraded"
+            
+            logger.info(f"Successfully {action} subscription for user {user_id} from {current_tier} to {new_tier}")
+            
+            return {
+                "success": True,
+                "message": f"Successfully {action} to {new_tier_info.display_name} plan",
+                "new_tier": new_tier,
+                "new_allocation": new_tier_info.monthly_tokens,
+                "requires_checkout": False
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to change subscription tier: {str(e)}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to change subscription tier: {str(e)}")
 
 # Global instance
 subscription_service = SubscriptionService()

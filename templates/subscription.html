@@ -105,6 +105,59 @@
             </div>
         </div>
 
+        <!-- Current Subscription Management (only shown if user has active subscription) -->
+        <div class="mb-8" id="subscription-management" style="display: none;">
+            <div class="glass-effect rounded-xl border border-slate-700/50 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-700/50">
+                    <h5 class="text-lg font-semibold text-slate-100 mb-0">Subscription Management</h5>
+                    <p class="text-sm text-slate-400 mt-1">Manage your subscription and billing</p>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Cancel Subscription -->
+                        <button onclick="cancelSubscription()" class="flex flex-col items-center justify-center p-4 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-colors duration-200">
+                            <svg class="w-8 h-8 text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                            <span class="text-sm font-medium text-red-300">Cancel Subscription</span>
+                        </button>
+                        
+                        <!-- Update Payment Method -->
+                        <button onclick="updatePaymentMethod()" class="flex flex-col items-center justify-center p-4 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-lg transition-colors duration-200">
+                            <svg class="w-8 h-8 text-blue-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                            </svg>
+                            <span class="text-sm font-medium text-blue-300">Update Payment</span>
+                        </button>
+                        
+                        <!-- View Invoices -->
+                        <button onclick="viewInvoices()" class="flex flex-col items-center justify-center p-4 bg-green-500/10 hover:bg-green-500/20 border border-green-500/30 rounded-lg transition-colors duration-200">
+                            <svg class="w-8 h-8 text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span class="text-sm font-medium text-green-300">View Invoices</span>
+                        </button>
+                        
+                        <!-- Change Plan -->
+                        <button onclick="showChangePlanModal()" class="flex flex-col items-center justify-center p-4 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 rounded-lg transition-colors duration-200">
+                            <svg class="w-8 h-8 text-purple-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                            </svg>
+                            <span class="text-sm font-medium text-purple-300">Change Plan</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Button (Remove in production) -->
+        <div class="mb-6">
+            <button onclick="showManagementSection()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm">
+                🧪 Test: Show Management Section
+            </button>
+            <p class="text-xs text-slate-400 mt-1">This button is for testing - remove in production</p>
+        </div>
+
         <!-- Subscription Tiers -->
         <div class="mb-6">
             <h3 class="text-2xl font-bold text-slate-100">Choose Your Plan</h3>
@@ -118,6 +171,45 @@
         <div class="text-center py-12" id="loading-state">
             <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             <p class="mt-2 text-slate-400">Loading subscription plans...</p>
+        </div>
+    </div>
+
+    <!-- Invoices Modal -->
+    <div id="invoices-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-effect rounded-xl border border-slate-700/50 max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-700/50 flex justify-between items-center">
+                <h5 class="text-lg font-semibold text-slate-100">Your Invoices</h5>
+                <button onclick="closeInvoicesModal()" class="text-slate-400 hover:text-slate-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[60vh]" id="invoices-list">
+                <div class="text-center py-8">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <p class="mt-2 text-slate-400">Loading invoices...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Plan Modal -->
+    <div id="change-plan-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-effect rounded-xl border border-slate-700/50 max-w-4xl w-full max-h-[80vh] overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-700/50 flex justify-between items-center">
+                <h5 class="text-lg font-semibold text-slate-100">Change Your Plan</h5>
+                <button onclick="closeChangePlanModal()" class="text-slate-400 hover:text-slate-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[60vh]">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="change-plan-tiers">
+                    <!-- Tier cards will be loaded here -->
+                </div>
+            </div>
         </div>
     </div>
 
@@ -149,6 +241,23 @@
                     if (statusData.success && statusData.subscription) {
                         currentUsage = statusData.current_usage;
                         renderUsageStats(statusData);
+                        
+                        // Show subscription management section if user has active paid subscription
+                        console.log('Subscription status:', statusData.subscription.status);
+                        console.log('Current tier:', currentTier);
+                        console.log('Subscription tier:', statusData.subscription.tier);
+                        
+                        // Show management section for any active paid subscription (not free)
+                        const isPaidSubscription = statusData.subscription.tier && 
+                                                 statusData.subscription.tier !== 'free' && 
+                                                 statusData.subscription.status === 'active';
+                        
+                        if (isPaidSubscription) {
+                            document.getElementById('subscription-management').style.display = 'block';
+                            console.log('Showing subscription management section');
+                        } else {
+                            console.log('Not showing management section - not a paid subscription');
+                        }
                     }
                     
                     // Load separated token balance
@@ -326,5 +435,220 @@
                 alert('Error creating subscription. Please try again.');
             }
         }
+
+        // Subscription Management Functions
+        
+        async function cancelSubscription() {
+            if (!confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your billing period.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/subscription/cancel', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(data.message);
+                    // Reload page to update UI
+                    window.location.reload();
+                } else {
+                    alert('Error cancelling subscription: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error cancelling subscription:', error);
+                alert('Error cancelling subscription. Please try again.');
+            }
+        }
+
+        async function updatePaymentMethod() {
+            try {
+                const response = await fetch('/subscription/customer-portal');
+                const data = await response.json();
+
+                if (data.success && data.portal_url) {
+                    // Redirect to LemonSqueezy customer portal
+                    window.location.href = data.portal_url;
+                } else {
+                    alert('Error accessing customer portal: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error accessing customer portal:', error);
+                alert('Error accessing customer portal. Please try again.');
+            }
+        }
+
+        async function viewInvoices() {
+            try {
+                // Show modal
+                document.getElementById('invoices-modal').classList.remove('hidden');
+                
+                // Load invoices
+                const response = await fetch('/subscription/invoices');
+                const data = await response.json();
+
+                const invoicesList = document.getElementById('invoices-list');
+                
+                if (data.success && data.invoices && data.invoices.length > 0) {
+                    let html = '<div class="space-y-3">';
+                    
+                    data.invoices.forEach(invoice => {
+                        const date = new Date(invoice.created_at).toLocaleDateString();
+                        const amount = (invoice.total / 100).toFixed(2);
+                        const statusColor = invoice.status === 'paid' ? 'green' : 'yellow';
+                        
+                        html += `
+                            <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                                <div class="flex-1">
+                                    <div class="text-slate-200 font-medium">${invoice.billing_reason || 'Subscription'}</div>
+                                    <div class="text-sm text-slate-400">${date}</div>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <div class="text-right">
+                                        <div class="text-slate-200 font-medium">$${amount} ${invoice.currency}</div>
+                                        <span class="inline-block px-2 py-1 bg-${statusColor}-500/20 text-${statusColor}-300 text-xs rounded">${invoice.status}</span>
+                                    </div>
+                                    ${invoice.invoice_url ? `
+                                        <a href="${invoice.invoice_url}" target="_blank" class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors duration-200">
+                                            Download
+                                        </a>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    invoicesList.innerHTML = html;
+                } else {
+                    invoicesList.innerHTML = '<div class="text-center py-8 text-slate-400">No invoices found</div>';
+                }
+            } catch (error) {
+                console.error('Error loading invoices:', error);
+                document.getElementById('invoices-list').innerHTML = '<div class="text-center py-8 text-red-400">Error loading invoices</div>';
+            }
+        }
+
+        function closeInvoicesModal() {
+            document.getElementById('invoices-modal').classList.add('hidden');
+        }
+
+        async function showChangePlanModal() {
+            try {
+                // Show modal
+                document.getElementById('change-plan-modal').classList.remove('hidden');
+                
+                // Load tiers
+                const tiersResponse = await fetch('/subscription/tiers');
+                const tiersData = await tiersResponse.json();
+                
+                if (tiersData.success) {
+                    renderChangePlanTiers(tiersData.tiers);
+                }
+            } catch (error) {
+                console.error('Error loading plans:', error);
+                alert('Error loading plans. Please try again.');
+            }
+        }
+
+        function closeChangePlanModal() {
+            document.getElementById('change-plan-modal').classList.add('hidden');
+        }
+
+        function renderChangePlanTiers(tiers) {
+            const container = document.getElementById('change-plan-tiers');
+            container.innerHTML = '';
+
+            tiers.forEach(tier => {
+                const isCurrentTier = tier.name === currentTier;
+                const priceDisplay = tier.price_cents === 0 ? 'Free' : `$${(tier.price_cents / 100).toFixed(2)}/month`;
+                
+                const tierCard = `
+                    <div class="relative">
+                        <div class="glass-effect rounded-xl border ${isCurrentTier ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700/50'} overflow-hidden h-full flex flex-col">
+                            ${isCurrentTier ? '<div class="absolute -top-3 right-4 bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-medium">Current Plan</div>' : ''}
+                            <div class="px-4 py-3 text-center border-b border-slate-700/50">
+                                <h5 class="text-base font-semibold text-slate-100 mb-1">${tier.display_name}</h5>
+                                <h3 class="text-xl font-bold text-blue-400">${priceDisplay}</h3>
+                            </div>
+                            <div class="p-4 flex-grow">
+                                <ul class="feature-list space-y-1 text-xs text-slate-300">
+                                    ${tier.features.slice(0, 3).map(feature => `<li class="flex items-start"><span class="text-green-400 mr-1">✓</span>${feature}</li>`).join('')}
+                                </ul>
+                            </div>
+                            <div class="p-4 pt-0">
+                                ${isCurrentTier ? 
+                                    '<button class="w-full py-2 px-3 bg-slate-600 text-slate-300 text-sm rounded-lg cursor-not-allowed" disabled>Current Plan</button>' :
+                                    `<button class="w-full py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors duration-200" onclick="changePlan('${tier.name}')">Switch to ${tier.display_name}</button>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += tierCard;
+            });
+        }
+
+        async function changePlan(newTier) {
+            if (!confirm(`Are you sure you want to change to the ${newTier} plan?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/subscription/change-tier', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        new_tier: newTier
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.requires_checkout && data.checkout_url) {
+                        // Redirect to checkout for new subscription
+                        window.location.href = data.checkout_url;
+                    } else {
+                        // Plan changed successfully
+                        alert(data.message);
+                        closeChangePlanModal();
+                        // Reload page to update UI
+                        window.location.reload();
+                    }
+                } else {
+                    alert('Error changing plan: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error changing plan:', error);
+                alert('Error changing plan. Please try again.');
+            }
+        }
+
+        // Test function to show management section (remove in production)
+        function showManagementSection() {
+            document.getElementById('subscription-management').style.display = 'block';
+            alert('Management section is now visible! You can test all 4 features.');
+        }
+
+        // Close modals when clicking outside
+        document.getElementById('invoices-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeInvoicesModal();
+            }
+        });
+
+        document.getElementById('change-plan-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeChangePlanModal();
+            }
+        });
     </script>
 {% endblock %}
