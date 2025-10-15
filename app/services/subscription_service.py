@@ -126,15 +126,17 @@ class SubscriptionService:
     async def get_user_subscription(self, user_id: str) -> Optional[Subscription]:
         """Get current subscription for a user."""
         try:
+            # Include cancelled subscriptions that haven't expired yet
             db_subscription = mongodb.subscriptions.find_one({
                 "user_id": user_id,
-                "status": {"$in": ["active", "past_due", "paused"]}
+                "status": {"$in": ["active", "past_due", "paused", "cancelled"]}
             }, sort=[("created_at", -1)])
             
             if not db_subscription:
                 return None
-                
-            return Subscription(
+            
+            # Check if cancelled subscription has expired
+            subscription = Subscription(
                 id=db_subscription["_id"],
                 user_id=db_subscription["user_id"],
                 lemonsqueezy_subscription_id=db_subscription["lemonsqueezy_subscription_id"],
@@ -151,10 +153,59 @@ class SubscriptionService:
                 created_at=db_subscription["created_at"],
                 updated_at=db_subscription["updated_at"]
             )
+            
+            # If subscription is cancelled, check if it has expired
+            if subscription.status == "cancelled" and subscription.current_period_end:
+                if datetime.utcnow() > subscription.current_period_end:
+                    # Subscription has expired, downgrade user to free tier
+                    await self._expire_cancelled_subscription(user_id, subscription.id)
+                    return None  # Return None so user is treated as free tier
+            
+            return subscription
                 
         except Exception as e:
             logger.error(f"Failed to get user subscription: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to get user subscription: {str(e)}")
+    
+    async def _expire_cancelled_subscription(self, user_id: str, subscription_id: str):
+        """Handle expiration of a cancelled subscription by downgrading user to free tier."""
+        try:
+            # Update subscription status to expired
+            mongodb.subscriptions.update_one(
+                {"_id": subscription_id},
+                {
+                    "$set": {
+                        "status": "expired",
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Update user to free tier
+            mongodb.users.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "subscription_tier": "free",
+                        "subscription_status": "active",  # Free tier is active
+                        "monthly_token_allocation": 10000  # Free tier allocation
+                    }
+                }
+            )
+            
+            # Allocate free tier tokens
+            from app.services.api_pricing_service import api_pricing_service
+            await api_pricing_service.allocate_separated_monthly_tokens(
+                user_id=user_id,
+                generation_tokens=3000,  # Free tier: 3k generation tokens
+                execution_tokens=7000,   # Free tier: 7k execution tokens
+                source="subscription_expired"
+            )
+            
+            logger.info(f"Expired cancelled subscription for user {user_id}, downgraded to free tier")
+            
+        except Exception as e:
+            logger.error(f"Failed to expire cancelled subscription: {str(e)}", exc_info=True)
     
     async def create_lemonsqueezy_checkout(self, user_id: str, tier: str) -> str:
         """Create a LemonSqueezy checkout URL for a subscription tier."""
@@ -852,9 +903,15 @@ class SubscriptionService:
         try:
             import os
             
+            logger.info(f"Attempting to cancel subscription for user: {user_id}")
+            
             # Get user's subscription
             subscription = await self.get_user_subscription(user_id)
             if not subscription:
+                # Check if user has any subscription records at all
+                all_subs = mongodb.subscriptions.find({"user_id": user_id}).sort("created_at", -1).limit(5)
+                sub_list = list(all_subs)
+                logger.warning(f"No active subscription found for user {user_id}. Found {len(sub_list)} total subscriptions: {[s.get('status', 'unknown') for s in sub_list]}")
                 raise HTTPException(status_code=404, detail="No active subscription found")
             
             if subscription.status in ["cancelled", "expired"]:
@@ -867,10 +924,18 @@ class SubscriptionService:
             
             # Cancel subscription via LemonSqueezy API
             lemonsqueezy_sub_id = subscription.lemonsqueezy_subscription_id
+            logger.info(f"Cancelling LemonSqueezy subscription ID: {lemonsqueezy_sub_id} for user: {user_id}")
+            
+            if not lemonsqueezy_sub_id:
+                logger.error(f"No LemonSqueezy subscription ID found for user {user_id}")
+                raise HTTPException(status_code=400, detail="Invalid subscription - missing LemonSqueezy subscription ID")
             
             async with httpx.AsyncClient() as client:
+                cancel_url = f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}"
+                logger.info(f"Making DELETE request to: {cancel_url}")
+                
                 response = await client.delete(
-                    f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}",
+                    cancel_url,
                     headers={
                         "Authorization": f"Bearer {api_key}",
                         "Accept": "application/vnd.api+json",
@@ -878,7 +943,46 @@ class SubscriptionService:
                     }
                 )
                 
-                if response.status_code not in [200, 201]:
+                logger.info(f"LemonSqueezy API response: {response.status_code}")
+                
+                if response.status_code == 404:
+                    logger.warning(f"LemonSqueezy subscription not found: {lemonsqueezy_sub_id}. Proceeding with local cancellation.")
+                    # If subscription doesn't exist in LemonSqueezy, we'll still cancel it locally
+                    # This handles cases where the subscription was already deleted or never properly created
+                    ends_at_datetime = subscription.current_period_end or datetime.utcnow()
+                    
+                    # Update local subscription status
+                    mongodb.subscriptions.update_one(
+                        {"_id": subscription.id},
+                        {
+                            "$set": {
+                                "status": "cancelled",
+                                "updated_at": datetime.utcnow()
+                            }
+                        }
+                    )
+                    
+                    # Update user status
+                    mongodb.users.update_one(
+                        {"_id": user_id},
+                        {
+                            "$set": {
+                                "subscription_status": "cancelled"
+                            }
+                        }
+                    )
+                    
+                    logger.info(f"Successfully cancelled local subscription for user {user_id} (LemonSqueezy subscription not found)")
+                    
+                    return {
+                        "success": True,
+                        "message": f"Subscription cancelled successfully. You will retain access until {ends_at_datetime.strftime('%B %d, %Y') if ends_at_datetime else 'the end of your billing period'}.",
+                        "ends_at": ends_at_datetime.isoformat() if ends_at_datetime else None,
+                        "ends_at_formatted": ends_at_datetime.strftime("%B %d, %Y") if ends_at_datetime else None,
+                        "status": "cancelled",
+                        "note": "Subscription was cancelled locally (not found in payment provider)"
+                    }
+                elif response.status_code not in [200, 201]:
                     logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
                     raise HTTPException(status_code=500, detail=f"Failed to cancel subscription: {response.text}")
                 

@@ -15,6 +15,8 @@
         transition: width 0.3s ease;
     }
 </style>
+<!-- Lemon.js for seamless payment modal -->
+<script src="https://app.lemonsqueezy.com/js/lemon.js" defer></script>
 {% endblock %}
 
 {% block content %}
@@ -127,7 +129,7 @@
                             <svg class="w-8 h-8 text-blue-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
                             </svg>
-                            <span class="text-sm font-medium text-blue-300">Update Payment</span>
+                            <span class="text-sm font-medium text-blue-300">Update Payment Method</span>
                         </button>
                         
                         <!-- View Invoices -->
@@ -247,14 +249,19 @@
                         console.log('Current tier:', currentTier);
                         console.log('Subscription tier:', statusData.subscription.tier);
                         
-                        // Show management section for any active paid subscription (not free)
+                        // Show management section for any paid subscription (not free) that hasn't expired
+                        // This includes active subscriptions and cancelled subscriptions that haven't expired yet
                         const isPaidSubscription = statusData.subscription.tier && 
                                                  statusData.subscription.tier !== 'free' && 
-                                                 statusData.subscription.status === 'active';
+                                                 (statusData.subscription.status === 'active' || 
+                                                  statusData.subscription.status === 'cancelled');
                         
                         if (isPaidSubscription) {
                             document.getElementById('subscription-management').style.display = 'block';
                             console.log('Showing subscription management section');
+                            
+                            // Update management buttons based on subscription status
+                            updateSubscriptionManagementButtons(statusData.subscription);
                         } else {
                             console.log('Not showing management section - not a paid subscription');
                         }
@@ -438,6 +445,38 @@
 
         // Subscription Management Functions
         
+        function updateSubscriptionManagementButtons(subscription) {
+            const cancelButton = document.querySelector('button[onclick="cancelSubscription()"]');
+            const updatePaymentButton = document.querySelector('button[onclick="updatePaymentMethod()"]');
+            const changePlanButton = document.querySelector('button[onclick="showChangePlanModal()"]');
+            
+            if (subscription.status === 'cancelled') {
+                // For cancelled subscriptions, show different UI
+                if (cancelButton) {
+                    cancelButton.innerHTML = `
+                        <svg class="w-8 h-8 text-yellow-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                        <span class="text-sm font-medium text-yellow-300">Subscription Cancelled</span>
+                    `;
+                    cancelButton.disabled = true;
+                    cancelButton.classList.remove('hover:bg-red-500/20');
+                    cancelButton.classList.add('opacity-75', 'cursor-not-allowed');
+                    cancelButton.onclick = null;
+                }
+                
+                // Disable payment updates and plan changes for cancelled subscriptions
+                if (updatePaymentButton) {
+                    updatePaymentButton.disabled = true;
+                    updatePaymentButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                if (changePlanButton) {
+                    changePlanButton.disabled = true;
+                    changePlanButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        }
+        
         async function cancelSubscription() {
             if (!confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your billing period.')) {
                 return;
@@ -471,15 +510,34 @@
                 const response = await fetch('/subscription/customer-portal');
                 const data = await response.json();
 
-                if (data.success && data.portal_url) {
-                    // Redirect to LemonSqueezy customer portal
-                    window.location.href = data.portal_url;
+                if (data.success) {
+                    // Prefer update_payment_method URL for seamless modal experience
+                    const updatePaymentUrl = data.update_payment_url;
+                    const customerPortalUrl = data.customer_portal_url;
+                    
+                    if (updatePaymentUrl) {
+                        // Use Lemon.js to open payment update in a modal overlay
+                        if (typeof LemonSqueezy !== 'undefined' && LemonSqueezy.Url) {
+                            console.log('Opening payment update modal with Lemon.js');
+                            LemonSqueezy.Url.Open(updatePaymentUrl);
+                        } else {
+                            // Fallback: open in new tab if Lemon.js not available
+                            console.log('Lemon.js not available, opening in new tab');
+                            window.open(updatePaymentUrl, '_blank');
+                        }
+                    } else if (customerPortalUrl) {
+                        // Fallback to customer portal (full page redirect)
+                        console.log('Using customer portal URL');
+                        window.location.href = customerPortalUrl;
+                    } else {
+                        alert('Payment update URL not available. Please contact support.');
+                    }
                 } else {
-                    alert('Error accessing customer portal: ' + (data.detail || 'Unknown error'));
+                    alert('Error accessing payment update: ' + (data.detail || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Error accessing customer portal:', error);
-                alert('Error accessing customer portal. Please try again.');
+                console.error('Error accessing payment update:', error);
+                alert('Error accessing payment update. Please try again.');
             }
         }
 
@@ -499,8 +557,9 @@
                     
                     data.invoices.forEach(invoice => {
                         const date = new Date(invoice.created_at).toLocaleDateString();
-                        const amount = (invoice.total / 100).toFixed(2);
-                        const statusColor = invoice.status === 'paid' ? 'green' : 'yellow';
+                        // Handle both dollar amounts and cent amounts
+                        const amount = invoice.total ? invoice.total.toFixed(2) : (invoice.total_cents / 100).toFixed(2);
+                        const statusColor = invoice.status === 'paid' ? 'green' : invoice.status === 'pending' ? 'yellow' : 'red';
                         
                         html += `
                             <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">

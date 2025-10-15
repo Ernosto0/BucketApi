@@ -266,31 +266,6 @@ async def profile_page(request: Request):
         return RedirectResponse(url="/login", status_code=302)
     return templates.TemplateResponse("profile.html", {"request": request, "user": user})
 
-@app.get("/subscription", response_class=HTMLResponse)
-async def subscription_page(request: Request):
-    """Subscription management page."""
-    return templates.TemplateResponse("subscription.html", {"request": request})
-
-@app.get("/subscription/success", response_class=HTMLResponse)
-async def subscription_success_page(request: Request):
-    """Subscription success page after payment."""
-    try:
-        # Get current user
-        user = await get_current_user(request)
-        if not user:
-            return RedirectResponse(url="/login", status_code=302)
-        
-        # Get user's subscription status
-        subscription = await subscription_service.get_user_subscription(user.id)
-        
-        return templates.TemplateResponse("subscription_success.html", {
-            "request": request, 
-            "user": user,
-            "subscription": subscription
-        })
-    except Exception as e:
-        logger.error(f"Failed to load subscription success page: {str(e)}")
-        return RedirectResponse(url="/subscription", status_code=302)
     
 
 @app.get("/logs", response_class=HTMLResponse)
@@ -3246,6 +3221,33 @@ async def list_all_users(
 # SUBSCRIPTION ENDPOINTS
 # ===================================
 
+
+@app.get("/subscription", response_class=HTMLResponse)
+async def subscription_page(request: Request):
+    """Subscription management page."""
+    return templates.TemplateResponse("subscription.html", {"request": request})
+
+@app.get("/subscription/success", response_class=HTMLResponse)
+async def subscription_success_page(request: Request):
+    """Subscription success page after payment."""
+    try:
+        # Get current user
+        user = await get_current_user(request)
+        if not user:
+            return RedirectResponse(url="/login", status_code=302)
+        
+        # Get user's subscription status
+        subscription = await subscription_service.get_user_subscription(user.id)
+        
+        return templates.TemplateResponse("subscription_success.html", {
+            "request": request, 
+            "user": user,
+            "subscription": subscription
+        })
+    except Exception as e:
+        logger.error(f"Failed to load subscription success page: {str(e)}")
+        return RedirectResponse(url="/subscription", status_code=302)
+
 @app.get("/subscription/tiers")
 async def get_subscription_tiers(
     current_user: Optional[User] = Depends(get_current_user_or_api_key)
@@ -3363,41 +3365,6 @@ async def handle_subscription_webhook(
         logger.error(f"Failed to handle webhook: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to handle webhook: {str(e)}")
 
-@app.post("/subscription/fix-dates")
-async def fix_subscription_dates(
-    current_user: User = Depends(require_active_user)
-):
-    """Fix subscription dates for existing subscriptions that have None values."""
-    try:
-        # Find user's subscription
-        subscription = await subscription_service.get_user_subscription(current_user.id)
-        if not subscription:
-            raise HTTPException(status_code=404, detail="No subscription found")
-        
-        # Check if dates need fixing
-        if subscription.current_period_start is None or subscription.current_period_end is None:
-            current_time = datetime.utcnow()
-            
-            # Update with default dates
-            mongodb.subscriptions.update_one(
-                {"user_id": current_user.id, "status": {"$in": ["active", "past_due", "paused"]}},
-                {
-                    "$set": {
-                        "current_period_start": current_time,
-                        "current_period_end": current_time + timedelta(days=30),
-                        "updated_at": current_time
-                    }
-                }
-            )
-            
-            return {"success": True, "message": "Subscription dates fixed successfully"}
-        else:
-            return {"success": True, "message": "Subscription dates are already valid"}
-            
-    except Exception as e:
-        logger.error(f"Failed to fix subscription dates: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to fix subscription dates: {str(e)}")
-
 @app.post("/subscription/update")
 async def update_subscription(
     request: UpdateSubscriptionRequest,
@@ -3420,6 +3387,103 @@ async def update_subscription(
     except Exception as e:
         logger.error(f"Failed to update subscription: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update subscription: {str(e)}")
+
+@app.post("/subscription/cancel")
+async def cancel_subscription_endpoint(
+    current_user: User = Depends(require_active_user)
+):
+    """Cancel user's subscription."""
+    try:
+        result = await subscription_service.cancel_subscription(current_user.id)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to cancel subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to cancel subscription: {str(e)}")
+
+@app.get("/subscription/customer-portal")
+async def get_customer_portal(
+    current_user: User = Depends(require_active_user)
+):
+    """Get LemonSqueezy customer portal URL for payment method updates."""
+    try:
+        # Get the subscription to extract both URLs
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        if not subscription:
+            raise HTTPException(status_code=404, detail="No active subscription found")
+        
+        import os
+        api_key = os.getenv("LEMONSQUEEZY_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
+        
+        # Get both URLs from LemonSqueezy
+        import httpx
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://api.lemonsqueezy.com/v1/subscriptions/{subscription.lemonsqueezy_subscription_id}",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Accept": "application/vnd.api+json"
+                }
+            )
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="Failed to get portal URLs")
+            
+            data = response.json()
+            urls = data.get("data", {}).get("attributes", {}).get("urls", {})
+            
+            update_payment_url = urls.get("update_payment_method")
+            customer_portal_url = urls.get("customer_portal")
+            
+            return {
+                "success": True,
+                "update_payment_url": update_payment_url,
+                "customer_portal_url": customer_portal_url,
+                "portal_url": update_payment_url or customer_portal_url,  # Backward compatibility
+                "urls": urls
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get customer portal URL: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get customer portal URL: {str(e)}")
+
+@app.get("/subscription/invoices")
+async def get_invoices_endpoint(
+    current_user: User = Depends(require_active_user),
+    limit: int = 10
+):
+    """Get user's invoices from LemonSqueezy."""
+    try:
+        invoices = await subscription_service.get_invoices(current_user.id, limit)
+        return {
+            "success": True,
+            "invoices": invoices,
+            "count": len(invoices)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get invoices: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get invoices: {str(e)}")
+
+@app.post("/subscription/change-tier")
+async def change_subscription_tier_endpoint(
+    new_tier: str = Body(..., embed=True),
+    current_user: User = Depends(require_active_user)
+):
+    """Change user's subscription tier (upgrade/downgrade)."""
+    try:
+        result = await subscription_service.change_subscription_tier(current_user.id, new_tier)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to change subscription tier: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to change subscription tier: {str(e)}")
 
 
 if __name__ == "__main__":
