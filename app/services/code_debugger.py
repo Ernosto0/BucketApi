@@ -27,30 +27,55 @@ class CodeDebugger:
         """
         logger.info("Starting code analysis and debugging...")
         
+        # SYNTAX CHECK: Log if code has syntax errors, but always continue with AI review
+        try:
+            import ast
+            ast.parse(generated_code)
+            logger.info("Generated code is syntactically valid, but will still run AI review")
+        except SyntaxError as e:
+            logger.info(f"Generated code has syntax errors: {e}, will attempt fixes...")
+        
         # Step 1: Static analysis to find obvious issues
         issues_found = await self._static_analysis(generated_code)
         
-        # Step 2: Use AI to analyze and fix the code
-        if issues_found:
-            logger.info(f"Found {len(issues_found)} issues, applying AI fixes...")
-            fixed_code, fixes_applied = await self._ai_code_review_and_fix(
-                generated_code, issues_found, original_prompt, user_id, api_key_id
-            )
-        else:
-            logger.info("No obvious issues found in static analysis")
-            fixed_code = generated_code
-            fixes_applied = []
+        # Step 2: Try SIMPLE fixes first (no AI) - only if we found obvious issues
+        simple_fixes_applied = []
+        code_to_review = generated_code
         
-        # Step 3: Final validation
+        if issues_found:
+            logger.info(f"Found {len(issues_found)} issues, trying simple fixes first...")
+            try:
+                simple_fixed = self._attempt_syntax_fixes(generated_code)
+                ast.parse(simple_fixed)
+                logger.info("Simple syntax fixes worked!")
+                code_to_review = simple_fixed
+                simple_fixes_applied = ["Applied simple syntax fixes"]
+            except Exception as e:
+                logger.info(f"Simple fixes failed: {e}, will try AI fixes...")
+                code_to_review = generated_code
+        
+        # Step 3: ALWAYS use AI review - even if no issues found
+        # The AI might catch issues our static analysis missed
+        logger.info("Running AI code review (regardless of static analysis results)...")
+        
+        # Prepare issues list - include static issues + general review request
+        all_issues = issues_found.copy() if issues_found else []
+        if not all_issues:
+            all_issues = ["General code review and validation requested"]
+        
+        fixed_code, ai_fixes_applied = await self._ai_code_review_and_fix(
+            code_to_review, all_issues, original_prompt, user_id, api_key_id
+        )
+        
+        # Combine all fixes applied
+        fixes_applied = simple_fixes_applied + ai_fixes_applied
+        
+        # Step 4: Final validation - but don't try to fix again if it fails
         final_issues = await self._validate_fixed_code(fixed_code)
         
         if final_issues:
             logger.warning(f"Still has {len(final_issues)} issues after fixing")
-            # Try one more AI fix round
-            fixed_code, additional_fixes = await self._ai_code_review_and_fix(
-                fixed_code, final_issues, original_prompt, user_id, api_key_id
-            )
-            fixes_applied.extend(additional_fixes)
+            logger.warning("Not attempting additional fixes to avoid making it worse")
         
         logger.info(f"Code debugging completed. Applied {len(fixes_applied)} fixes.")
         return fixed_code, issues_found, fixes_applied
@@ -90,10 +115,45 @@ class CodeDebugger:
         if 'def run(' not in code:
             issues.append("Missing required 'run()' function")
         
+        # Check for unterminated triple quotes
+        triple_quote_issues = self._check_triple_quotes(code)
+        issues.extend(triple_quote_issues)
+        
         # Check for proper error handling structure
         if 'except Exception as e:' in code:
             except_blocks = self._analyze_exception_handling(code)
             issues.extend(except_blocks)
+        
+        return issues
+    
+    def _check_triple_quotes(self, code: str) -> List[str]:
+        """Check for unterminated triple quotes."""
+        issues = []
+        lines = code.split('\n')
+        
+        in_triple_quote = False
+        triple_quote_start_line = 0
+        
+        for i, line in enumerate(lines):
+            triple_quote_count = line.count('"""')
+            
+            # Handle multiple triple quotes on the same line
+            for _ in range(triple_quote_count):
+                if not in_triple_quote:
+                    in_triple_quote = True
+                    triple_quote_start_line = i + 1
+                else:
+                    in_triple_quote = False
+        
+        if in_triple_quote:
+            issues.append(f"Unterminated triple-quoted string starting at line {triple_quote_start_line}")
+        
+        # Also check for specific malformed patterns
+        for i, line in enumerate(lines):
+            if 'f"""' in line and not line.rstrip().endswith('"""'):
+                # Check if this is a malformed f-string
+                if '"{' in line and '}"' in line:
+                    issues.append(f"Malformed f-string with mixed quotes at line {i+1}")
         
         return issues
     
@@ -194,9 +254,32 @@ COMMON FIXES:
 - Ensure proper exception handling
 - Convert Pydantic models to plain dicts: NameResult(...) → {...}
 - Fix OpenAI JSON parsing: expect {"entities": [...]} not [...]
-- Ensure all return values are JSON-serializable (no class instances)"""
+- Ensure all return values are JSON-serializable (no class instances)
+- Fix unterminated triple quotes: f\"\"\"text\"\"\" not f\"\"\"text\")
+- Fix malformed f-strings: use {variable} not \"{variable}\""""
 
-        user_prompt = f"""Please fix the following Python code issues:
+        # Adjust prompt based on whether we have specific issues or general review
+        if "General code review and validation requested" in issues:
+            user_prompt = f"""Please review and improve the following Python code:
+
+ORIGINAL PROMPT: {original_prompt}
+
+REVIEW REQUEST: Analyze this code for any issues including:
+- Syntax errors or malformed statements
+- Missing imports or dependencies
+- Incorrect API usage patterns
+- Logic errors or potential bugs
+- Code structure and best practices
+
+CODE TO REVIEW:
+```python
+{code}
+```
+
+If you find any issues, return the corrected code. If the code is already correct, return it unchanged.
+Maintain the same functionality and structure."""
+        else:
+            user_prompt = f"""Please fix the following Python code issues:
 
 ORIGINAL PROMPT: {original_prompt}
 
@@ -223,6 +306,10 @@ Return the corrected code with all issues fixed. Maintain the same functionality
             # Determine what fixes were applied
             fixes_applied = self._determine_fixes_applied(code, fixed_code, issues)
             
+            # If no fixes were applied and this was a general review, note that
+            if not fixes_applied and "General code review and validation requested" in issues:
+                fixes_applied = ["Code reviewed by AI - no issues found"]
+            
             success = True
             response_length = len(fixed_code)
             
@@ -231,7 +318,19 @@ Return the corrected code with all issues fixed. Maintain the same functionality
         except Exception as e:
             error_message = str(e)
             logger.error(f"Failed to fix code with AI: {str(e)}")
-            return code, []
+            # Try to apply our own syntax fixes as fallback
+            try:
+                fallback_fixed = self._attempt_syntax_fixes(code)
+                # Validate the fallback fix
+                import ast
+                ast.parse(fallback_fixed)
+                logger.info("Applied fallback syntax fixes successfully")
+                return fallback_fixed, ["Applied fallback syntax fixes"]
+            except Exception as fallback_error:
+                logger.error(f"Fallback fixes also failed: {fallback_error}")
+                # CIRCUIT BREAKER: Don't return broken code, return original
+                logger.warning("All fixing attempts failed, returning original code")
+                return code, []
         finally:
             # Record usage regardless of success/failure
             if user_id:
@@ -582,6 +681,9 @@ Please analyze all the information above and provide a fixed version of the code
         else:
             code = response.strip()
         
+        # Clean up common issues in extracted code
+        code = self._clean_extracted_code(code)
+        
         # Validate code syntax
         try:
             import ast
@@ -589,10 +691,11 @@ Please analyze all the information above and provide a fixed version of the code
         except SyntaxError as e:
             logger.error(f"Syntax error in extracted code: {e}")
             # Try to fix common issues
-            if code.endswith('```'):
-                code = code[:-3].strip()
+            fixed_code = self._attempt_syntax_fixes(code)
             try:
-                ast.parse(code)
+                ast.parse(fixed_code)
+                code = fixed_code
+                logger.info("Successfully fixed syntax error in extracted code")
             except SyntaxError as e2:
                 logger.error(f"Failed to fix syntax error: {e2}")
                 raise Exception(f"Generated code has syntax errors: {str(e2)}")
@@ -602,6 +705,62 @@ Please analyze all the information above and provide a fixed version of the code
             raise Exception("Invalid code: missing run() function")
         
         return code
+    
+    def _clean_extracted_code(self, code: str) -> str:
+        """Clean up common issues in extracted code."""
+        # Remove trailing markdown blocks
+        if code.endswith('```'):
+            code = code[:-3].strip()
+        
+        # Remove leading/trailing whitespace
+        code = code.strip()
+        
+        # Fix common encoding issues
+        code = code.replace('\u201c', '"').replace('\u201d', '"')  # Smart quotes
+        code = code.replace('\u2018', "'").replace('\u2019', "'")  # Smart apostrophes
+        
+        return code
+    
+    def _attempt_syntax_fixes(self, code: str) -> str:
+        """Attempt to fix common syntax errors in code - CONSERVATIVE approach."""
+        lines = code.split('\n')
+        fixed_lines = []
+        
+        # Track what we're fixing to avoid conflicts
+        bracket_stack = []
+        in_triple_quote = False
+        
+        for i, line in enumerate(lines):
+            original_line = line
+            
+            # Only fix OBVIOUS single-line issues
+            
+            # 1. Fix simple unclosed triple quotes (only if clearly on same line)
+            if line.count('"""') == 1 and ('f"""' in line or 'prompt = """' in line):
+                if not line.rstrip().endswith('"""'):
+                    line = line.rstrip() + '"""'
+                    logger.info(f"Fixed unclosed triple quote on line {i+1}")
+            
+            # 2. Fix simple bracket issues (only if clearly a single statement)
+            if line.strip().startswith('messages=[') and not ']' in line:
+                # This is the specific pattern from your error
+                line = line.rstrip() + ']'
+                logger.info(f"Fixed unclosed bracket on line {i+1}")
+            
+            # 3. Fix simple parenthesis issues (only for function calls)
+            if ('(' in line and ')' not in line and 
+                ('create(' in line or 'OpenAI(' in line or 'client.' in line)):
+                # Only fix if it's clearly a single function call
+                open_count = line.count('(')
+                if open_count == 1:
+                    line = line.rstrip() + ')'
+                    logger.info(f"Fixed unclosed parenthesis on line {i+1}")
+            
+            # 4. Don't fix anything else - too risky
+            
+            fixed_lines.append(line)
+        
+        return '\n'.join(fixed_lines)
     
     def _determine_fixes_applied(self, original_code: str, fixed_code: str, issues: List[str]) -> List[str]:
         """Determine what fixes were actually applied."""

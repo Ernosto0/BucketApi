@@ -10,6 +10,7 @@ from ..models import (
     CreateInternalTokenRequest, InternalTokenUsageStatsResponse, SeparatedTokenBalance
 )
 from .mongodb import mongodb
+from .api_code_analyzer import api_code_analyzer
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,57 @@ class APIPricingService:
         }
         
         logger.info("APIPricingService initialized")
+    
+    async def analyze_and_price_api_code(
+        self,
+        api_slug: str,
+        user_id: str,
+        api_code: str,
+        original_prompt: str = ""
+    ) -> APIMetadata:
+        """
+        Analyze generated API code to detect LLM usage and calculate accurate pricing.
+        This should be called during the first API test to establish real pricing.
+        """
+        try:
+            logger.info(f"Analyzing API code for pricing: {api_slug}")
+            
+            # Analyze the code for LLM usage
+            analysis = await api_code_analyzer.analyze_api_code(api_code, original_prompt)
+            
+            # Determine AI model and tokens
+            if analysis.uses_llm and analysis.primary_model:
+                ai_model_used = analysis.primary_model
+                estimated_tokens_per_call = analysis.estimated_tokens_per_call
+                base_complexity = analysis.complexity_rating
+                
+                logger.info(f"LLM usage detected: model={ai_model_used}, tokens={estimated_tokens_per_call}, complexity={base_complexity}")
+            else:
+                # No LLM usage detected - this is a regular processing API
+                ai_model_used = 'none'
+                estimated_tokens_per_call = 0
+                base_complexity = 'simple'
+                
+                logger.info(f"No LLM usage detected - using free pricing model")
+            
+            # Save the analyzed metadata
+            metadata = await self.save_api_metadata(
+                api_slug=api_slug,
+                user_id=user_id,
+                ai_model_used=ai_model_used,
+                estimated_tokens_per_call=estimated_tokens_per_call,
+                base_complexity=base_complexity
+            )
+            
+            # Add analysis details to metadata
+            if hasattr(metadata, 'analysis_details'):
+                metadata.analysis_details = analysis.analysis_details
+            
+            return metadata
+            
+        except Exception as e:
+            logger.error(f"Failed to analyze and price API code: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to analyze API code: {str(e)}")
     
     async def check_ai_model_access(self, user_id: str, ai_model: str) -> bool:
         """Check if user can access a specific AI model based on their subscription tier."""
@@ -172,7 +224,7 @@ class APIPricingService:
         user_id: str
     ) -> APIExecutionCost:
         """Get the execution cost for a specific API."""
-        
+        logger.info(f"Getting API execution cost for {api_slug} for user {user_id}")
         try:
             metadata = mongodb.api_metadata.find_one({
                 "api_slug": api_slug,
