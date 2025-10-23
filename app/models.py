@@ -124,6 +124,7 @@ class HealthResponse(BaseModel):
     status: str = "healthy"
     timestamp: datetime
     version: str = "1.0.0"
+    mongodb_status: Optional[str] = None
 
 class SavedAPI(BaseModel):
     api_slug: str

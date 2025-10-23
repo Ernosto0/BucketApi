@@ -339,12 +339,73 @@ async def api_documentation_page(request: Request, user_id: str, api_slug: str):
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint with MongoDB status."""
+    mongodb_status = "healthy" if mongodb.health_check() else "unhealthy"
+    
     return HealthResponse(
-        status="healthy",
+        status="healthy" if mongodb_status == "healthy" else "degraded",
         timestamp=datetime.now(),
-        version="1.0.0"
+        version="1.0.0",
+        mongodb_status=mongodb_status
     )
+
+@app.get("/health/mongodb")
+async def mongodb_health_check():
+    """Detailed MongoDB health check endpoint."""
+    try:
+        is_healthy = mongodb.health_check()
+        
+        if is_healthy:
+            return {
+                "status": "healthy",
+                "timestamp": datetime.now(),
+                "connection": "active",
+                "database": settings.MONGODB_DB_NAME,
+                "message": "MongoDB connection is working properly"
+            }
+        else:
+            return {
+                "status": "unhealthy", 
+                "timestamp": datetime.now(),
+                "connection": "failed",
+                "database": settings.MONGODB_DB_NAME,
+                "message": "MongoDB connection failed",
+                "suggestion": "Check network connectivity and MongoDB Atlas status"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "timestamp": datetime.now(), 
+            "connection": "error",
+            "database": settings.MONGODB_DB_NAME,
+            "error": str(e),
+            "message": "MongoDB health check encountered an error"
+        }
+
+@app.post("/health/mongodb/reconnect")
+async def mongodb_reconnect():
+    """Attempt to reconnect to MongoDB."""
+    try:
+        success = mongodb.reconnect()
+        if success:
+            return {
+                "status": "success",
+                "timestamp": datetime.now(),
+                "message": "Successfully reconnected to MongoDB"
+            }
+        else:
+            return {
+                "status": "failed",
+                "timestamp": datetime.now(), 
+                "message": "Failed to reconnect to MongoDB"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "timestamp": datetime.now(),
+            "error": str(e),
+            "message": "Reconnection attempt encountered an error"
+        }
 
 # Authentication endpoints removed - will be replaced with new auth system
 
@@ -1151,9 +1212,26 @@ async def generate_api_stream(
                     raw_code = final_result["final_code"]
                     
                     # Debug and fix the generated code
-                    code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
-                        raw_code, api_request.prompt, current_user.id, api_key_id
-                    )
+                    try:
+                        code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
+                            raw_code, api_request.prompt, current_user.id, api_key_id
+                        )
+                    except Exception as debug_error:
+                        logger.warning(f"Code debugger failed: {debug_error}. Using raw code.")
+                        # Fallback to raw code if debugger fails
+                        code = raw_code
+                        issues_found = [f"Code debugger failed: {str(debug_error)}"]
+                        fixes_applied = []
+                        
+                        yield "data: " + json.dumps({
+                            "type": "chat_message",
+                            "timestamp": datetime.now().isoformat(),
+                            "data": {
+                                "message": f"⚠️ Code debugging failed, proceeding with raw code: {str(debug_error)}",
+                                "is_ai": True,
+                                "message_type": "warning"
+                            }
+                        }) + "\n\n"
                     
                     if issues_found:
                         yield "data: " + json.dumps({
@@ -1196,7 +1274,20 @@ async def generate_api_stream(
                     )
                     clean_slug = api_slug.replace(f"{current_user.id}_", "")
                     
-                    await file_service.save_api_code(api_slug, code)
+                    try:
+                        await file_service.save_api_code(api_slug, code)
+                    except Exception as save_error:
+                        logger.error(f"Failed to save API code: {save_error}")
+                        yield "data: " + json.dumps({
+                            "type": "error",
+                            "timestamp": datetime.now().isoformat(),
+                            "data": {
+                                "message": f"❌ Failed to save API code: {str(save_error)}",
+                                "error_type": "FileSaveError",
+                                "details": "The generated code could not be saved. Please try again."
+                            }
+                        }) + "\n\n"
+                        return
                     
                     yield "data: " + json.dumps({
                         "type": "chat_message",
@@ -1523,41 +1614,10 @@ async def generate_api(
             logger.warning(f"Failed to save API documentation to database: {e}")
             # Continue without database save if service is unavailable
         
-        # Save API metadata for pricing using actual generation data
-        try:
-            # Use the actual AI model that was used for generation
-            ai_model_used = settings.CLAUDE_MODEL  # The model you actually used
-            
-            # TODO: Add a more sophisticated complexity detection logic
-            # Determine complexity based on code analysis
-            complexity = 'simple'
-            if len(code) > 2000 or "class" in code or "async def" in code:
-                complexity = 'complex'
-            elif len(code) > 1000 or "try:" in code or "except:" in code:
-                complexity = 'medium'
-            
-            # Use sophisticated token estimation based on the actual prompt and response
-            estimated_input_tokens, estimated_output_tokens = usage_service.calculate_estimated_tokens(
-                model_name=ai_model_used,
-                system_prompt="",  # Add system prompt if you have it
-                user_prompt=api_request.prompt,
-                response_length=len(code),
-                success=True
-            )
-            estimated_tokens_per_call = estimated_input_tokens + estimated_output_tokens
-            
-            logger.info(f"AI model used: {ai_model_used}, estimated tokens: {estimated_tokens_per_call}, complexity: {complexity}")
-            
-            await api_pricing_service.save_api_metadata(
-                api_slug=clean_slug,
-                user_id=current_user.id,
-                ai_model_used=ai_model_used,
-                estimated_tokens_per_call=estimated_tokens_per_call,
-                base_complexity=complexity
-            )
-        except Exception as e:
-            logger.warning(f"Failed to save API metadata: {e}")
-            # Continue without metadata if service is unavailable
+        # Note: API pricing metadata will be calculated during the first test
+        # when we can analyze the actual generated code for LLM usage patterns.
+        # This provides more accurate pricing based on what the API actually does.
+        logger.info(f"API {clean_slug} generated successfully. Pricing will be calculated during first test.")
         
         return APIGenerationResponse(
             success=True,
@@ -2401,10 +2461,12 @@ async def test_api(request: TestRequest):
         # Get cost estimation for this API execution
         cost_estimation = None
         try:
+            # First, try to get existing API metadata
             api_cost = await api_pricing_service.get_api_execution_cost(
                 api_slug=request.api_slug,
                 user_id=request.user_id
             )
+            
             cost_estimation = {
                 "cost_per_call_cents": api_cost.cost_per_call_cents,
                 "internal_tokens_per_call": api_cost.internal_tokens_per_call,
@@ -2412,6 +2474,56 @@ async def test_api(request: TestRequest):
                 "complexity_multiplier": api_cost.complexity_multiplier,
                 "estimated_tokens_used": api_cost.estimated_tokens_used
             }
+            logger.info(f"Cost estimationNNNNNNNNNNNNNNNNNNNNNN: {cost_estimation}")
+        except HTTPException as http_e:
+            if http_e.status_code == 404:
+                # API metadata not found - this is the first test, analyze the code
+                logger.info(f"First test for API {request.api_slug} - analyzing code for pricing")
+                try:
+                    # Load the API code for analysis
+                    api_code = file_service.load_api_code(request.user_id, request.api_slug)
+                    
+                    # Analyze the code to detect LLM usage and calculate pricing
+                    metadata = await api_pricing_service.analyze_and_price_api_code(
+                        api_slug=request.api_slug,
+                        user_id=request.user_id,
+                        api_code=api_code,
+                        original_prompt=""  # We don't have the original prompt in test context
+                    )
+                    
+                    # Now get the cost estimation
+                    api_cost = await api_pricing_service.get_api_execution_cost(
+                        api_slug=request.api_slug,
+                        user_id=request.user_id
+                    )
+                    
+                    cost_estimation = {
+                        "cost_per_call_cents": api_cost.cost_per_call_cents,
+                        "internal_tokens_per_call": api_cost.internal_tokens_per_call,
+                        "ai_model_used": api_cost.ai_model_used,
+                        "complexity_multiplier": api_cost.complexity_multiplier,
+                        "estimated_tokens_used": api_cost.estimated_tokens_used,
+                        "first_time_analysis": True,  # Flag to indicate this was analyzed during testing
+                        "analysis_confidence": getattr(metadata, 'analysis_details', {}).get('confidence_score', 0.0)
+                    }
+                    
+                    logger.info(f"Code analysis complete for {request.api_slug}: "
+                               f"model={api_cost.ai_model_used}, cost={api_cost.cost_per_call_cents}¢, "
+                               f"tokens={api_cost.internal_tokens_per_call}")
+                    
+                except Exception as analysis_error:
+                    logger.error(f"Failed to analyze API code during first test: {str(analysis_error)}")
+                    # Fall back to default estimation
+                    cost_estimation = {
+                        "cost_per_call_cents": 2,  # Default 2 cents
+                        "internal_tokens_per_call": 20,  # Default 20 internal tokens
+                        "ai_model_used": "estimated",
+                        "complexity_multiplier": 1.5,
+                        "estimated_tokens_used": 1000,
+                        "analysis_error": str(analysis_error)
+                    }
+            else:
+                raise
         except Exception as e:
             logger.warning(f"Failed to get cost estimation for test: {e}")
             # Provide default cost estimation during testing
@@ -2446,7 +2558,8 @@ async def test_api(request: TestRequest):
             response_headers.update({
                 "x-cost-per-call-cents": str(cost_estimation["cost_per_call_cents"]),
                 "x-internal-tokens-per-call": str(cost_estimation["internal_tokens_per_call"]),
-                "x-ai-model-used": cost_estimation["ai_model_used"]
+                "x-ai-model-used": cost_estimation["ai_model_used"],
+                "x-first-time-analysis": str(cost_estimation.get("first_time_analysis", False)).lower()
             })
             test_response.response_headers = response_headers
         

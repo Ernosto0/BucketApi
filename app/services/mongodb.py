@@ -24,10 +24,33 @@ class MongoDB:
         try:
             self.client = MongoClient(
                 settings.MONGODB_URL,
-                maxPoolSize=50,
-                minPoolSize=10,
-                maxIdleTimeMS=45000,
-                serverSelectionTimeoutMS=5000
+                # Connection Pool Settings
+                maxPoolSize=20,  # Reduced from 50 to prevent connection exhaustion
+                minPoolSize=5,   # Reduced from 10 for better resource management
+                maxIdleTimeMS=30000,  # Reduced from 45000 for faster cleanup
+                
+                # Timeout Settings - More generous for network issues
+                serverSelectionTimeoutMS=30000,  # Increased from 5000 to 30 seconds
+                connectTimeoutMS=30000,         # 30 seconds for initial connection
+                socketTimeoutMS=30000,          # 30 seconds for socket operations
+                
+                # Retry Settings
+                retryWrites=True,               # Enable retry for write operations
+                retryReads=True,                # Enable retry for read operations
+                
+                # Heartbeat Settings
+                heartbeatFrequencyMS=10000,     # Check connection every 10 seconds
+                
+                # Connection Management
+                maxConnecting=5,               # Limit concurrent connection attempts
+                waitQueueTimeoutMS=30000,      # Wait up to 30 seconds for available connection
+                
+                # Compression (reduces network load)
+                compressors=['zstd', 'zlib'],   # Enable compression
+                
+                # Additional reliability settings
+                directConnection=False,        # Use replica set discovery
+                appName="AI-API-Generator"     # Identify this app in MongoDB logs
             )
             
             # Test connection
@@ -46,6 +69,7 @@ class MongoDB:
             
         except Exception as e:
             logger.error(f"❌ Failed to connect to MongoDB: {str(e)}")
+            logger.error(f"Connection URL: {settings.MONGODB_URL[:50]}...")  # Log partial URL for debugging
             raise
     
     def _init_collections(self):
@@ -262,10 +286,25 @@ class MongoDB:
     def health_check(self) -> bool:
         """Check if MongoDB connection is healthy"""
         try:
-            self.client.admin.command('ping')
+            if not self.client:
+                logger.warning("MongoDB client not initialized")
+                return False
+                
+            # Use a shorter timeout for health checks
+            self.client.admin.command('ping', maxTimeMS=5000)
             return True
         except Exception as e:
             logger.error(f"❌ MongoDB health check failed: {str(e)}")
+            return False
+    
+    def reconnect(self) -> bool:
+        """Attempt to reconnect to MongoDB"""
+        try:
+            logger.info("🔄 Attempting to reconnect to MongoDB...")
+            self.close()  # Close existing connection
+            return self.connect()
+        except Exception as e:
+            logger.error(f"❌ Failed to reconnect to MongoDB: {str(e)}")
             return False
 
 # Global MongoDB instance
