@@ -53,6 +53,8 @@ class UsageService:
             'claude-3.5-haiku': {'input': 0.00008, 'output': 0.0004},   # $0.80/$4.00 per MTok
             'claude-3-sonnet': {'input': 0.0003, 'output': 0.0015},     # $3/$15 per MTok
             'claude-3.5-sonnet': {'input': 0.0003, 'output': 0.0015},   # $3/$15 per MTok (legacy)
+            'claude-3-5-sonnet-20241022': {'input': 0.0003, 'output': 0.0015},   # $3/$15 per MTok (current)
+            'claude-3-5-haiku-latest': {'input': 0.00008, 'output': 0.0004},   # $0.80/$4.00 per MTok (latest)
             'claude-3.7-sonnet': {'input': 0.0003, 'output': 0.0015},   # $3/$15 per MTok
             'claude-3-opus': {'input': 0.0015, 'output': 0.0075},       # $15/$75 per MTok
             'claude-4-opus': {'input': 0.0015, 'output': 0.0075},       # $15/$75 per MTok
@@ -732,8 +734,8 @@ class UsageService:
         # Get pricing for model
         if model_name not in self.COST_PER_TOKEN:
             logger.warning(f"Unknown model {model_name}, using default pricing")
-            # Default to GPT-3.5 pricing
-            pricing = self.COST_PER_TOKEN['gpt-5-mini']
+            # Default to GPT-4o-mini pricing for unknown models
+            pricing = self.COST_PER_TOKEN.get('gpt-4o-mini', self.COST_PER_TOKEN['gpt-3.5-turbo'])
         else:
             pricing = self.COST_PER_TOKEN[model_name]
         

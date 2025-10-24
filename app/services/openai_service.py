@@ -199,7 +199,7 @@ class OpenAIService:
                         input_tokens=estimated_input_tokens,
                         output_tokens=estimated_output_tokens,
                         total_tokens=estimated_input_tokens + estimated_output_tokens,
-                        estimated_cost_cents=int((estimated_input_tokens + estimated_output_tokens) * 0.002 * 100),  # GPT-3.5-turbo estimate
+                        estimated_cost_cents=self._calculate_openai_cost(settings.OPENAI_MODEL, estimated_input_tokens, estimated_output_tokens),
                         duration_ms=duration_ms,
                         user_id=user_id,
                         api_key_id=api_key_id,
@@ -308,7 +308,7 @@ class OpenAIService:
                         input_tokens=estimated_input_tokens,
                         output_tokens=estimated_output_tokens,
                         total_tokens=estimated_input_tokens + estimated_output_tokens,
-                        estimated_cost_cents=int((estimated_input_tokens + estimated_output_tokens) * 0.002 * 100),
+                        estimated_cost_cents=self._calculate_openai_cost(settings.OPENAI_MODEL, estimated_input_tokens, estimated_output_tokens),
                         duration_ms=duration_ms,
                         user_id=user_id,
                         api_key_id=api_key_id,
@@ -501,6 +501,11 @@ class OpenAIService:
             
             raise e
 
+    def _calculate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
+        """Calculate accurate OpenAI cost using usage service."""
+        from .usage_service import usage_service
+        return usage_service._calculate_cost_cents(model, input_tokens, output_tokens)
+    
     def _estimate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
         """Estimate OpenAI API cost in cents."""
         # Rough pricing estimates (as of 2024)

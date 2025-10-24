@@ -170,7 +170,9 @@ class FileService:
                 ast.parse(code)
             except SyntaxError as e:
                 logger.error(f"Syntax error in generated code: {e}")
-                raise Exception(f"Generated code has syntax errors: {str(e)}")
+                # Provide more detailed error information
+                error_details = self._analyze_syntax_error(code, e)
+                raise Exception(f"Generated code has syntax errors: {error_details}")
             
             # Additional security: validate code size to prevent DOS
             if len(code) > 1024 * 1024:  # 1MB limit
@@ -433,6 +435,20 @@ class FileService:
         full_slug = f"{user_id}_{api_slug}"
         return self._api_file_exists(full_slug)
     
+    def load_api_code(self, user_id: str, api_slug: str) -> str:
+        """Load the Python code for a specific API."""
+        full_slug = f"{user_id}_{api_slug}"
+        file_path = self._get_api_file_path(full_slug)
+        
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"API code not found: {full_slug}")
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            raise Exception(f"Failed to load API code {full_slug}: {str(e)}")
+    
     def get_user_apis(self, user_id: str) -> List[SavedAPI]:
         """Get list of saved APIs with full metadata for a specific user from database."""
         db_apis = mongodb.saved_apis.find(
@@ -546,6 +562,34 @@ class FileService:
                     print(f"Failed to remove {filename}: {str(e)}")
         
         return cleaned_count
+
+    def _analyze_syntax_error(self, code: str, syntax_error: SyntaxError) -> str:
+        """Analyze syntax error and provide helpful details."""
+        error_msg = str(syntax_error)
+        line_no = getattr(syntax_error, 'lineno', 0)
+        
+        # Get the problematic line if available
+        lines = code.split('\n')
+        if line_no and line_no <= len(lines):
+            problematic_line = lines[line_no - 1]
+            
+            # Check for common issues
+            if 'unterminated triple-quoted string' in error_msg.lower():
+                return f"{error_msg} (Line {line_no}: unterminated triple-quote - {problematic_line.strip()})"
+            elif '[' in problematic_line and ']' not in problematic_line:
+                return f"{error_msg} (Line {line_no}: unclosed bracket '[' - {problematic_line.strip()})"
+            elif '(' in problematic_line and ')' not in problematic_line:
+                return f"{error_msg} (Line {line_no}: unclosed parenthesis '(' - {problematic_line.strip()})"
+            elif '{' in problematic_line and '}' not in problematic_line:
+                return f"{error_msg} (Line {line_no}: unclosed brace '{{' - {problematic_line.strip()})"
+            elif '"""' in problematic_line:
+                triple_count = problematic_line.count('"""')
+                if triple_count % 2 == 1:
+                    return f"{error_msg} (Line {line_no}: unclosed triple-quote - {problematic_line.strip()})"
+            else:
+                return f"{error_msg} (Line {line_no}: {problematic_line.strip()})"
+        
+        return error_msg
 
 # Global instance
 file_service = FileService() 

@@ -12,7 +12,7 @@ class LLMUsageAnalysis:
     uses_llm: bool
     ai_models_detected: List[str]
     primary_model: Optional[str]
-    estimated_tokens_per_call: int
+    initial_tokens_estimate: int  # Initial estimate for display - will be replaced with real usage
     complexity_rating: str
     api_calls_detected: List[str]
     confidence_score: float
@@ -93,8 +93,8 @@ class APICodeAnalyzer:
             # Step 3: Determine primary model
             primary_model = self._determine_primary_model(ai_models_detected, code)
             
-            # Step 4: Estimate tokens per call
-            estimated_tokens = self._estimate_tokens_per_call(code, primary_model)
+            # Step 4: Get initial tokens estimate (for display only)
+            estimated_tokens = self._get_initial_tokens_estimate(code, primary_model)
             
             # Step 5: Determine complexity
             complexity_rating = self._analyze_complexity(code, original_prompt)
@@ -116,7 +116,7 @@ class APICodeAnalyzer:
                 uses_llm=uses_llm,
                 ai_models_detected=ai_models_detected,
                 primary_model=primary_model,
-                estimated_tokens_per_call=estimated_tokens,
+                initial_tokens_estimate=estimated_tokens,
                 complexity_rating=complexity_rating,
                 api_calls_detected=api_calls_detected,
                 confidence_score=confidence_score,
@@ -135,7 +135,7 @@ class APICodeAnalyzer:
                 uses_llm=False,
                 ai_models_detected=[],
                 primary_model=None,
-                estimated_tokens_per_call=0,
+                initial_tokens_estimate=0,
                 complexity_rating='simple',
                 api_calls_detected=[],
                 confidence_score=0.0,
@@ -156,6 +156,8 @@ class APICodeAnalyzer:
         
         for pattern, model_name in self.MODEL_PATTERNS.items():
             matches = re.findall(pattern, code, re.IGNORECASE)
+            if matches:
+                logger.debug(f"Pattern '{pattern}' matched: {matches}")
             for match in matches:
                 if isinstance(match, str):
                     models_found.append(match)
@@ -169,6 +171,12 @@ class APICodeAnalyzer:
                 unique_models.append(model)
         
         logger.debug(f"AI models detected: {unique_models}")
+        
+        # Add debug logging for the specific API
+        if not unique_models:
+            logger.warning("No AI models detected in code. This might indicate a pattern matching issue.")
+            logger.debug(f"Code snippet for debugging: {code[:500]}...")
+        
         return unique_models
     
     def _determine_primary_model(self, models: List[str], code: str) -> Optional[str]:
@@ -193,61 +201,29 @@ class APICodeAnalyzer:
         # Return the first model if no priority match
         return models[0]
     
-    def _estimate_tokens_per_call(self, code: str, primary_model: Optional[str]) -> int:
-        """Estimate tokens per API call based on code analysis."""
+    def _get_initial_tokens_estimate(self, code: str, primary_model: Optional[str]) -> int:
+        """
+        Provide initial token estimate for APIs that haven't been executed yet.
+        This is only used for initial pricing display - real usage will be tracked during execution.
+        """
         
         # If no AI model detected, return 0 tokens (free processing)
         if not primary_model:
             logger.debug("No AI model detected - returning 0 tokens (free processing)")
             return 0
         
-        base_tokens = 100  # Minimum baseline for LLM APIs
+        # For APIs with LLM usage, provide a conservative baseline estimate
+        # This will be replaced with real usage data once the API is executed
+        baseline_estimate = 500  # Conservative baseline for LLM APIs
         
-        # Extract max_tokens if specified
+        # Extract max_tokens if explicitly specified in code
         max_tokens_match = re.search(self.TOKEN_ESTIMATION_PATTERNS['max_tokens'], code)
         if max_tokens_match:
             specified_max_tokens = int(max_tokens_match.group(1))
-            base_tokens = max(base_tokens, specified_max_tokens)
+            baseline_estimate = max(baseline_estimate, specified_max_tokens)
         
-        # Analyze prompt complexity indicators
-        complexity_multiplier = 1.0
-        
-        # Check for text processing indicators
-        if re.search(r'text\[:?\d*\]', code):  # Text slicing
-            complexity_multiplier += 0.3
-        
-        if re.search(r'\.split\(|\.join\(|\.replace\(', code):  # Text manipulation
-            complexity_multiplier += 0.2
-        
-        if re.search(r'json\.loads|json\.dumps', code):  # JSON processing
-            complexity_multiplier += 0.2
-        
-        if re.search(r'for\s+\w+\s+in|while\s+', code):  # Loops
-            complexity_multiplier += 0.4
-        
-        # Model-specific adjustments
-        model_multipliers = {
-            'gpt-4o-mini': 1.0,
-            'gpt-4o': 1.5,
-            'gpt-4': 1.8,
-            'gpt-4-turbo': 1.3,
-            'gpt-3.5-turbo': 0.8,
-            'claude-3-haiku': 0.9,
-            'claude-3-sonnet': 1.4,
-            'claude-3-opus': 2.0,
-            'claude-4': 2.2,
-        }
-        
-        if primary_model and primary_model in model_multipliers:
-            complexity_multiplier *= model_multipliers[primary_model]
-        
-        estimated_tokens = int(base_tokens * complexity_multiplier)
-        
-        # Reasonable bounds
-        estimated_tokens = max(50, min(estimated_tokens, 10000))
-        
-        logger.debug(f"Estimated tokens per call: {estimated_tokens} (base: {base_tokens}, multiplier: {complexity_multiplier:.2f})")
-        return estimated_tokens
+        logger.debug(f"Initial token estimate for pricing display: {baseline_estimate} (will be updated with real usage)")
+        return baseline_estimate
     
     def _analyze_complexity(self, code: str, original_prompt: str) -> str:
         """Analyze code complexity for pricing purposes."""

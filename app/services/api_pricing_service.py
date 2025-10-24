@@ -6,11 +6,12 @@ from typing import Optional, List, Dict, Any, Tuple
 # MongoDB operations handled through mongodb service
 from ..models import (
     APIMetadata, InternalToken, InternalTokenBalance, APIExecutionCost,
-    APIExecutionTokenUsage, EstimateAPIUsageCostRequest, EstimateAPIUsageCostResponse,
+    APIExecutionTokenUsage, EstimateAPIUsageCostResponse,
     CreateInternalTokenRequest, InternalTokenUsageStatsResponse, SeparatedTokenBalance
 )
 from .mongodb import mongodb
 from .api_code_analyzer import api_code_analyzer
+from .api_usage_aggregator import api_usage_aggregator
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
@@ -78,10 +79,11 @@ class APIPricingService:
             # Determine AI model and tokens
             if analysis.uses_llm and analysis.primary_model:
                 ai_model_used = analysis.primary_model
-                estimated_tokens_per_call = analysis.estimated_tokens_per_call
+                estimated_tokens_per_call = analysis.initial_tokens_estimate  # Initial estimate only
                 base_complexity = analysis.complexity_rating
                 
-                logger.info(f"LLM usage detected: model={ai_model_used}, tokens={estimated_tokens_per_call}, complexity={base_complexity}")
+                logger.info(f"LLM usage detected: model={ai_model_used}, initial_tokens={estimated_tokens_per_call}, complexity={base_complexity}")
+                logger.info("Note: Initial token estimate will be replaced with real usage data after API executions")
             else:
                 # No LLM usage detected - this is a regular processing API
                 ai_model_used = 'none'
@@ -223,7 +225,7 @@ class APIPricingService:
         api_slug: str,
         user_id: str
     ) -> APIExecutionCost:
-        """Get the execution cost for a specific API."""
+        """Get the execution cost for a specific API, using real usage data when available."""
         logger.info(f"Getting API execution cost for {api_slug} for user {user_id}")
         try:
             metadata = mongodb.api_metadata.find_one({
@@ -237,19 +239,59 @@ class APIPricingService:
                     detail=f"API metadata not found for {api_slug}"
                 )
             
-            # Convert cost to internal tokens
-            internal_tokens_per_call = metadata["estimated_cost_per_call_cents"] * self.TOKENS_PER_CENT
-            complexity_multiplier = self.COMPLEXITY_MULTIPLIERS.get(metadata["base_complexity"], 1.5)
+            # Check if we have real usage data
+            usage_stats = await api_usage_aggregator.get_api_usage_stats(api_slug, user_id)
+            
+            if usage_stats and usage_stats.successful_executions >= 3:
+                # Use real usage data (minimum 3 executions for reliable average)
+                # Real usage already includes accurate cost calculation - no multipliers needed
+                cost_per_call_cents = int(round(usage_stats.avg_cost_per_call_cents))
+                tokens_used = int(round(usage_stats.avg_total_tokens))
+                model_used = usage_stats.primary_model_used or metadata["ai_model_used"]
+                
+                logger.info(f"Using real usage data for {api_slug}: "
+                           f"avg ${cost_per_call_cents/100:.2f} per call, "
+                           f"avg {tokens_used} tokens, {usage_stats.successful_executions} executions")
+                
+                # Update metadata with real usage data
+                await api_usage_aggregator.update_api_pricing_with_real_usage(api_slug, user_id)
+                
+            else:
+                # Fall back to initial estimates
+                cost_per_call_cents = int(metadata["estimated_cost_per_call_cents"])
+                tokens_used = int(metadata["estimated_tokens_per_call"])
+                model_used = metadata["ai_model_used"]
+                
+                if usage_stats:
+                    logger.info(f"Using initial estimates for {api_slug} "
+                               f"(only {usage_stats.successful_executions} executions, need 3+ for real data)")
+                else:
+                    logger.info(f"Using initial estimates for {api_slug} (no usage data yet)")
+            
+            # Convert cost to internal tokens (ensure integer)
+            internal_tokens_per_call = int(round(cost_per_call_cents * self.TOKENS_PER_CENT))
+            
+            # Determine if we're using real usage or estimates
+            using_real_data = usage_stats and usage_stats.successful_executions >= 3
+            
+            if using_real_data:
+                # Real usage data - no complexity multiplier needed
+                complexity_multiplier = 1.0  # Real data is already accurate
+                base_cost_cents = cost_per_call_cents
+            else:
+                # Initial estimates - apply complexity multiplier
+                complexity_multiplier = self.COMPLEXITY_MULTIPLIERS.get(metadata["base_complexity"], 1.5)
+                base_cost_cents = int(round(cost_per_call_cents / complexity_multiplier))
             
             return APIExecutionCost(
                 api_slug=metadata["api_slug"],
                 user_id=metadata["user_id"],
-                cost_per_call_cents=metadata["estimated_cost_per_call_cents"],
+                cost_per_call_cents=cost_per_call_cents,
                 internal_tokens_per_call=internal_tokens_per_call,
-                ai_model_used=metadata["ai_model_used"],
+                ai_model_used=model_used,
                 complexity_multiplier=complexity_multiplier,
-                base_cost_cents=int(metadata["estimated_cost_per_call_cents"] / complexity_multiplier),
-                estimated_tokens_used=metadata["estimated_tokens_per_call"],
+                base_cost_cents=base_cost_cents,
+                estimated_tokens_used=tokens_used,
                 last_calculated=metadata["last_updated"]
             )
                 
@@ -557,66 +599,55 @@ class APIPricingService:
             logger.error(f"Failed to deduct tokens: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to deduct tokens: {str(e)}")
     
-    async def estimate_api_usage_cost(
+    async def get_api_usage_cost_with_real_data(
         self,
-        request: EstimateAPIUsageCostRequest
+        api_slug: str,
+        user_id: str,
+        expected_calls_per_month: int = 1000
     ) -> EstimateAPIUsageCostResponse:
-        """Estimate the cost and tokens needed for API usage."""
+        """Get API usage cost using real usage data when available, fallback to initial estimates."""
         
         try:
-            # This would be called during API testing to establish pricing
-            # For now, use default estimates based on prompt complexity
-            prompt_length = len(request.sample_input) if request.sample_input else 100
+            # Get current cost information (uses real usage if available)
+            cost_info = await self.get_api_execution_cost(api_slug, user_id)
             
-            # Estimate complexity based on input length and expected usage
-            if prompt_length < 100:
-                complexity = 'simple'
-                estimated_tokens = 500
-                ai_model = 'gpt-4o-mini'
-            elif prompt_length < 500:
-                complexity = 'medium'
-                estimated_tokens = 1500
-                ai_model = 'gpt-4'
-            else:
-                complexity = 'complex'
-                estimated_tokens = 3000
-                ai_model = 'gpt-4'
+            # Check if we have real usage data
+            usage_stats = await api_usage_aggregator.get_api_usage_stats(api_slug, user_id)
             
-            # Calculate costs
-            base_cost_per_1k = self.AI_MODEL_BASE_COSTS.get(ai_model, 1.0)
-            complexity_multiplier = self.COMPLEXITY_MULTIPLIERS.get(complexity, 1.5)
+            # Calculate monthly projections (ensure integers)
+            cost_per_call_cents = int(cost_info.cost_per_call_cents)
+            internal_tokens_per_call = int(cost_info.internal_tokens_per_call)
             
-            cost_per_call_cents = max(1, int(
-                (estimated_tokens / 1000) * base_cost_per_1k * complexity_multiplier
-            ))
+            estimated_monthly_cost = cost_per_call_cents * expected_calls_per_month
+            estimated_monthly_tokens = internal_tokens_per_call * expected_calls_per_month
             
-            internal_tokens_per_call = cost_per_call_cents * self.TOKENS_PER_CENT
-            
-            estimated_monthly_cost = cost_per_call_cents * request.expected_calls_per_month
-            estimated_monthly_tokens = internal_tokens_per_call * request.expected_calls_per_month
+            # Determine if this is based on real usage or estimates
+            data_source = "real_usage" if usage_stats and usage_stats.successful_executions >= 3 else "initial_estimate"
             
             breakdown = {
-                'base_cost_per_1k_tokens': base_cost_per_1k,
-                'estimated_ai_tokens': estimated_tokens,
-                'complexity_multiplier': complexity_multiplier,
-                'tokens_per_cent_ratio': self.TOKENS_PER_CENT,
-                'expected_calls_per_month': request.expected_calls_per_month
+                'data_source': data_source,
+                'successful_executions': usage_stats.successful_executions if usage_stats else 0,
+                'avg_tokens_per_call': int(usage_stats.avg_total_tokens) if usage_stats else cost_info.estimated_tokens_used,
+                'cost_per_call_cents': cost_per_call_cents,
+                'internal_tokens_per_call': internal_tokens_per_call,
+                'expected_calls_per_month': expected_calls_per_month,
+                'note': 'Based on real usage data' if data_source == "real_usage" else 'Based on initial estimates - will improve with usage'
             }
             
             return EstimateAPIUsageCostResponse(
-                api_slug=request.api_slug,
+                api_slug=api_slug,
                 cost_per_call_cents=cost_per_call_cents,
                 internal_tokens_per_call=internal_tokens_per_call,
                 estimated_monthly_cost_cents=estimated_monthly_cost,
                 estimated_monthly_tokens=estimated_monthly_tokens,
-                ai_model_used=ai_model,
-                complexity_rating=complexity,
+                ai_model_used=cost_info.ai_model_used,
+                complexity_rating="real_usage" if data_source == "real_usage" else "estimated",
                 breakdown=breakdown
             )
             
         except Exception as e:
-            logger.error(f"Failed to estimate API usage cost: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to estimate API usage cost: {str(e)}")
+            logger.error(f"Failed to get API usage cost: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to get API usage cost: {str(e)}")
     
     async def _create_token_allocation(
         self,
