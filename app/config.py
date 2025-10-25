@@ -9,18 +9,39 @@ class Settings:
     # Some Settings
     ENABLE_TEST_VALIDATION_DEBUGGING: bool = "true"
 
-    # MongoDB Configuration
+    # MongoDB Configuration 
     MONGODB_URL: str = os.getenv("MONGODB_URL")
     MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME")
 
-    # OpenAI Configuration
+    # OpenAI Configuration for api generation
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5-mini")
     
+    MAX_TOKENS_OPENAI: int = 10000
+    TEMPERATURE_OPENAI: float = 0.3
+    TOP_P_OPENAI: float = 1.0
+    FREQUENCY_PENALTY_OPENAI: float = 0.0
+    PRESENCE_PENALTY_OPENAI: float = 0.0
+    MAX_COMPLETIONS_OPENAI: int = 1
+    STOP_OPENAI: List[str] = []
+    STOP_SEQUENCE_OPENAI: List[str] = []
+    STOP_TOKEN_OPENAI: List[str] = []
+    STOP_TOKEN_IDS_OPENAI: List[int] = []
     
-    # Claude Configuration
+    # Claude Configuration for api generation
     CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
     CLAUDE_MODEL: str = "claude-3-5-haiku-latest"
+    
+    MAX_TOKENS_CLAUDE: int = 10000
+    TEMPERATURE_CLAUDE: float = 0.3
+    TOP_P_CLAUDE: float = 1.0
+    FREQUENCY_PENALTY_CLAUDE: float = 0.0
+    PRESENCE_PENALTY_CLAUDE: float = 0.0
+    MAX_COMPLETIONS_CLAUDE: int = 1
+    STOP_CLAUDE: List[str] = []
+    STOP_SEQUENCE_CLAUDE: List[str] = []
+    STOP_TOKEN_CLAUDE: List[str] = []
+    STOP_TOKEN_IDS_CLAUDE: List[int] = []
     
     GENERATE_DOCS_SERVICE: str = "OPENAI_SERVICE"
 
@@ -69,9 +90,9 @@ class Settings:
             # 🔧 DEVELOPMENT: Local development origins
             return [
                 "http://localhost:3000",
-                "http://localhost:8000", 
+                "http://localhost:8001", 
                 "http://127.0.0.1:3000",
-                "http://127.0.0.1:8000"
+                "http://127.0.0.1:8001"
             ]
     
     # Authentication Configuration

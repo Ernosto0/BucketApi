@@ -7,7 +7,7 @@ API generation into multiple LLM calls with streaming capabilities.
 
 from typing import Dict, List, Any, Optional
 from enum import Enum
-
+from app.config import settings
 class StepType(Enum):
     """Types of steps in the multi-step generation process"""
     ANALYSIS_DESIGN = "analysis_design"
@@ -30,12 +30,11 @@ class MultiStepConfig:
             "type": StepType.ANALYSIS_DESIGN.value,
             "description": "Analyze requirements and design code structure",
             "prompt_template": "analyze_design",
-            "model": "claude-3-5-haiku-20241022",
+            "model": settings.CLAUDE_MODEL,
             "temperature": 0.3,
             "max_tokens": 2000,
             "timeout": 45,
             "enabled": True,
-            "streaming_message": "🔍🏗️ Analyzing requirements and designing structure...",
             "dependencies": [],
             "output_format": "structured_text"
         },
@@ -45,12 +44,11 @@ class MultiStepConfig:
             "type": StepType.IMPLEMENTATION.value, 
             "description": "Generate complete working code",
             "prompt_template": "implement_code",
-            "model": "claude-3-5-sonnet-20240620",
+            "model": settings.CLAUDE_MODEL,
             "temperature": 0.3,
             "max_tokens": 4000,
             "timeout": 90,
             "enabled": True,
-            "streaming_message": "💻 Implementing complete working code...",
             "dependencies": ["step1_analysis_design"],
             "output_format": "code"
         },
@@ -60,12 +58,11 @@ class MultiStepConfig:
             "type": StepType.TESTING.value,
             "description": "Generate tests, documentation, and usage examples",
             "prompt_template": "generate_tests_docs",
-            "model": "claude-3-5-haiku-20241022", 
+            "model": settings.CLAUDE_MODEL, 
             "temperature": 0.4,
             "max_tokens": 2500,
             "timeout": 60,
             "enabled": True,
-            "streaming_message": "📚 Creating tests, documentation, and examples...",
             "dependencies": ["step2_implementation"],
             "output_format": "mixed"
         }

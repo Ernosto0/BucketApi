@@ -27,7 +27,7 @@ from .models import (
     UpdateAPIKeyRequest, DeleteAPIKeyResponse, APIInputData,
     UsageStatsResponse, UsageLimitsResponse, CreateUsageRequest,
     APIExecutionStatsResponse, APIExecutionLimitsResponse, CreateAPIExecutionUsageRequest,
-    EstimateAPIUsageCostRequest, EstimateAPIUsageCostResponse, InternalTokenBalance,
+    EstimateAPIUsageCostResponse, InternalTokenBalance,
     CreateInternalTokenRequest, SeparatedTokenBalance,
     # Subscription models
     Subscription, SubscriptionTier, CreateSubscriptionRequest, CreateSubscriptionResponse,
@@ -1614,10 +1614,28 @@ async def generate_api(
             logger.warning(f"Failed to save API documentation to database: {e}")
             # Continue without database save if service is unavailable
         
-        # Note: API pricing metadata will be calculated during the first test
-        # when we can analyze the actual generated code for LLM usage patterns.
-        # This provides more accurate pricing based on what the API actually does.
-        logger.info(f"API {clean_slug} generated successfully. Pricing will be calculated during first test.")
+        # Analyze the generated code immediately to detect execution model and calculate pricing
+        try:
+            logger.info(f"Analyzing generated code for {clean_slug} to detect execution model and calculate pricing")
+            
+            # Get the generation model used
+            generation_model = getattr(settings, 'CLAUDE_MODEL', 'claude-3-5-haiku-latest')
+            
+            # Analyze the code to detect LLM usage and calculate pricing
+            metadata = await api_pricing_service.analyze_and_price_api_code(
+                api_slug=clean_slug,
+                user_id=current_user.id,
+                api_code=code,
+                original_prompt=api_request.prompt,
+                generation_model_used=generation_model
+            )
+            
+            logger.info(f"API {clean_slug} analysis complete: execution_model={metadata.execution_model_used or metadata.ai_model_used}, generation_model={generation_model}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to analyze API code during generation: {e}")
+            # Continue without analysis - it will be done during first test as fallback
+            logger.info(f"API {clean_slug} generated successfully. Pricing analysis will be retried during first test.")
         
         return APIGenerationResponse(
             success=True,
@@ -2381,72 +2399,112 @@ async def test_api(request: TestRequest):
                 debugged=debugged
             )
             
-            # Automatically attempt to fix the code when there's an execution error
-            "TODO CHANGE THIS WITH SPECIFIC DEBUGER FUNCTION"
-            logger.info(f"API execution failed, attempting automatic code fix...")
+            # Automatically attempt to fix the code using the new auto-debug loop system
+            logger.info(f"API execution failed, starting auto-debug loop...")
             try:
-                # Load current API code
-                current_code = file_service.load_api_code(request.user_id, request.api_slug)
-                
-                # Use comprehensive debug functionality to fix the code
-                debug_result = await code_debugger.validate_and_fix_test_result(
-                    code=current_code,
-                    test_request=request.dict(),
-                    test_response=error_response.dict(),
+                # Use the new protected smart debug loop system with retry
+                debug_session = await code_debugger.protected_smart_debug_with_retry(
                     user_id=request.user_id,
-                    api_slug=request.api_slug
+                    api_slug=request.api_slug,
+                    test_request=request.dict(),
+                    max_iterations=3,  # Allow up to 3 debug iterations
+                    confidence_threshold=0.7,  # Require 70% confidence for success
+                    user_api_key_id=None  # No API key tracking for test endpoint
                 )
                 
-                # If code was fixed, save it automatically with backup
-                if debug_result.get("fixed_code"):
-                    logger.info(f"Code fixes found for execution error: {debug_result.get('fixes_applied', [])}")
-                    debugged = True
-                    # Create backup of current code
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    backup_slug = f"{request.api_slug}_backup_{timestamp}"
+                debugged = True
+                
+                # Check if the debug loop was successful
+                if debug_session.get("overall_success", False):
+                    logger.info(f"Auto-debug loop successful! Iterations: {len(debug_session.get('iterations', []))}")
                     
-                    # Save backup
-                    await file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
+                    # Get the final successful result from the debug session
+                    best_result = debug_session.get("best_result", {})
+                    final_test_result = best_result.get("test_result", {})
                     
-                    # Save fixed code
-                    await file_service.save_api_code(f"{request.user_id}_{request.api_slug}", debug_result["fixed_code"])
+                    if final_test_result.get("success", False):
+                        # Update response to success
+                        error_response.success = True
+                        error_response.response_data = final_test_result.get("response_data")
+                        error_response.error = None
+                        error_response.status_code = 200
+                        error_response.execution_time = debug_session.get("total_execution_time", execution_time)
+                        error_response.debugged = True
+                        
+                        logger.info("API execution successful after auto-debug loop!")
+                    
+                    # Add comprehensive debug information
+                    error_response.validation = {
+                        "is_valid": True,
+                        "confidence": debug_session.get("best_confidence", 0.0),
+                        "validation_message": f"Auto-debug successful in {len(debug_session.get('iterations', []))} iterations",
+                        "issues_found": [],
+                        "auto_fix_applied": True,
+                        "debug_session": {
+                            "session_id": debug_session.get("session_id"),
+                            "final_status": debug_session.get("final_status"),
+                            "iterations": len(debug_session.get("iterations", [])),
+                            "code_changes_made": debug_session.get("code_changes_made", 0),
+                            "total_execution_time": debug_session.get("total_execution_time", 0),
+                            "validation_improvements": debug_session.get("validation_improvements", [])
+                        },
+                        "debug_completed_at": datetime.now().isoformat(),
+                        "validator": "smart_debug_loop"
+                    }
+                    
+                else:
+                    # Debug loop didn't achieve success, but may have made improvements
+                    logger.warning(f"Auto-debug loop completed without full success. Status: {debug_session.get('final_status')}")
+                    
+                    best_confidence = debug_session.get("best_confidence", 0.0)
+                    iterations_count = len(debug_session.get("iterations", []))
                     
                     # Add debug information to the error response
                     error_response.validation = {
                         "is_valid": False,
-                        "confidence": debug_result.get("validation_confidence", 0.0),
-                        "validation_message": debug_result.get("validation_message", "Execution error automatically fixed"),
-                        "issues_found": debug_result.get("issues_found", []),
-                        "auto_fix_applied": True,
-                        "fixes_applied": debug_result.get("fixes_applied", []),
-                        "backup_slug": backup_slug,
-                        "debug_info": debug_result.get("debug_info"),
-                        "code_fixed_at": datetime.now().isoformat(),
-                        "validator": "code_debugger"
+                        "confidence": best_confidence,
+                        "validation_message": f"Auto-debug attempted {iterations_count} iterations, best confidence: {best_confidence:.2f}",
+                        "issues_found": [],
+                        "auto_fix_applied": debug_session.get("code_changes_made", 0) > 0,
+                        "debug_session": {
+                            "session_id": debug_session.get("session_id"),
+                            "final_status": debug_session.get("final_status"),
+                            "iterations": iterations_count,
+                            "code_changes_made": debug_session.get("code_changes_made", 0),
+                            "total_execution_time": debug_session.get("total_execution_time", 0),
+                            "best_confidence": best_confidence,
+                            "reason": debug_session.get("final_status", "unknown")
+                        },
+                        "debug_completed_at": datetime.now().isoformat(),
+                        "validator": "smart_debug_loop"
                     }
                     
-                    logger.info(f"Code automatically fixed for execution error. Backup: {backup_slug}")
+                    # If we have a reasonably good result, update the response
+                    if best_confidence >= 0.5 and debug_session.get("best_result"):
+                        best_result = debug_session["best_result"]
+                        final_test_result = best_result.get("test_result", {})
+                        
+                        if final_test_result.get("success", False):
+                            error_response.success = True
+                            error_response.response_data = final_test_result.get("response_data")
+                            error_response.error = None
+                            error_response.status_code = 200
+                            error_response.validation["is_valid"] = True
+                            error_response.validation["validation_message"] += " (Acceptable result achieved)"
+                            
+                            logger.info(f"Using best result from debug loop (confidence: {best_confidence:.2f})")
                     
-                else:
-                    logger.info("No code fixes were generated for execution error")
-                    error_response.validation = {
-                        "is_valid": False,
-                        "confidence": 0.0,
-                        "validation_message": "Execution error occurred but no fixes available",
-                        "auto_fix_applied": False,
-                        "auto_fix_reason": "No fixable issues detected",
-                        "validator": "code_debugger"
-                    }
-            
             except Exception as debug_error:
-                logger.error(f"Automatic code fix failed for execution error: {str(debug_error)}")
+                logger.error(f"Auto-debug loop failed: {str(debug_error)}")
                 error_response.validation = {
                     "is_valid": False,
                     "confidence": 0.0,
-                    "validation_message": "Execution error occurred and auto-fix failed",
+                    "validation_message": f"Auto-debug loop failed: {str(debug_error)}",
+                    "issues_found": [],
                     "auto_fix_applied": False,
-                    "auto_fix_error": str(debug_error),
-                    "validator": "code_debugger"
+                    "debug_error": str(debug_error),
+                    "debug_completed_at": datetime.now().isoformat(),
+                    "validator": "smart_debug_loop"
                 }
             
             return error_response
@@ -2484,11 +2542,21 @@ async def test_api(request: TestRequest):
                     api_code = file_service.load_api_code(request.user_id, request.api_slug)
                     
                     # Analyze the code to detect LLM usage and calculate pricing
+                    # Try to get the generation model from the API metadata if available
+                    generation_model = None
+                    try:
+                        # For now, we'll use the default generation model from config
+                        from app.config import settings
+                        generation_model = getattr(settings, 'CLAUDE_MODEL', 'claude-3-5-haiku-latest')
+                    except:
+                        generation_model = 'claude-3-5-haiku-latest'  # Default fallback
+                    
                     metadata = await api_pricing_service.analyze_and_price_api_code(
                         api_slug=request.api_slug,
                         user_id=request.user_id,
                         api_code=api_code,
-                        original_prompt=""  # We don't have the original prompt in test context
+                        original_prompt="",  # We don't have the original prompt in test context
+                        generation_model_used=generation_model
                     )
                     
                     # Now get the cost estimation
@@ -2668,6 +2736,116 @@ async def test_api(request: TestRequest):
             test_type=request.test_type or "manual",
             validation=None
         )
+
+@app.post("/debug-api")
+async def debug_api_with_loop(request: TestRequest):
+    """
+    Manually trigger the auto-debug loop system for an API.
+    This endpoint allows users to explicitly debug their APIs with multiple iterations.
+    """
+    logger.info(f"=== DEBUG-API ENDPOINT CALLED ===")
+    logger.info(f"Starting manual debug loop for API {request.api_slug} (user: {request.user_id})")
+    
+    start_time = time.time()
+    debug_id = str(uuid.uuid4())
+    
+    try:
+        # Check if API exists
+        if not file_service.api_exists(request.user_id, request.api_slug):
+            raise HTTPException(
+                status_code=404,
+                detail=f"API not found: {request.user_id}/{request.api_slug}"
+            )
+        
+        # Use the protected smart debug loop system with configurable parameters
+        debug_session = await code_debugger.protected_smart_debug_with_retry(
+            user_id=request.user_id,
+            api_slug=request.api_slug,
+            test_request=request.dict(),
+            max_iterations=5,  # Allow more iterations for manual debugging
+            confidence_threshold=0.8,  # Higher threshold for manual debugging
+            user_api_key_id=None  # No API key tracking for debug endpoint
+        )
+        
+        total_time = time.time() - start_time
+        
+        # Create comprehensive response
+        debug_response = {
+            "success": debug_session.get("overall_success", False),
+            "debug_id": debug_id,
+            "session_id": debug_session.get("session_id"),
+            "api_slug": request.api_slug,
+            "user_id": request.user_id,
+            "total_execution_time": total_time,
+            "debug_session": debug_session,
+            "summary": {
+                "iterations_completed": len(debug_session.get("iterations", [])),
+                "code_changes_made": debug_session.get("code_changes_made", 0),
+                "final_confidence": debug_session.get("best_confidence", 0.0),
+                "final_status": debug_session.get("final_status"),
+                "validation_improvements": debug_session.get("validation_improvements", [])
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Add final result if available
+        if debug_session.get("best_result"):
+            best_result = debug_session["best_result"]
+            debug_response["final_test_result"] = {
+                "success": best_result.get("test_result", {}).get("success", False),
+                "response_data": best_result.get("test_result", {}).get("response_data"),
+                "validation": best_result.get("validation", {}),
+                "achieved_in_iteration": best_result.get("iteration", 0)
+            }
+        
+        logger.info(f"Manual debug loop completed: {debug_response['success']} "
+                   f"(iterations: {debug_response['summary']['iterations_completed']}, "
+                   f"confidence: {debug_response['summary']['final_confidence']:.2f})")
+        
+        return debug_response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        total_time = time.time() - start_time
+        logger.error(f"Manual debug loop failed: {str(e)}", exc_info=True)
+        
+        return {
+            "success": False,
+            "debug_id": debug_id,
+            "api_slug": request.api_slug,
+            "user_id": request.user_id,
+            "total_execution_time": total_time,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "timestamp": datetime.now().isoformat(),
+            "summary": {
+                "iterations_completed": 0,
+                "code_changes_made": 0,
+                "final_confidence": 0.0,
+                "final_status": "error"
+            }
+        }
+
+@app.get("/debug-service/status")
+async def get_debug_service_status():
+    """
+    Get the current status of the debug service including circuit breaker and rate limits.
+    """
+    try:
+        status = code_debugger.get_debug_service_status()
+        return {
+            "success": True,
+            "status": status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Failed to get debug service status: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
 
 @app.get("/generate-test-data/{user_id}/{api_slug}")
 async def generate_test_data(user_id: str, api_slug: str):
@@ -2868,25 +3046,30 @@ async def allocate_monthly_tokens(
         logger.error(f"Failed to allocate tokens: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to allocate tokens: {str(e)}")
 
-@app.post("/estimate-api-cost", response_model=EstimateAPIUsageCostResponse)
-async def estimate_api_usage_cost(
-    request: EstimateAPIUsageCostRequest,
+@app.get("/estimate-api-cost/{api_slug}", response_model=EstimateAPIUsageCostResponse)
+async def get_api_usage_cost_estimate(
+    api_slug: str,
+    expected_calls_per_month: int = 1000,
     current_user: User = Depends(require_auth_or_api_key)
 ):
-    """Estimate the cost and tokens needed for API usage."""
+    """Get API usage cost using real usage data when available, fallback to initial estimates."""
     try:
-        estimate = await api_pricing_service.estimate_api_usage_cost(request)
+        estimate = await api_pricing_service.get_api_usage_cost_with_real_data(
+            api_slug=api_slug,
+            user_id=current_user.id,
+            expected_calls_per_month=expected_calls_per_month
+        )
         return estimate
     except Exception as e:
-        logger.error(f"Failed to estimate API cost: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to estimate API cost: {str(e)}")
+        logger.error(f"Failed to get API usage cost: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get API usage cost: {str(e)}")
 
 @app.get("/api-cost/{api_slug}")
 async def get_api_execution_cost(
     api_slug: str,
     current_user: User = Depends(require_auth_or_api_key)
 ):
-    """Get the execution cost for a specific API."""
+    """Get API execution cost, using real usage data when available."""
     try:
         cost = await api_pricing_service.get_api_execution_cost(
             api_slug=api_slug,
@@ -2904,6 +3087,84 @@ async def get_api_execution_cost(
     except Exception as e:
         logger.error(f"Failed to get API cost: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get API cost: {str(e)}")
+
+@app.post("/api-cost/{api_slug}/update-with-real-usage")
+async def update_api_pricing_with_real_usage(
+    api_slug: str,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Update API pricing with real usage statistics from executed calls."""
+    try:
+        from app.services.api_usage_aggregator import api_usage_aggregator
+        
+        # Get real usage statistics
+        usage_stats = await api_usage_aggregator.get_api_usage_stats(
+            api_slug=api_slug,
+            user_id=current_user.id
+        )
+        
+        if not usage_stats:
+            return {
+                "success": False,
+                "message": "No usage data found for this API",
+                "executions": 0
+            }
+        
+        if usage_stats.successful_executions < 3:
+            return {
+                "success": False,
+                "message": f"Need at least 3 successful executions for reliable pricing (have {usage_stats.successful_executions})",
+                "executions": usage_stats.successful_executions,
+                "usage_stats": {
+                    "total_executions": usage_stats.total_executions,
+                    "successful_executions": usage_stats.successful_executions,
+                    "avg_tokens": usage_stats.avg_total_tokens,
+                    "avg_cost_cents": usage_stats.avg_cost_per_call_cents
+                }
+            }
+        
+        # Update pricing with real usage
+        updated = await api_usage_aggregator.update_api_pricing_with_real_usage(
+            api_slug=api_slug,
+            user_id=current_user.id
+        )
+        
+        if updated:
+            # Get updated cost information
+            cost = await api_pricing_service.get_api_execution_cost(
+                api_slug=api_slug,
+                user_id=current_user.id
+            )
+            
+            return {
+                "success": True,
+                "message": "API pricing updated with real usage data",
+                "executions": usage_stats.successful_executions,
+                "updated_pricing": {
+                    "cost_per_call_cents": cost.cost_per_call_cents,
+                    "internal_tokens_per_call": cost.internal_tokens_per_call,
+                    "ai_model_used": cost.ai_model_used,
+                    "estimated_tokens_used": cost.estimated_tokens_used
+                },
+                "usage_stats": {
+                    "total_executions": usage_stats.total_executions,
+                    "successful_executions": usage_stats.successful_executions,
+                    "avg_tokens": usage_stats.avg_total_tokens,
+                    "avg_cost_cents": usage_stats.avg_cost_per_call_cents,
+                    "models_used": usage_stats.models_used,
+                    "primary_model": usage_stats.primary_model_used
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Failed to update API pricing",
+                "executions": usage_stats.successful_executions
+            }
+            
+    except Exception as e:
+        logger.error(f"Failed to update API pricing with real usage: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update API pricing: {str(e)}")
 
 # Logging Endpoints
 @app.post("/logs/system", response_model=LogsResponse)

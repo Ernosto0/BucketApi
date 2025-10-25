@@ -2,6 +2,8 @@ import ast
 import re
 import logging
 import time
+import asyncio
+import uuid
 from typing import Tuple, List, Dict, Any, Optional
 from ..config import settings
 from .claude_service import claude_service
@@ -14,6 +16,32 @@ logger = logging.getLogger(__name__)
 class CodeDebugger:
     def __init__(self):
         self.claude_service = claude_service
+        
+        # Circuit breaker configuration
+        self.circuit_breaker_config = {
+            "max_failures": 3,  # Max consecutive failures before circuit opens
+            "reset_timeout": 300,  # 5 minutes before attempting reset
+            "failure_threshold": 0.5  # 50% failure rate threshold
+        }
+        
+        # Circuit breaker state tracking
+        self.circuit_breaker_state = {
+            "is_open": False,
+            "failure_count": 0,
+            "last_failure_time": None,
+            "total_attempts": 0,
+            "total_failures": 0
+        }
+        
+        # Rate limiting configuration
+        self.rate_limit_config = {
+            "max_debug_sessions_per_hour": 10,
+            "max_iterations_per_session": 5,
+            "min_interval_between_sessions": 30  # seconds
+        }
+        
+        # Session tracking for rate limiting
+        self.session_history = []
     
     async def analyze_and_fix_code(self, generated_code: str, original_prompt: str, 
                                   user_id: Optional[str] = None, api_key_id: Optional[str] = None) -> Tuple[str, List[str], List[str]]:
@@ -1190,6 +1218,762 @@ Analyze if this test result is logically valid and return your assessment as JSO
             fixes.append("Enhanced error handling")
         
         return fixes
+
+    async def auto_debug_loop(self, user_id: str, api_slug: str, test_request: dict,
+                              max_iterations: int = 3, user_api_key_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Automatic debug loop that retries API execution with fixes until results are valid.
+        
+        Args:
+            user_id: The user ID
+            api_slug: The API slug to debug
+            test_request: The test request data (includes test_data, file_data, etc.)
+            max_iterations: Maximum number of debug iterations (default: 3)
+            user_api_key_id: Optional API key ID for usage tracking
+            
+        Returns:
+            Dict containing the final results, debug history, and success status
+        """
+        logger.info(f"Starting auto-debug loop for {user_id}/{api_slug} (max iterations: {max_iterations})")
+        
+        debug_history = []
+        iteration = 0
+        current_code = None
+        final_result = None
+        
+        # Load initial API code
+        try:
+            from .file_service import file_service
+            current_code = file_service.load_api_code(user_id, api_slug)
+        except Exception as e:
+            logger.error(f"Failed to load API code: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to load API code: {str(e)}",
+                "iterations": 0,
+                "debug_history": [],
+                "final_code": None,
+                "final_result": None
+            }
+        
+        while iteration < max_iterations:
+            iteration += 1
+            iteration_start_time = time.time()
+            
+            logger.info(f"Debug loop iteration {iteration}/{max_iterations}")
+            
+            # Execute the API with current code
+            test_result = await self._execute_api_test(
+                user_id=user_id,
+                api_slug=api_slug,
+                code=current_code,
+                test_request=test_request,
+                iteration=iteration
+            )
+            
+            # Validate the test result
+            validation_result = await self._validate_test_result_logic(
+                test_request, test_result, user_id, user_api_key_id, api_slug
+            )
+            
+            iteration_time = time.time() - iteration_start_time
+            
+            # Record this iteration
+            iteration_record = {
+                "iteration": iteration,
+                "execution_time": iteration_time,
+                "test_result": test_result,
+                "validation": validation_result,
+                "code_length": len(current_code),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Check if result is valid
+            if validation_result["is_valid"] and validation_result["confidence"] >= 0.7:
+                logger.info(f"Valid result achieved in iteration {iteration}!")
+                iteration_record["status"] = "success"
+                iteration_record["fixes_applied"] = []
+                debug_history.append(iteration_record)
+                
+                final_result = {
+                    "success": True,
+                    "message": f"API debugged successfully in {iteration} iteration(s)",
+                    "iterations": iteration,
+                    "debug_history": debug_history,
+                    "final_code": current_code,
+                    "final_result": test_result,
+                    "validation": validation_result
+                }
+                break
+            
+            # If this is the last iteration and we still don't have valid results
+            if iteration >= max_iterations:
+                logger.warning(f"Max iterations ({max_iterations}) reached without valid result")
+                iteration_record["status"] = "max_iterations_reached"
+                iteration_record["fixes_applied"] = []
+                debug_history.append(iteration_record)
+                
+                final_result = {
+                    "success": False,
+                    "message": f"Failed to achieve valid results after {max_iterations} iterations",
+                    "iterations": iteration,
+                    "debug_history": debug_history,
+                    "final_code": current_code,
+                    "final_result": test_result,
+                    "validation": validation_result,
+                    "reason": "max_iterations_exceeded"
+                }
+                break
+            
+            # Attempt to fix the code
+            logger.info(f"Invalid result in iteration {iteration}, attempting to fix code...")
+            
+            try:
+                # Use comprehensive debugging to fix the code
+                fixed_code, fixes_applied, debug_info = await self.debug_test_failure(
+                    code=current_code,
+                    test_request=test_request,
+                    test_response=test_result,
+                    user_id=user_id,
+                    api_key_id=user_api_key_id,
+                    api_slug=api_slug
+                )
+                
+                # Check if the code actually changed
+                if fixed_code == current_code:
+                    logger.warning(f"No code changes made in iteration {iteration}, stopping debug loop")
+                    iteration_record["status"] = "no_changes_made"
+                    iteration_record["fixes_applied"] = fixes_applied
+                    iteration_record["debug_info"] = debug_info
+                    debug_history.append(iteration_record)
+                    
+                    final_result = {
+                        "success": False,
+                        "message": "Debug loop stopped - no code changes could be made",
+                        "iterations": iteration,
+                        "debug_history": debug_history,
+                        "final_code": current_code,
+                        "final_result": test_result,
+                        "validation": validation_result,
+                        "reason": "no_code_changes"
+                    }
+                    break
+                
+                # Update the code for next iteration
+                current_code = fixed_code
+                
+                # Save the fixed code back to file for next iteration
+                file_service.save_api_code(f"{user_id}_{api_slug}", fixed_code)
+                
+                iteration_record["status"] = "code_fixed"
+                iteration_record["fixes_applied"] = fixes_applied
+                iteration_record["debug_info"] = debug_info
+                iteration_record["code_changed"] = True
+                
+                logger.info(f"Applied {len(fixes_applied)} fixes in iteration {iteration}")
+                
+            except Exception as fix_error:
+                logger.error(f"Failed to fix code in iteration {iteration}: {str(fix_error)}")
+                iteration_record["status"] = "fix_failed"
+                iteration_record["fixes_applied"] = []
+                iteration_record["fix_error"] = str(fix_error)
+                debug_history.append(iteration_record)
+                
+                final_result = {
+                    "success": False,
+                    "message": f"Debug loop failed in iteration {iteration}: {str(fix_error)}",
+                    "iterations": iteration,
+                    "debug_history": debug_history,
+                    "final_code": current_code,
+                    "final_result": test_result,
+                    "validation": validation_result,
+                    "reason": "fix_error",
+                    "error": str(fix_error)
+                }
+                break
+            
+            debug_history.append(iteration_record)
+            
+            # Small delay between iterations to prevent overwhelming the system
+            await asyncio.sleep(0.5)
+        
+        # Log final results
+        total_time = sum(record.get("execution_time", 0) for record in debug_history)
+        logger.info(f"Auto-debug loop completed: {final_result['success']} in {iteration} iterations, total time: {total_time:.2f}s")
+        
+        return final_result
+
+    async def _execute_api_test(self, user_id: str, api_slug: str, code: str, 
+                               test_request: dict, iteration: int) -> Dict[str, Any]:
+        """
+        Execute an API test with the given code and return structured results.
+        
+        Args:
+            user_id: The user ID
+            api_slug: The API slug
+            code: The API code to execute
+            test_request: The test request data
+            iteration: Current iteration number for logging
+            
+        Returns:
+            Dict containing test execution results
+        """
+        logger.info(f"Executing API test (iteration {iteration})")
+        start_time = time.time()
+        
+        try:
+            from .api_execution_usage_service import api_execution_usage_service
+            
+            # Prepare input data
+            file_bytes = None
+            if test_request.get('file_data'):
+                try:
+                    import base64
+                    file_bytes = base64.b64decode(test_request['file_data'])
+                except Exception as e:
+                    logger.error(f"Failed to decode file data: {str(e)}")
+                    return {
+                        "success": False,
+                        "error": f"Invalid file data: {str(e)}",
+                        "execution_time": time.time() - start_time,
+                        "status_code": 400,
+                        "response_data": None
+                    }
+            
+            # Execute the API with limits
+            result, execution_time_ms, success, error_message = await api_execution_usage_service.execute_api_with_limits(
+                code=code,
+                input_data=test_request.get('test_data', {}),
+                file_bytes=file_bytes
+            )
+            
+            execution_time = time.time() - start_time
+            
+            if success:
+                return {
+                    "success": True,
+                    "response_data": result,
+                    "execution_time": execution_time,
+                    "status_code": 200,
+                    "error": None
+                }
+            else:
+                return {
+                    "success": False,
+                    "response_data": None,
+                    "execution_time": execution_time,
+                    "status_code": 500,
+                    "error": error_message or "API execution failed"
+                }
+                
+        except Exception as e:
+            execution_time = time.time() - start_time
+            logger.error(f"API test execution failed: {str(e)}")
+            return {
+                "success": False,
+                "response_data": None,
+                "execution_time": execution_time,
+                "status_code": 500,
+                "error": str(e)
+            }
+
+    async def smart_debug_with_retry(self, user_id: str, api_slug: str, test_request: dict,
+                                    max_iterations: int = 3, confidence_threshold: float = 0.8,
+                                    user_api_key_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Enhanced debug loop with smart retry logic and configurable confidence threshold.
+        
+        Args:
+            user_id: The user ID
+            api_slug: The API slug to debug
+            test_request: The test request data
+            max_iterations: Maximum number of debug iterations
+            confidence_threshold: Minimum confidence score to consider result valid (0.0-1.0)
+            user_api_key_id: Optional API key ID for usage tracking
+            
+        Returns:
+            Dict containing comprehensive debug results
+        """
+        logger.info(f"Starting smart debug with retry for {user_id}/{api_slug}")
+        logger.info(f"Config: max_iterations={max_iterations}, confidence_threshold={confidence_threshold}")
+        
+        # Initialize tracking
+        debug_session = {
+            "session_id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "api_slug": api_slug,
+            "start_time": datetime.now().isoformat(),
+            "config": {
+                "max_iterations": max_iterations,
+                "confidence_threshold": confidence_threshold
+            },
+            "iterations": [],
+            "final_status": None,
+            "total_execution_time": 0,
+            "code_changes_made": 0,
+            "validation_improvements": []
+        }
+        
+        session_start_time = time.time()
+        current_code = None
+        best_result = None
+        best_confidence = 0.0
+        
+        try:
+            # Load initial code
+            from .file_service import file_service
+            current_code = file_service.load_api_code(user_id, api_slug)
+            original_code = current_code  # Keep original for comparison
+            
+        except Exception as e:
+            logger.error(f"Failed to load initial API code: {str(e)}")
+            debug_session["final_status"] = "failed_to_load_code"
+            debug_session["error"] = str(e)
+            return debug_session
+        
+        # Main debug loop
+        for iteration in range(1, max_iterations + 1):
+            iteration_start = time.time()
+            
+            logger.info(f"Smart debug iteration {iteration}/{max_iterations}")
+            
+            # Execute test
+            test_result = await self._execute_api_test(
+                user_id=user_id,
+                api_slug=api_slug,
+                code=current_code,
+                test_request=test_request,
+                iteration=iteration
+            )
+            
+            # Validate result
+            validation = await self._validate_test_result_logic(
+                test_request, test_result, user_id, user_api_key_id, api_slug
+            )
+            
+            iteration_time = time.time() - iteration_start
+            confidence = validation.get("confidence", 0.0)
+            
+            # Track this iteration
+            iteration_record = {
+                "iteration": iteration,
+                "execution_time": iteration_time,
+                "test_success": test_result.get("success", False),
+                "validation_confidence": confidence,
+                "validation_valid": validation.get("is_valid", False),
+                "validation_message": validation.get("message", ""),
+                "validation_issues": validation.get("issues", []),
+                "code_length": len(current_code),
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Update best result if this is better
+            if confidence > best_confidence:
+                best_confidence = confidence
+                best_result = {
+                    "iteration": iteration,
+                    "test_result": test_result,
+                    "validation": validation,
+                    "code": current_code
+                }
+                debug_session["validation_improvements"].append({
+                    "iteration": iteration,
+                    "confidence": confidence,
+                    "improvement": confidence - best_confidence if iteration > 1 else confidence
+                })
+            
+            # Check if we've achieved success
+            if validation.get("is_valid", False) and confidence >= confidence_threshold:
+                logger.info(f"Success achieved in iteration {iteration}! Confidence: {confidence:.2f}")
+                iteration_record["status"] = "success"
+                iteration_record["final_iteration"] = True
+                debug_session["iterations"].append(iteration_record)
+                debug_session["final_status"] = "success"
+                debug_session["success_iteration"] = iteration
+                break
+            
+            # If this is the last iteration
+            if iteration >= max_iterations:
+                logger.info(f"Max iterations reached. Best confidence: {best_confidence:.2f}")
+                iteration_record["status"] = "max_iterations_reached"
+                iteration_record["final_iteration"] = True
+                debug_session["iterations"].append(iteration_record)
+                debug_session["final_status"] = "max_iterations_reached"
+                break
+            
+            # Attempt to fix the code
+            logger.info(f"Attempting to improve code (current confidence: {confidence:.2f})")
+            
+            try:
+                # Create enhanced prompt with iteration context
+                enhanced_test_result = {
+                    **test_result,
+                    "iteration_context": {
+                        "iteration": iteration,
+                        "previous_confidence": confidence,
+                        "target_confidence": confidence_threshold,
+                        "validation_issues": validation.get("issues", [])
+                    }
+                }
+                
+                fixed_code, fixes_applied, debug_info = await self.debug_test_failure(
+                    code=current_code,
+                    test_request=test_request,
+                    test_response=enhanced_test_result,
+                    user_id=user_id,
+                    api_key_id=user_api_key_id,
+                    api_slug=api_slug
+                )
+                
+                # Check for meaningful changes
+                code_similarity = self._calculate_code_similarity(current_code, fixed_code)
+                
+                if code_similarity > 0.95:  # Less than 5% change
+                    logger.warning(f"Minimal code changes detected (similarity: {code_similarity:.2f})")
+                    iteration_record["status"] = "minimal_changes"
+                    iteration_record["code_similarity"] = code_similarity
+                    iteration_record["fixes_applied"] = fixes_applied
+                    debug_session["iterations"].append(iteration_record)
+                    
+                    # If we have a decent result, use it
+                    if best_confidence >= 0.5:
+                        debug_session["final_status"] = "acceptable_result_found"
+                        break
+                    else:
+                        debug_session["final_status"] = "insufficient_improvement"
+                        break
+                
+                # Apply the fixes
+                current_code = fixed_code
+                file_service.save_api_code(f"{user_id}_{api_slug}", fixed_code)
+                debug_session["code_changes_made"] += 1
+                
+                iteration_record["status"] = "code_improved"
+                iteration_record["fixes_applied"] = fixes_applied
+                iteration_record["code_similarity"] = code_similarity
+                iteration_record["debug_info"] = debug_info
+                
+                logger.info(f"Applied {len(fixes_applied)} fixes, code similarity: {code_similarity:.2f}")
+                
+            except Exception as fix_error:
+                logger.error(f"Failed to fix code in iteration {iteration}: {str(fix_error)}")
+                iteration_record["status"] = "fix_failed"
+                iteration_record["fix_error"] = str(fix_error)
+                debug_session["iterations"].append(iteration_record)
+                debug_session["final_status"] = "fix_error"
+                debug_session["error"] = str(fix_error)
+                break
+            
+            debug_session["iterations"].append(iteration_record)
+            
+            # Brief pause between iterations
+            await asyncio.sleep(0.3)
+        
+        # Finalize session
+        debug_session["total_execution_time"] = time.time() - session_start_time
+        debug_session["end_time"] = datetime.now().isoformat()
+        debug_session["best_confidence"] = best_confidence
+        debug_session["final_code"] = current_code
+        debug_session["original_code_length"] = len(original_code)
+        debug_session["final_code_length"] = len(current_code)
+        
+        if best_result:
+            debug_session["best_result"] = {
+                "iteration": best_result["iteration"],
+                "confidence": best_confidence,
+                "test_result": best_result["test_result"],
+                "validation": best_result["validation"]
+            }
+        
+        # Determine overall success
+        debug_session["overall_success"] = (
+            debug_session["final_status"] == "success" or
+            (debug_session["final_status"] == "acceptable_result_found" and best_confidence >= 0.6)
+        )
+        
+        logger.info(f"Smart debug completed: {debug_session['final_status']} "
+                   f"(best confidence: {best_confidence:.2f}, "
+                   f"total time: {debug_session['total_execution_time']:.2f}s)")
+        
+        return debug_session
+
+    def _calculate_code_similarity(self, code1: str, code2: str) -> float:
+        """
+        Calculate similarity between two code strings.
+        Returns a value between 0.0 (completely different) and 1.0 (identical).
+        """
+        if code1 == code2:
+            return 1.0
+        
+        # Simple line-based similarity
+        lines1 = set(line.strip() for line in code1.split('\n') if line.strip())
+        lines2 = set(line.strip() for line in code2.split('\n') if line.strip())
+        
+        if not lines1 and not lines2:
+            return 1.0
+        if not lines1 or not lines2:
+            return 0.0
+        
+        intersection = len(lines1.intersection(lines2))
+        union = len(lines1.union(lines2))
+        
+        return intersection / union if union > 0 else 0.0
+
+    def _check_circuit_breaker(self) -> Dict[str, Any]:
+        """
+        Check circuit breaker state and determine if operations should be allowed.
+        
+        Returns:
+            Dict with circuit breaker status and decision
+        """
+        current_time = time.time()
+        
+        # Check if circuit should be reset (after timeout)
+        if (self.circuit_breaker_state["is_open"] and 
+            self.circuit_breaker_state["last_failure_time"] and
+            current_time - self.circuit_breaker_state["last_failure_time"] > self.circuit_breaker_config["reset_timeout"]):
+            
+            logger.info("Circuit breaker reset timeout reached, attempting to close circuit")
+            self.circuit_breaker_state["is_open"] = False
+            self.circuit_breaker_state["failure_count"] = 0
+        
+        # Calculate failure rate
+        failure_rate = 0.0
+        if self.circuit_breaker_state["total_attempts"] > 0:
+            failure_rate = self.circuit_breaker_state["total_failures"] / self.circuit_breaker_state["total_attempts"]
+        
+        # Determine if circuit should be opened
+        should_open = (
+            self.circuit_breaker_state["failure_count"] >= self.circuit_breaker_config["max_failures"] or
+            (self.circuit_breaker_state["total_attempts"] >= 10 and 
+             failure_rate >= self.circuit_breaker_config["failure_threshold"])
+        )
+        
+        if should_open and not self.circuit_breaker_state["is_open"]:
+            logger.warning("Circuit breaker opened due to high failure rate")
+            self.circuit_breaker_state["is_open"] = True
+            self.circuit_breaker_state["last_failure_time"] = current_time
+        
+        return {
+            "is_open": self.circuit_breaker_state["is_open"],
+            "failure_count": self.circuit_breaker_state["failure_count"],
+            "failure_rate": failure_rate,
+            "total_attempts": self.circuit_breaker_state["total_attempts"],
+            "total_failures": self.circuit_breaker_state["total_failures"],
+            "can_proceed": not self.circuit_breaker_state["is_open"]
+        }
+
+    def _record_circuit_breaker_attempt(self, success: bool):
+        """Record an attempt for circuit breaker tracking."""
+        self.circuit_breaker_state["total_attempts"] += 1
+        
+        if success:
+            # Reset consecutive failure count on success
+            self.circuit_breaker_state["failure_count"] = 0
+        else:
+            self.circuit_breaker_state["failure_count"] += 1
+            self.circuit_breaker_state["total_failures"] += 1
+            self.circuit_breaker_state["last_failure_time"] = time.time()
+
+    def _check_rate_limits(self, user_id: str) -> Dict[str, Any]:
+        """
+        Check rate limits for debug sessions.
+        
+        Args:
+            user_id: The user ID to check limits for
+            
+        Returns:
+            Dict with rate limit status
+        """
+        current_time = time.time()
+        one_hour_ago = current_time - 3600
+        
+        # Clean old session history
+        self.session_history = [
+            session for session in self.session_history 
+            if session["timestamp"] > one_hour_ago
+        ]
+        
+        # Count sessions for this user in the last hour
+        user_sessions = [
+            session for session in self.session_history 
+            if session["user_id"] == user_id
+        ]
+        
+        # Check if user has exceeded session limit
+        sessions_in_hour = len(user_sessions)
+        can_start_session = sessions_in_hour < self.rate_limit_config["max_debug_sessions_per_hour"]
+        
+        # Check minimum interval between sessions
+        last_session_time = None
+        if user_sessions:
+            last_session_time = max(session["timestamp"] for session in user_sessions)
+            time_since_last = current_time - last_session_time
+            min_interval_met = time_since_last >= self.rate_limit_config["min_interval_between_sessions"]
+        else:
+            min_interval_met = True
+            time_since_last = None
+        
+        can_proceed = can_start_session and min_interval_met
+        
+        return {
+            "can_proceed": can_proceed,
+            "sessions_in_hour": sessions_in_hour,
+            "max_sessions_per_hour": self.rate_limit_config["max_debug_sessions_per_hour"],
+            "last_session_time": last_session_time,
+            "time_since_last": time_since_last,
+            "min_interval_required": self.rate_limit_config["min_interval_between_sessions"],
+            "min_interval_met": min_interval_met
+        }
+
+    def _record_debug_session(self, user_id: str, session_id: str, success: bool):
+        """Record a debug session for rate limiting."""
+        self.session_history.append({
+            "user_id": user_id,
+            "session_id": session_id,
+            "timestamp": time.time(),
+            "success": success
+        })
+
+    async def protected_smart_debug_with_retry(self, user_id: str, api_slug: str, test_request: dict,
+                                             max_iterations: int = 3, confidence_threshold: float = 0.8,
+                                             user_api_key_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Enhanced debug loop with circuit breaker and rate limiting protection.
+        
+        Args:
+            user_id: The user ID
+            api_slug: The API slug to debug
+            test_request: The test request data
+            max_iterations: Maximum number of debug iterations
+            confidence_threshold: Minimum confidence score to consider result valid
+            user_api_key_id: Optional API key ID for usage tracking
+            
+        Returns:
+            Dict containing comprehensive debug results with protection status
+        """
+        logger.info(f"Starting protected smart debug for {user_id}/{api_slug}")
+        
+        # Check circuit breaker
+        circuit_status = self._check_circuit_breaker()
+        if not circuit_status["can_proceed"]:
+            logger.warning(f"Circuit breaker is open, rejecting debug request")
+            return {
+                "success": False,
+                "error": "Debug service temporarily unavailable due to high failure rate",
+                "circuit_breaker_status": circuit_status,
+                "protection_triggered": "circuit_breaker"
+            }
+        
+        # Check rate limits
+        rate_limit_status = self._check_rate_limits(user_id)
+        if not rate_limit_status["can_proceed"]:
+            logger.warning(f"Rate limit exceeded for user {user_id}")
+            return {
+                "success": False,
+                "error": "Debug session rate limit exceeded",
+                "rate_limit_status": rate_limit_status,
+                "protection_triggered": "rate_limit"
+            }
+        
+        # Enforce maximum iterations limit
+        max_iterations = min(max_iterations, self.rate_limit_config["max_iterations_per_session"])
+        
+        session_id = str(uuid.uuid4())
+        session_success = False
+        
+        try:
+            # Record the attempt
+            self._record_circuit_breaker_attempt(True)  # Optimistic recording
+            
+            # Execute the debug session
+            debug_result = await self.smart_debug_with_retry(
+                user_id=user_id,
+                api_slug=api_slug,
+                test_request=test_request,
+                max_iterations=max_iterations,
+                confidence_threshold=confidence_threshold,
+                user_api_key_id=user_api_key_id
+            )
+            
+            session_success = debug_result.get("overall_success", False)
+            
+            # Update circuit breaker based on actual result
+            self._record_circuit_breaker_attempt(session_success)
+            
+            # Record session for rate limiting
+            self._record_debug_session(user_id, session_id, session_success)
+            
+            # Add protection metadata
+            debug_result["protection_status"] = {
+                "circuit_breaker": circuit_status,
+                "rate_limits": rate_limit_status,
+                "max_iterations_enforced": max_iterations,
+                "session_id": session_id
+            }
+            
+            return debug_result
+            
+        except Exception as e:
+            logger.error(f"Protected debug session failed: {str(e)}")
+            
+            # Record failure
+            self._record_circuit_breaker_attempt(False)
+            self._record_debug_session(user_id, session_id, False)
+            
+            return {
+                "success": False,
+                "error": str(e),
+                "session_id": session_id,
+                "protection_status": {
+                    "circuit_breaker": circuit_status,
+                    "rate_limits": rate_limit_status,
+                    "error_recorded": True
+                }
+            }
+
+    def get_debug_service_status(self) -> Dict[str, Any]:
+        """
+        Get current status of the debug service including circuit breaker and rate limits.
+        
+        Returns:
+            Dict with service status information
+        """
+        circuit_status = self._check_circuit_breaker()
+        
+        # Calculate recent session statistics
+        current_time = time.time()
+        one_hour_ago = current_time - 3600
+        recent_sessions = [
+            session for session in self.session_history 
+            if session["timestamp"] > one_hour_ago
+        ]
+        
+        successful_sessions = sum(1 for session in recent_sessions if session["success"])
+        total_recent_sessions = len(recent_sessions)
+        recent_success_rate = successful_sessions / total_recent_sessions if total_recent_sessions > 0 else 1.0
+        
+        return {
+            "service_available": not circuit_status["is_open"],
+            "circuit_breaker": {
+                "is_open": circuit_status["is_open"],
+                "failure_count": circuit_status["failure_count"],
+                "failure_rate": circuit_status["failure_rate"],
+                "total_attempts": circuit_status["total_attempts"],
+                "total_failures": circuit_status["total_failures"]
+            },
+            "rate_limits": {
+                "max_sessions_per_hour": self.rate_limit_config["max_debug_sessions_per_hour"],
+                "max_iterations_per_session": self.rate_limit_config["max_iterations_per_session"],
+                "min_interval_between_sessions": self.rate_limit_config["min_interval_between_sessions"]
+            },
+            "recent_activity": {
+                "sessions_last_hour": total_recent_sessions,
+                "successful_sessions": successful_sessions,
+                "success_rate": recent_success_rate
+            },
+            "timestamp": datetime.now().isoformat()
+        }
 
 # Global instance
 code_debugger = CodeDebugger() 
