@@ -33,71 +33,44 @@
         <div id="mainContent" class="hidden space-y-6">
             <!-- Header Section -->
             <div class="glass-card rounded-2xl p-8">
-                <div class="flex items-start justify-between mb-6">
-                    <div class="flex items-center space-x-4">
-                        <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                            </svg>
-                        </div>
-                        <div>
-                            <h1 id="apiName" class="text-3xl font-bold text-white mb-2">API Details</h1>
-                            <p id="apiDescription" class="text-slate-400">Loading API information...</p>
-                            <div class="flex items-center space-x-3 mt-3">
-                                <span id="apiStatus" class="api-status-badge status-active">
-                                    <div class="w-2 h-2 bg-current rounded-full mr-2"></div>
-                                    Active
-                                </span>
-                                <span class="text-xs text-slate-500" id="createdDate">Created: Loading...</span>
+                <div class="mb-6">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex items-start space-x-4 flex-1 min-w-0">
+                            <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <h1 id="apiName" class="text-3xl font-bold text-white mb-3">API Details</h1>
+                                <p id="apiDescription" class="text-slate-400 text-base leading-relaxed mb-4 max-w-3xl">Loading API information...</p>
+                                <div class="flex items-center space-x-3">
+                                    <span id="apiStatus" class="api-status-badge status-active">
+                                        <div class="w-2 h-2 bg-current rounded-full mr-2"></div>
+                                        Active
+                                    </span>
+                                    <span class="text-xs text-slate-500" id="createdDate">Created: Loading...</span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="flex space-x-3">
-                        <button onclick="goBack()" class="action-btn btn-secondary">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                            </svg>
-                            Back
-                        </button>
-                        <button onclick="viewDocs()" class="action-btn btn-success">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
-                            View Docs
-                        </button>
-                        <button onclick="testAPI()" class="action-btn btn-primary">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h1m4 0h1m6-10V7a3 3 0 11-6 0V4h6zM4 7v10a2 2 0 002 2h12a2 2 0 002-2V7"></path>
-                            </svg>
-                            Test API
-                        </button>
+                        <div class="flex items-center gap-2 ml-4">
+                            <button onclick="goBack()" class="action-btn-compact btn-secondary">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                                </svg>
+                                Back
+                            </button>
+                            <button onclick="viewDocs()" class="action-btn-compact btn-success">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                View Docs
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- API Metrics -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="metric-card text-center">
-                        <div class="metric-value text-blue-400" id="fileSize">--</div>
-                        <div class="text-sm text-slate-400 mt-1">File Size</div>
-                    </div>
-                    <div class="metric-card text-center">
-                        <div class="metric-value text-green-400" id="lastModified">--</div>
-                        <div class="text-sm text-slate-400 mt-1">Last Modified</div>
-                    </div>
-                    <div class="metric-card text-center">
-                        <div class="metric-value text-purple-400" id="apiVersion">v1.0</div>
-                        <div class="text-sm text-slate-400 mt-1">Version</div>
-                    </div>
-                    <div class="metric-card text-center">
-                        <div class="metric-value text-yellow-400" id="responseTime">--</div>
-                        <div class="text-sm text-slate-400 mt-1">Avg Response</div>
-                    </div>
-                    <div class="metric-card text-center">
-                        <div class="metric-value text-red-400" id="usage">--</div>
-                        <div class="text-sm text-slate-400 mt-1">Usage</div>
-                    </div>
-                </div>
-            </div>
+               
 
             <!-- Tabbed Content -->
             <div class="glass-card rounded-2xl overflow-hidden">
@@ -121,6 +94,12 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                             </svg>
                             Documentation
+                        </button>
+                        <button onclick="switchTab('usage')" class="tab-button" data-tab="usage">
+                            <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                            </svg>
+                            Usage
                         </button>
                         <button onclick="switchTab('code')" class="tab-button" data-tab="code">
                             <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -389,6 +368,116 @@
                                         </svg>
                                         View Full Docs
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Usage Tab -->
+                    <div id="usageTab" class="tab-content hidden">
+                        <div class="space-y-6">
+                            <!-- Usage Overview -->
+                            <div class="grid md:grid-cols-3 gap-6">
+                                <div class="metric-card text-center">
+                                    <div class="metric-value text-blue-400" id="totalExecutions">--</div>
+                                    <div class="text-sm text-slate-400 mt-1">Total Executions</div>
+                                </div>
+                                <div class="metric-card text-center">
+                                    <div class="metric-value text-green-400" id="successfulExecutions">--</div>
+                                    <div class="text-sm text-slate-400 mt-1">Successful</div>
+                                </div>
+                                <div class="metric-card text-center">
+                                    <div class="metric-value text-red-400" id="failedExecutions">--</div>
+                                    <div class="text-sm text-slate-400 mt-1">Failed</div>
+                                </div>
+                            </div>
+
+                            <!-- Usage Statistics -->
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <!-- Token Usage -->
+                                <div class="glass-card rounded-xl p-6">
+                                    <h4 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                        </svg>
+                                        Token Usage
+                                    </h4>
+                                    <div class="space-y-3">
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-300">Average per call:</span>
+                                            <span class="text-purple-300 font-mono" id="avgTokens">--</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-300">Maximum used:</span>
+                                            <span class="text-purple-300 font-mono" id="maxTokens">--</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-300">Minimum used:</span>
+                                            <span class="text-purple-300 font-mono" id="minTokens">--</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-300">Primary model:</span>
+                                            <span class="text-purple-300 font-mono" id="primaryModel">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Cost Analysis -->
+                                <div class="glass-card rounded-xl p-6">
+                                    <h4 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                        </svg>
+                                        Cost Analysis
+                                    </h4>
+                                    <div class="space-y-3">
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-300">Average per call:</span>
+                                            <span class="text-green-300 font-mono" id="avgCost">--</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-300">Total cost:</span>
+                                            <span class="text-green-300 font-mono" id="totalCost">--</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-300">Maximum per call:</span>
+                                            <span class="text-green-300 font-mono" id="maxCost">--</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-300">Processing type:</span>
+                                            <span class="text-green-300 font-mono" id="processingType">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recent Executions -->
+                            <div class="glass-card rounded-xl p-6">
+                                <h4 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Recent Executions
+                                </h4>
+                                <div id="recentExecutions" class="space-y-3">
+                                    <div class="text-center py-8 text-slate-400">
+                                        Loading usage data...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Usage Timeline -->
+                            <div class="glass-card rounded-xl p-6">
+                                <h4 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                    </svg>
+                                    Usage Timeline (Last 30 Days)
+                                </h4>
+                                <div id="usageTimeline" class="mt-4">
+                                    <div class="text-center py-8 text-slate-400">
+                                        No usage data available for the selected period
+                                    </div>
                                 </div>
                             </div>
                         </div>
