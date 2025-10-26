@@ -44,8 +44,13 @@ function populateAPIDetails(data) {
         const apiDescEl = document.getElementById('apiDescription');
         const createdDateEl = document.getElementById('createdDate');
         
-        if (apiNameEl) apiNameEl.textContent = data.api_name || `API ${apiSlug}`;
-        if (apiDescEl) apiDescEl.textContent = truncateText(data.prompt || 'No description available', 120);
+        // Extract API name from prompt if not already set
+        const apiName = extractAPINameFromPrompt(data.prompt || '', data.api_name || `API ${apiSlug}`);
+        if (apiNameEl) apiNameEl.textContent = apiName;
+        // Parse description from prompt to show only clean description
+        const cleanDescription = extractDescriptionFromPrompt(data.prompt || '');
+        // Display full description without truncation for better readability
+        if (apiDescEl) apiDescEl.textContent = cleanDescription;
         if (createdDateEl) createdDateEl.textContent = `Created: ${formatDate(data.created_at)}`;
         
         // Status
@@ -74,7 +79,11 @@ function populateAPIDetails(data) {
         const savedAtEl = document.getElementById('savedAt');
         
         if (endpointUrlEl) endpointUrlEl.textContent = data.endpoint_url || '--';
-        if (originalPromptEl) originalPromptEl.textContent = data.prompt || 'No prompt available';
+        // Extract cleaner version of original prompt
+        if (originalPromptEl) {
+            const cleanPrompt = extractOriginalUserRequest(data.prompt || '');
+            originalPromptEl.textContent = cleanPrompt || data.prompt || 'No prompt available';
+        }
         if (createdAtEl) createdAtEl.textContent = formatDateTime(data.created_at);
         if (savedAtEl) savedAtEl.textContent = data.saved_at ? formatDateTime(data.saved_at) : 'Not saved';
         
@@ -138,6 +147,11 @@ function switchTab(tabName) {
     // Show selected tab
     document.getElementById(tabName + 'Tab').classList.remove('hidden');
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    
+    // Load usage data when switching to usage tab
+    if (tabName === 'usage') {
+        loadUsageData();
+    }
 }
 
 // Action functions
@@ -252,6 +266,51 @@ async function runAPITestDetails() {
         // Use execution time from the test result if available, otherwise use request time
         const executionTimeMs = testResult.execution_time ? Math.round(testResult.execution_time * 1000) : requestTime;
         responseTimeEl.textContent = `${executionTimeMs}ms`;
+        
+        // Display pricing information if available
+        if (testResult.response_headers) {
+            const costPerCall = testResult.response_headers['x-cost-per-call-cents'];
+            const tokensPerCall = testResult.response_headers['x-internal-tokens-per-call'];
+            const aiModel = testResult.response_headers['x-ai-model-used'];
+            
+            if (costPerCall && tokensPerCall) {
+                // Create or update pricing display
+                let pricingEl = document.getElementById('api-pricing-info');
+                if (!pricingEl) {
+                    pricingEl = document.createElement('div');
+                    pricingEl.id = 'api-pricing-info';
+                    pricingEl.className = 'mt-4 p-3 bg-blue-900/30 border border-blue-500/30 rounded-lg';
+                    testResultsDiv.appendChild(pricingEl);
+                }
+                
+                const isFirstTimeAnalysis = testResult.response_headers['x-first-time-analysis'] === 'true';
+                const analysisNote = isFirstTimeAnalysis ? 
+                    '<div class="text-xs text-blue-300 mt-1">💡 Pricing calculated by analyzing your API code</div>' : '';
+                
+                pricingEl.innerHTML = `
+                    <div class="text-sm font-medium text-blue-200 mb-2">💰 API Pricing Information</div>
+                    <div class="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                            <span class="text-gray-400">Cost per call:</span>
+                            <span class="text-green-300 font-mono ml-2">${costPerCall}¢</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">Tokens per call:</span>
+                            <span class="text-blue-300 font-mono ml-2">${tokensPerCall}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">AI Model:</span>
+                            <span class="text-purple-300 font-mono ml-2">${aiModel || 'none'}</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">Processing:</span>
+                            <span class="text-yellow-300 font-mono ml-2">${aiModel === 'none' ? 'Free' : 'AI-Powered'}</span>
+                        </div>
+                    </div>
+                    ${analysisNote}
+                `;
+            }
+        }
 
         // Response body - show the actual API response or error
         let displayData;
@@ -481,5 +540,277 @@ function formatTestInput() {
     } catch (e) {
         showNotification('Invalid JSON input. Please enter a valid JSON object.', 'error');
     }
+}
+
+function extractAPINameFromPrompt(promptText, fallbackName) {
+    if (!promptText || typeof promptText !== 'string') return fallbackName;
+    
+    // Try to extract API name from structured prompt
+    // Pattern: "API Name: ..." or "Name: ..."
+    const nameMatch = promptText.match(/(?:API Name|Name):\s*([^\n]+)/i);
+    if (nameMatch && nameMatch[1]) {
+        return nameMatch[1].trim();
+    }
+    
+    // Try to extract from prompt that starts with name
+    const inlineMatch = promptText.match(/^([^\n:]+?)(?:\s+Description:)/i);
+    if (inlineMatch && inlineMatch[1]) {
+        return inlineMatch[1].trim();
+    }
+    
+    // Return the fallback name
+    return fallbackName;
+}
+
+function extractOriginalUserRequest(promptText) {
+    if (!promptText || typeof promptText !== 'string') return null;
+    
+    // Try to extract "Original User Request:" section if present
+    const originalRequestMatch = promptText.match(/Original User Request:\s*(.+)$/i);
+    if (originalRequestMatch && originalRequestMatch[1]) {
+        return originalRequestMatch[1].trim();
+    }
+    
+    // If prompt starts with simple user request (not "Build an API with these specifications:")
+    if (!promptText.match(/^Build an API with these specifications:/i) && promptText.length < 500) {
+        // Looks like a simple user request, return it
+        return promptText.trim();
+    }
+    
+    return null;
+}
+
+function extractDescriptionFromPrompt(promptText) {
+    if (!promptText || typeof promptText !== 'string') return 'No description available';
+    
+    // Try to extract description from structured prompt
+    // Pattern: "Description: ..." followed by potential continuation lines until next section
+    const descMatch = promptText.match(/Description:\s*([^\n]+(?:\n(?!\s*(?:Functionality:|Endpoints:|Input Format:|Output Format:|API Name:))[^\n]*)*)/i);
+    if (descMatch && descMatch[1]) {
+        let description = descMatch[1].trim();
+        // Clean up description - remove any remaining headers
+        description = description.replace(/^\s*(API Name:|Name:|Functionality:).*$/gmi, '');
+        description = description.replace(/\n\s*(Functionality:|Endpoints:|Input Format:|Output Format:).*/i, '');
+        return description.trim();
+    }
+    
+    // If no structured format, try to extract from common patterns
+    // Remove common prefixes like "Build an API with these specifications:"
+    let cleaned = promptText.replace(/^Build an API with these specifications:\s*/i, '');
+    
+    // Remove "API Name: ..." if present
+    cleaned = cleaned.replace(/API Name:\s*[^\n]+\n?\s*/i, '');
+    
+    // If it starts with "Description:", extract it
+    const descMatch2 = cleaned.match(/^Description:\s*((?:.|\n)+?)(?:\n\s*(?:Functionality:|Endpoints:|Input Format:|Output Format:)|$)/i);
+    if (descMatch2) {
+        return descMatch2[1].trim();
+    }
+    
+    // If the prompt looks like "Name: X Description: Y", extract description
+    const simpleDescMatch = cleaned.match(/Description:\s*(.+?)(?:\n|$)/is);
+    if (simpleDescMatch && simpleDescMatch[1].trim()) {
+        return simpleDescMatch[1].trim();
+    }
+    
+    // If no Description: found, try to extract any meaningful text after removing boilerplate
+    cleaned = cleaned.replace(/^(API Name:.*?\n)?/i, '');
+    if (cleaned && cleaned.trim() && cleaned.length > 10) {
+        // Return cleaned text, but only up to first major section
+        const firstSection = cleaned.split(/\n\s*(?:Functionality:|Endpoints:|Input Format:|Output Format:)/i)[0];
+        return firstSection.trim();
+    }
+    
+    // Fallback: return the prompt itself
+    return promptText;
+}
+
+// Usage Data Loading Functions
+async function loadUsageData() {
+    try {
+        showUsageLoading();
+        
+        const response = await fetch(`/api/${userId}/${apiSlug}/usage-stats?days=30`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            populateUsageData(data);
+        } else {
+            showUsageError(data.detail || 'Failed to load usage data');
+        }
+    } catch (error) {
+        console.error('Error loading usage data:', error);
+        showUsageError('Network error: ' + error.message);
+    }
+}
+
+function populateUsageData(data) {
+    try {
+        // Update overview metrics
+        if (data.usage_stats) {
+            const stats = data.usage_stats;
+            document.getElementById('totalExecutions').textContent = stats.total_executions || 0;
+            document.getElementById('successfulExecutions').textContent = stats.successful_executions || 0;
+            document.getElementById('failedExecutions').textContent = stats.failed_executions || 0;
+            
+            // Update token usage
+            document.getElementById('avgTokens').textContent = stats.avg_total_tokens ? Math.round(stats.avg_total_tokens) : '--';
+            document.getElementById('maxTokens').textContent = stats.max_tokens_used || '--';
+            document.getElementById('minTokens').textContent = stats.min_tokens_used || '--';
+            document.getElementById('primaryModel').textContent = stats.primary_model_used || 'none';
+            
+            // Update cost analysis
+            const avgCostCents = stats.avg_cost_per_call_cents || 0;
+            const totalCostCents = stats.total_cost_cents || 0;
+            const maxCostCents = stats.max_cost_per_call_cents || 0;
+            
+            document.getElementById('avgCost').textContent = avgCostCents > 0 ? `${avgCostCents.toFixed(4)}¢` : 'Free';
+            document.getElementById('totalCost').textContent = totalCostCents > 0 ? `${totalCostCents.toFixed(2)}¢` : 'Free';
+            document.getElementById('maxCost').textContent = maxCostCents > 0 ? `${maxCostCents.toFixed(4)}¢` : 'Free';
+            document.getElementById('processingType').textContent = stats.primary_model_used && stats.primary_model_used !== 'none' ? 'AI-Powered' : 'Free';
+        } else {
+            // No usage data available
+            document.getElementById('totalExecutions').textContent = '0';
+            document.getElementById('successfulExecutions').textContent = '0';
+            document.getElementById('failedExecutions').textContent = '0';
+            document.getElementById('avgTokens').textContent = '--';
+            document.getElementById('maxTokens').textContent = '--';
+            document.getElementById('minTokens').textContent = '--';
+            document.getElementById('primaryModel').textContent = 'none';
+            document.getElementById('avgCost').textContent = 'Free';
+            document.getElementById('totalCost').textContent = 'Free';
+            document.getElementById('maxCost').textContent = 'Free';
+            document.getElementById('processingType').textContent = 'Free';
+        }
+        
+        // Update recent executions
+        populateRecentExecutions(data.recent_executions || []);
+        
+        // Update usage timeline
+        populateUsageTimeline(data);
+        
+    } catch (error) {
+        console.error('Error populating usage data:', error);
+        showUsageError('Failed to display usage data: ' + error.message);
+    }
+}
+
+function populateRecentExecutions(executions) {
+    const container = document.getElementById('recentExecutions');
+    
+    if (!executions || executions.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-slate-400">
+                No recent executions found
+            </div>
+        `;
+        return;
+    }
+    
+    const executionHtml = executions.map(execution => {
+        const statusClass = execution.success ? 'text-green-400' : 'text-red-400';
+        const statusIcon = execution.success ? '✓' : '✗';
+        const date = new Date(execution.created_at).toLocaleString();
+        
+        return `
+            <div class="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-600/30">
+                <div class="flex items-center space-x-3">
+                    <span class="${statusClass} font-mono text-lg">${statusIcon}</span>
+                    <div>
+                        <div class="text-white text-sm font-medium">${execution.api_slug}</div>
+                        <div class="text-slate-400 text-xs">${date}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-slate-300 text-sm">${execution.execution_time_ms}ms</div>
+                    <div class="text-slate-400 text-xs">
+                        ${formatBytes(execution.input_data_size + execution.output_data_size)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = executionHtml;
+}
+
+function populateUsageTimeline(data) {
+    const container = document.getElementById('usageTimeline');
+    
+    if (!data.has_usage_data) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-slate-400">
+                No usage data available for the selected period
+            </div>
+        `;
+        return;
+    }
+    
+    // Simple timeline representation
+    const stats = data.usage_stats;
+    const timelineHtml = `
+        <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 bg-slate-800/30 rounded-lg border border-slate-600/30">
+                <div>
+                    <div class="text-white font-medium">First Execution</div>
+                    <div class="text-slate-400 text-sm">${new Date(stats.first_execution).toLocaleDateString()}</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-blue-400 font-mono">${stats.total_executions} calls</div>
+                    <div class="text-slate-400 text-sm">Total</div>
+                </div>
+            </div>
+            <div class="flex items-center justify-between p-4 bg-slate-800/30 rounded-lg border border-slate-600/30">
+                <div>
+                    <div class="text-white font-medium">Last Execution</div>
+                    <div class="text-slate-400 text-sm">${new Date(stats.last_execution).toLocaleDateString()}</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-green-400 font-mono">${((stats.successful_executions / stats.total_executions) * 100).toFixed(1)}%</div>
+                    <div class="text-slate-400 text-sm">Success Rate</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = timelineHtml;
+}
+
+function showUsageLoading() {
+    // Show loading state for all usage elements
+    const loadingText = 'Loading...';
+    document.getElementById('totalExecutions').textContent = loadingText;
+    document.getElementById('successfulExecutions').textContent = loadingText;
+    document.getElementById('failedExecutions').textContent = loadingText;
+    document.getElementById('avgTokens').textContent = loadingText;
+    document.getElementById('maxTokens').textContent = loadingText;
+    document.getElementById('minTokens').textContent = loadingText;
+    document.getElementById('primaryModel').textContent = loadingText;
+    document.getElementById('avgCost').textContent = loadingText;
+    document.getElementById('totalCost').textContent = loadingText;
+    document.getElementById('maxCost').textContent = loadingText;
+    document.getElementById('processingType').textContent = loadingText;
+    
+    document.getElementById('recentExecutions').innerHTML = `
+        <div class="text-center py-8 text-slate-400">
+            Loading usage data...
+        </div>
+    `;
+}
+
+function showUsageError(message) {
+    document.getElementById('recentExecutions').innerHTML = `
+        <div class="text-center py-8 text-red-400">
+            Error: ${message}
+        </div>
+    `;
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 

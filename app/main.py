@@ -2932,6 +2932,63 @@ async def get_api_execution_limits(
         logger.error(f"Failed to get API execution limits: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get execution limits: {str(e)}")
 
+@app.get("/api/{user_id}/{api_slug}/usage-stats")
+async def get_api_usage_stats(
+    user_id: str,
+    api_slug: str,
+    days: int = 30,
+    current_user: User = Depends(require_auth_or_api_key)
+):
+    """Get comprehensive usage statistics for a specific API."""
+    try:
+        # Verify user has access to this API
+        if current_user.id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Check if API exists
+        if not file_service.api_exists(user_id, api_slug):
+            raise HTTPException(status_code=404, detail="API not found")
+        
+        # Get usage statistics from the aggregator
+        from app.services.api_usage_aggregator import APIUsageAggregator
+        usage_aggregator = APIUsageAggregator()
+        
+        usage_stats = await usage_aggregator.get_api_usage_stats(
+            api_slug=api_slug,
+            user_id=user_id,
+            days_back=days
+        )
+        
+        # Get execution statistics as well
+        execution_stats = await api_execution_usage_service.get_execution_stats(
+            user_id=user_id,
+            days=days
+        )
+        
+        # Filter execution stats for this specific API
+        api_execution_data = None
+        if hasattr(execution_stats, 'by_api') and api_slug in execution_stats.by_api:
+            api_execution_data = execution_stats.by_api[api_slug]
+        
+        # Combine the data
+        response_data = {
+            "api_slug": api_slug,
+            "user_id": user_id,
+            "days_analyzed": days,
+            "has_usage_data": usage_stats is not None,
+            "usage_stats": usage_stats.__dict__ if usage_stats else None,
+            "execution_data": api_execution_data,
+            "recent_executions": execution_stats.recent_executions if hasattr(execution_stats, 'recent_executions') else []
+        }
+        
+        return response_data
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get API usage stats for {api_slug}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get usage statistics: {str(e)}")
+
 @app.get("/api-execution-stats/{api_slug}", response_model=APIExecutionStatsResponse)
 async def get_api_execution_stats_by_slug(
     api_slug: str,
