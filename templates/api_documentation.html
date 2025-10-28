@@ -1747,8 +1747,12 @@ if ($httpCode == 200) {
         if (sections.endpoints) {
             const endpointsContent = document.getElementById('endpoints-content');
             if (endpointsContent) {
-                endpointsContent.innerHTML = parseMarkdown(sections.endpoints);
-                console.log('Populated endpoints content from parsed documentation');
+                // Hide raw endpoints markdown to avoid duplicating the styled endpoint card below
+                endpointsContent.innerHTML = '';
+                const proseContainer = endpointsContent.closest('.prose');
+                if (proseContainer) {
+                    proseContainer.style.display = 'none';
+                }
             }
         }
         
@@ -2028,6 +2032,15 @@ if ($httpCode == 200) {
         // Create clean description from data
         const cleanDescription = createCleanDescription(data);
         
+        // Extract parameters from OpenAPI spec or use defaults
+        const parameters = extractParametersFromData(data);
+        
+        // Extract example request from sample_input or use defaults
+        const exampleRequest = extractExampleRequest(data);
+        
+        // Extract example responses from expected_output or use defaults
+        const exampleResponses = extractExampleResponses(data);
+        
         // Main endpoint
         const endpointHtml = `
             <div class="endpoint-card">
@@ -2060,12 +2073,14 @@ if ($httpCode == 200) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td><span class="param-name">data</span></td>
-                                        <td><span class="param-type">object</span></td>
-                                        <td><span class="param-optional">optional</span></td>
-                                        <td>Request payload data</td>
-                                    </tr>
+                                    ${parameters.map(param => `
+                                        <tr>
+                                            <td><span class="param-name">${param.name}</span></td>
+                                            <td><span class="param-type">${param.type}</span></td>
+                                            <td><span class="param-${param.required ? 'required' : 'optional'}">${param.required ? 'required' : 'optional'}</span></td>
+                                            <td>${param.description}</td>
+                                        </tr>
+                                    `).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -2077,11 +2092,7 @@ if ($httpCode == 200) {
                                     <button class="copy-btn" onclick="copyCode('example-request')">Copy</button>
                                 </div>
                                 <div class="code-content">
-                                    <pre><code id="example-request" class="language-json">{
-  "example": "value",
-  "key": "data",
-  "timestamp": "2024-01-01T00:00:00Z"
-}</code></pre>
+                                    <pre><code id="example-request" class="language-json">${JSON.stringify(exampleRequest, null, 2)}</code></pre>
                                 </div>
                             </div>
                         </div>
@@ -2089,44 +2100,94 @@ if ($httpCode == 200) {
                     
                     <h4 class="text-lg font-semibold text-white mb-3 mt-6">Responses</h4>
                     
-                    <div class="response-example">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="status-badge status-200">200</span>
-                            <span class="text-white font-medium">Success</span>
-                        </div>
-                        <div class="code-block">
-                            <div class="code-content">
-                                <pre><code class="language-json">{
-  "success": true,
-  "data": {
-    "result": "processed successfully"
-  },
-  "timestamp": "2024-01-01T00:00:00Z"
-}</code></pre>
+                    ${exampleResponses.map(response => `
+                        <div class="response-example">
+                            <div class="flex items-center gap-2 mb-3">
+                                <span class="status-badge status-${response.status}">${response.status}</span>
+                                <span class="text-white font-medium">${response.title}</span>
+                            </div>
+                            <div class="code-block">
+                                <div class="code-content">
+                                    <pre><code class="language-json">${JSON.stringify(response.body, null, 2)}</code></pre>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="error-example">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="status-badge status-400">400</span>
-                            <span class="text-white font-medium">Bad Request</span>
-                        </div>
-                        <div class="code-block">
-                            <div class="code-content">
-                                <pre><code class="language-json">{
-  "error": "Invalid request format",
-  "message": "Request body must be valid JSON",
-  "timestamp": "2024-01-01T00:00:00Z"
-}</code></pre>
-                            </div>
-                        </div>
-                    </div>
+                    `).join('')}
                 </div>
             </div>
         `;
         
         endpointList.innerHTML = endpointHtml;
+    }
+    
+    // Extract parameters from OpenAPI spec or API data
+    function extractParametersFromData(data) {
+        const parameters = [];
+        
+        // Try to extract from OpenAPI spec first
+        if (data.openapi_spec) {
+            try {
+                const spec = typeof data.openapi_spec === 'string' ? JSON.parse(data.openapi_spec) : data.openapi_spec;
+                const paths = spec.paths || {};
+                const pathKey = Object.keys(paths)[0];
+                if (pathKey && paths[pathKey].post && paths[pathKey].post.requestBody) {
+                    const schema = paths[pathKey].post.requestBody.content?.['application/json']?.schema;
+                    if (schema && schema.properties) {
+                        for (const [name, prop] of Object.entries(schema.properties)) {
+                            parameters.push({
+                                name: name,
+                                type: prop.type || 'string',
+                                required: schema.required?.includes(name) || false,
+                                description: prop.description || `Parameter: ${name}`
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Failed to parse OpenAPI spec:', e);
+            }
+        }
+        
+        // If no parameters found from OpenAPI spec, return empty array
+        // No hardcoded fallbacks - only use real data
+        
+        return parameters;
+    }
+    
+    // Extract example request from sample_input only
+    function extractExampleRequest(data) {
+        if (data.sample_input) {
+            try {
+                return JSON.parse(data.sample_input);
+            } catch (e) {
+                console.log('Failed to parse sample_input:', e);
+            }
+        }
+        
+        // Return empty object if no sample_input available
+        return {};
+    }
+    
+    // Extract example responses from expected_output only
+    function extractExampleResponses(data) {
+        const responses = [];
+        
+        // Try to extract from expected_output
+        if (data.expected_output) {
+            try {
+                const output = JSON.parse(data.expected_output);
+                responses.push({
+                    status: '200',
+                    title: 'Success',
+                    body: output
+                });
+            } catch (e) {
+                console.log('Failed to parse expected_output:', e);
+            }
+        }
+        
+        // Return empty array if no expected_output available
+        return responses;
     }
 
     // Setup interactive testing

@@ -9,6 +9,12 @@ let conversationState = null; // "proposal", "code_generated", null
 let currentProposalId = null; // Unique identifier for current proposal session
 let currentProposal = null; // Store current proposal data
 
+// Message queue for staggered status updates
+let messageQueue = [];
+let isProcessingQueue = false;
+let lastMessageTime = 0;
+const MIN_MESSAGE_DELAY = 500;//500 milliseconds between messages
+
 // Helper function to detect if a message is a modification request using cheap LLM classification
 async function isModificationRequest(message) {
     try {
@@ -503,7 +509,7 @@ async function sendMessage() {
 
             // Show typing indicator with generation mode info
         const modeText = generationMode === 'multi-step' ? 
-            `Analyzing your request... (Multi-step)` : 
+            `Analyzing your request...` : 
             "Analyzing your request... (Single-step)";
         showTypingIndicator(modeText);
 
@@ -610,7 +616,8 @@ async function sendMessage() {
 }
 
 async function generateAPI(message, userId, skipAnalysis = true) {
-    // Check if multi-step mode is enabled and use streaming
+    
+    generationMode = 'multi-step';
     if (generationMode === 'multi-step') {
         return await generateAPIStream(message, userId, skipAnalysis);
     }
@@ -704,6 +711,11 @@ async function generateAPIStream(message, userId, skipAnalysis = true) {
     try {
         console.log(`Starting streaming API generation - Mode: ${generationMode}`);
         
+        // Reset message queue for new generation
+        messageQueue = [];
+        isProcessingQueue = false;
+        lastMessageTime = 0;
+        
         // Clear any existing typing indicator
         hideTypingIndicator();
         
@@ -780,11 +792,13 @@ async function handleStreamEvent(event) {
 
     switch (type) {
         case 'chat_message':
-            handleChatMessage(data);
+            // Queue chat messages for staggered display
+            queueMessage(() => handleChatMessage(data));
             break;
         
         case 'step_start':
-            handleStepStart(data);
+            // Queue step start messages
+            queueMessage(() => handleStepStart(data));
             break;
         
         case 'step_phase':
@@ -792,7 +806,8 @@ async function handleStreamEvent(event) {
             break;
         
         case 'step_complete':
-            handleStepComplete(data);
+            // Queue step complete messages
+            queueMessage(() => handleStepComplete(data));
             break;
         
         case 'step_error':
@@ -816,20 +831,47 @@ async function handleStreamEvent(event) {
     }
 }
 
+// Queue messages to be processed with delays
+function queueMessage(handler) {
+    messageQueue.push(handler);
+    processQueue();
+}
+
+// Process the message queue with delays
+async function processQueue() {
+    if (isProcessingQueue || messageQueue.length === 0) {
+        return;
+    }
+    
+    isProcessingQueue = true;
+    
+    while (messageQueue.length > 0) {
+        const handler = messageQueue.shift();
+        
+        // Calculate delay needed to maintain minimum time between messages
+        const now = Date.now();
+        const timeSinceLastMessage = now - lastMessageTime;
+        const delayNeeded = Math.max(0, MIN_MESSAGE_DELAY - timeSinceLastMessage);
+        
+        // Wait for the required delay
+        if (delayNeeded > 0) {
+            await new Promise(resolve => setTimeout(resolve, delayNeeded));
+        }
+        
+        // Execute the handler and update last message time
+        handler();
+        lastMessageTime = Date.now();
+    }
+    
+    isProcessingQueue = false;
+}
+
 // Handle chat message events
 function handleChatMessage(data) {
-    const { message, phase, typing_delay, message_type } = data;
+    const { message, phase, message_type } = data;
     
-    // Add typing effect for AI messages
-    if (typing_delay && typing_delay > 0) {
-        showTypingIndicator(message);
-        setTimeout(() => {
-            hideTypingIndicator();
-            addStreamingMessage(message, message_type || phase);
-        }, typing_delay * 1000);
-    } else {
-        addStreamingMessage(message, message_type || phase);
-    }
+    // Add streaming message directly - no typing indicator for streaming messages
+    addStreamingMessage(message, message_type || phase);
 }
 
 // Handle step start events
@@ -2857,28 +2899,65 @@ function extractAPIDescription(documentation) {
 function updateParametersTable(apiData) {
     const container = document.getElementById('parametersTable');
     
+    // Debug logging to understand what data we have
+    console.log('updateParametersTable called with apiData:', apiData);
+    console.log('sample_input:', apiData.sample_input);
+    console.log('documentation:', apiData.documentation);
+    console.log('curl_example:', apiData.curl_example);
+    console.log('openapi_spec:', apiData.openapi_spec);
+    
     // Try multiple sources for parameters
     let params = [];
     
-    // First, try to extract from sample_input if available
-    if (apiData.sample_input) {
+    // First, try to extract from OpenAPI spec if available
+    if (apiData.openapi_spec) {
+        console.log('Trying to extract parameters from OpenAPI spec...');
+        params = extractParametersFromOpenAPISpec(apiData.openapi_spec);
+        console.log('Parameters from OpenAPI spec:', params);
+    }
+    
+    // If no parameters from OpenAPI spec, try sample_input
+    if (params.length === 0 && apiData.sample_input) {
+        console.log('Trying to extract parameters from sample_input...');
         params = extractParametersFromSampleInput(apiData.sample_input);
+        console.log('Parameters from sample_input:', params);
     }
     
     // If no parameters from sample_input, try documentation
     if (params.length === 0) {
+        console.log('Trying to extract parameters from documentation...');
         params = extractParametersFromDocumentation(apiData.documentation);
+        console.log('Parameters from documentation:', params);
     }
     
     // If still no parameters, try curl example
     if (params.length === 0 && apiData.curl_example) {
+        console.log('Trying to extract parameters from curl example...');
         params = extractParametersFromCurlExample(apiData.curl_example);
+        console.log('Parameters from curl example:', params);
+    }
+    
+    // If still no parameters, try to extract from generated code (if available)
+    if (params.length === 0 && apiData.api_slug && apiData.user_id) {
+        console.log('Trying to extract parameters from generated code...');
+        extractParametersFromCode(apiData.user_id, apiData.api_slug).then(codeParams => {
+            if (codeParams.length > 0) {
+                console.log('Parameters from code analysis:', codeParams);
+                // Update the parameters table with code-extracted parameters
+                updateParametersTableWithParams(codeParams);
+            }
+        }).catch(e => {
+            console.log('Failed to extract parameters from code:', e);
+        });
     }
     
     if (params.length === 0) {
+        console.log('No parameters found from any source');
         container.innerHTML = '<div class="text-slate-400 text-sm text-center py-8">No parameters defined</div>';
         return;
     }
+    
+    console.log('Final parameters to display:', params);
     
     const tableHTML = `
         <table class="w-full text-sm">
@@ -2915,8 +2994,11 @@ function extractParametersFromDocumentation(documentation) {
     
     if (!documentation) {
         // Return empty array instead of generic parameters
+        console.log('No documentation provided to extractParametersFromDocumentation');
         return params;
     }
+    
+    console.log('extractParametersFromDocumentation called with:', documentation);
     
     // Enhanced parameter extraction from markdown documentation
     const doc = documentation.toLowerCase();
@@ -3034,18 +3116,86 @@ function extractParametersFromDocumentation(documentation) {
     
     // Only use very specific fallbacks for very obvious cases
     if (params.length === 0) {
+        console.log('No parameters found in documentation, checking for specific patterns...');
         // Only add parameters if the documentation clearly indicates specific input types
         if (doc.includes('pdf') && doc.includes('file')) {
             params.push({name: 'file', type: 'file', required: true, example: 'document.pdf'});
+            console.log('Added PDF file parameter');
         } else if (doc.includes('image') && (doc.includes('upload') || doc.includes('file'))) {
             params.push({name: 'image', type: 'file', required: true, example: 'image.jpg'});
+            console.log('Added image file parameter');
         } else if (doc.includes('url') && doc.includes('scrape')) {
             params.push({name: 'url', type: 'string', required: true, example: '"https://example.com"'});
+            console.log('Added URL parameter');
         }
         // Don't add generic text/data parameters anymore
     }
     
+    console.log('extractParametersFromDocumentation returning:', params);
     return params;
+}
+
+function extractParametersFromOpenAPISpec(openApiSpec) {
+    const params = [];
+    
+    try {
+        // Parse the OpenAPI spec if it's a string
+        const spec = typeof openApiSpec === 'string' ? JSON.parse(openApiSpec) : openApiSpec;
+        console.log('Parsed OpenAPI spec:', spec);
+        
+        // Look for paths and their request bodies
+        if (spec.paths) {
+            for (const [path, pathObj] of Object.entries(spec.paths)) {
+                for (const [method, methodObj] of Object.entries(pathObj)) {
+                    if (methodObj.requestBody && methodObj.requestBody.content) {
+                        const content = methodObj.requestBody.content;
+                        
+                        // Check for JSON content
+                        if (content['application/json'] && content['application/json'].schema) {
+                            const schema = content['application/json'].schema;
+                            console.log('Found request schema:', schema);
+                            
+                            if (schema.properties) {
+                                for (const [propName, propDef] of Object.entries(schema.properties)) {
+                                    let example = propDef.example || getExampleForType(propDef.type);
+                                    
+                                    params.push({
+                                        name: propName,
+                                        type: propDef.type || 'string',
+                                        required: schema.required ? schema.required.includes(propName) : false,
+                                        example: example,
+                                        description: propDef.description || ''
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.log('Failed to parse OpenAPI spec:', e);
+    }
+    
+    return params;
+}
+
+function getExampleForType(type) {
+    switch (type) {
+        case 'string':
+            return '"example text"';
+        case 'number':
+        case 'integer':
+            return '123';
+        case 'boolean':
+            return 'true';
+        case 'array':
+            return '["item1", "item2"]';
+        case 'object':
+            return '{"key": "value"}';
+        default:
+            return '"example"';
+    }
 }
 
 function extractParametersFromSampleInput(sampleInput) {
@@ -3131,6 +3281,93 @@ function extractParametersFromCurlExample(curlExample) {
     }
     
     return params;
+}
+
+async function extractParametersFromCode(userId, apiSlug) {
+    try {
+        // Fetch the generated code
+        const response = await fetch(`/api/${userId}/${apiSlug}/code`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch API code');
+        }
+        
+        const codeData = await response.json();
+        const code = codeData.code;
+        
+        const params = [];
+        
+        // Look for input_data access patterns in the code
+        const inputPatterns = [
+            /input_data\[['"](\w+)['"]\]/g,
+            /input_data\.get\(['"](\w+)['"]\)/g,
+            /data\[['"](\w+)['"]\]/g,
+            /data\.get\(['"](\w+)['"]\)/g,
+            /request_data\[['"](\w+)['"]\]/g,
+            /request_data\.get\(['"](\w+)['"]\)/g
+        ];
+        
+        const foundParams = new Set();
+        
+        for (const pattern of inputPatterns) {
+            let match;
+            while ((match = pattern.exec(code)) !== null) {
+                foundParams.add(match[1]);
+            }
+        }
+        
+        // Convert to parameter objects
+        foundParams.forEach(paramName => {
+            params.push({
+                name: paramName,
+                type: 'string', // Default type, could be enhanced with more analysis
+                required: true,
+                example: `"example ${paramName}"`
+            });
+        });
+        
+        return params;
+    } catch (e) {
+        console.log('Error extracting parameters from code:', e);
+        return [];
+    }
+}
+
+function updateParametersTableWithParams(params) {
+    const container = document.getElementById('parametersTable');
+    
+    if (params.length === 0) {
+        container.innerHTML = '<div class="text-slate-400 text-sm text-center py-8">No parameters defined</div>';
+        return;
+    }
+    
+    const tableHTML = `
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-600/50">
+                    <th class="text-left py-2 text-green-300 font-medium">Name</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Type</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Required</th>
+                    <th class="text-left py-2 text-green-300 font-medium">Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${params.map(param => `
+                    <tr class="border-b border-slate-700/50">
+                        <td class="py-2 text-white font-mono">${param.name}</td>
+                        <td class="py-2 text-blue-300">${param.type}</td>
+                        <td class="py-2">
+                            <span class="px-2 py-1 rounded text-xs ${param.required ? 'bg-red-600/20 text-red-300' : 'bg-gray-600/20 text-gray-300'}">
+                                ${param.required ? 'Required' : 'Optional'}
+                            </span>
+                        </td>
+                        <td class="py-2 text-slate-300 font-mono">${param.example}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    container.innerHTML = tableHTML;
 }
 
 function updateExampleResponse(apiData) {
@@ -3632,18 +3869,17 @@ async function runPreviewTest() {
             
             // Show user-friendly error message instead of raw error
             responseBody.innerHTML = `
-                <div class="text-red-300 text-center py-4">
-                    <div class="text-lg mb-2">⚠️ Test Failed</div>
-                    <div class="text-sm mb-3">The test was invalid. Please check your input and try again.</div>
-                    <div class="mb-4">
+                <div class="text-red-300 text-center py-2">
+                    <div class="text-sm mb-2">⚠️ Test failed - please try again</div>
+                    <div class="mb-2">
                         <button onclick="runPreviewTest()" 
-                                class="px-4 py-2 bg-red-600/20 text-red-300 border border-red-500/30 rounded-lg hover:bg-red-600/30 transition-all duration-200 text-sm">
-                            🔄 Try Again
+                                class="px-3 py-1 bg-red-600/20 text-red-300 border border-red-500/30 rounded text-xs hover:bg-red-600/30 transition-all duration-200">
+                            🔄 Retry
                         </button>
                     </div>
                     <details class="text-left">
-                        <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300 mb-2">Show technical details</summary>
-                        <div class="text-xs text-slate-500 font-mono bg-slate-800/50 p-2 rounded border-l-2 border-red-500/50">
+                        <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300">Debug info</summary>
+                        <div class="text-xs text-slate-500 font-mono bg-slate-800/50 p-2 rounded border-l-2 border-red-500/50 mt-1">
                             ${JSON.stringify({error: testResult.error || 'Test failed'}, null, 2)}
                         </div>
                     </details>
@@ -3663,18 +3899,17 @@ async function runPreviewTest() {
         
         // Show user-friendly error message instead of raw error
         responseBody.innerHTML = `
-            <div class="text-red-300 text-center py-4">
-                <div class="text-lg mb-2">⚠️ Test Failed</div>
-                <div class="text-sm mb-3">The test was invalid. Please check your input and try again.</div>
-                <div class="mb-4">
+            <div class="text-red-300 text-center py-2">
+                <div class="text-sm mb-2">⚠️ Test failed - please try again</div>
+                <div class="mb-2">
                     <button onclick="runPreviewTest()" 
-                            class="px-4 py-2 bg-red-600/20 text-red-300 border border-red-500/30 rounded-lg hover:bg-red-600/30 transition-all duration-200 text-sm">
-                        🔄 Try Again
+                            class="px-3 py-1 bg-red-600/20 text-red-300 border border-red-500/30 rounded text-xs hover:bg-red-600/30 transition-all duration-200">
+                        🔄 Retry
                     </button>
                 </div>
                 <details class="text-left">
-                    <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300 mb-2">Show technical details</summary>
-                    <div class="text-xs text-slate-500 font-mono bg-slate-800/50 p-2 rounded border-l-2 border-red-500/50">
+                    <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300">Debug info</summary>
+                    <div class="text-xs text-slate-500 font-mono bg-slate-800/50 p-2 rounded border-l-2 border-red-500/50 mt-1">
                         Error: ${error.message}
                     </div>
                 </details>
@@ -3994,52 +4229,7 @@ function updateExampleResponseFromProposal(proposal) {
             exampleResponse = proposal.output_format.example;
         }
     } else {
-        // Generate a contextual example based on the proposal's API name and description
-        const apiName = ((proposal && proposal.api_name) || '').toLowerCase();
-        const description = ((proposal && proposal.description) || '').toLowerCase();
-        
-        if (apiName.includes('sentiment') || description.includes('sentiment')) {
-            exampleResponse = {
-                sentiment: "positive",
-                confidence: 0.95,
-                timestamp: new Date().toISOString()
-            };
-        } else if (apiName.includes('extract') || description.includes('extract')) {
-            if (description.includes('name')) {
-                exampleResponse = {
-                    extracted_names: ["John Doe", "Jane Smith"],
-                    count: 2,
-                    success: true
-                };
-            } else if (description.includes('email')) {
-                exampleResponse = {
-                    extracted_emails: ["user@example.com", "contact@company.com"],
-                    count: 2,
-                    success: true
-                };
-            } else {
-                exampleResponse = {
-                    extracted_data: ["item1", "item2"],
-                    count: 2,
-                    success: true
-                };
-            }
-        } else if (apiName.includes('process') || description.includes('process')) {
-            exampleResponse = {
-                processed_result: "Successfully processed the input data",
-                success: true,
-                timestamp: new Date().toISOString()
-            };
-        } else {
-            // Generic response based on proposal
-            exampleResponse = {
-                result: "Sample response based on your API proposal",
-                success: true,
-                message: "Request processed successfully",
-                timestamp: new Date().toISOString(),
-                note: "This is from proposal mode"
-            };
-        }
+        exampleResponse = 'No example response available';
     }
     
     container.textContent = JSON.stringify(exampleResponse, null, 2);

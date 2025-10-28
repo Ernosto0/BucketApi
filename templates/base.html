@@ -141,7 +141,7 @@
                 <!-- Navigation -->
                 <nav id="mainNav" class="hidden md:flex items-center space-x-1">
                     {% if request and request.url.path == '/landing' %}
-                    <!-- Commented out header navigation on landing page
+                    
                     <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
                         <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Dashboard</span>
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -164,7 +164,7 @@
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-red-500/20 to-red-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
                     {% endif %}
-                    -->
+                    
                     {% else %}
                     <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
                         <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Dashboard</span>
@@ -195,7 +195,7 @@
                 <div class="flex items-center space-x-3">
                     {% if not user %}
                     {% if request and request.url.path == '/landing' %}
-                    <!-- Commented out auth buttons on landing page
+                    
                     <div id="authButtons" class="flex space-x-3">
                         <a href="/login" 
                            class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 border border-slate-600 text-slate-300 hover:bg-slate-800/50 hover:border-emerald-500/50 hover:text-emerald-300">
@@ -206,7 +206,7 @@
                             Get Started
                         </a>
                     </div>
-                    -->
+                   
                     {% else %}
                     <div id="authButtons" class="flex space-x-3">
                         <a href="/login" 
