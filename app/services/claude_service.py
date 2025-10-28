@@ -717,8 +717,9 @@ class ClaudeService:
                 output_tokens = usage.output_tokens if usage else len(content) // 4
                 total_tokens = input_tokens + output_tokens
                 
-                # Estimate cost (rough calculation for Claude pricing)
-                estimated_cost_cents = self._estimate_claude_cost(settings.CLAUDE_MODEL, input_tokens, output_tokens)
+                # Calculate accurate cost using usage service
+                from .usage_service import usage_service
+                estimated_cost_cents = usage_service._calculate_cost_cents(settings.CLAUDE_MODEL, input_tokens, output_tokens)
                 
                 await logging_service.log_llm_call(
                     service_type="claude",
@@ -873,23 +874,6 @@ class ClaudeService:
             
             raise llm_error
             
-    # TODO CHANGE THIS LOGIC 
-    def _estimate_claude_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
-        """Estimate Claude API cost in cents."""
-        # Rough pricing estimates for Claude (as of 2024)
-        pricing = {
-            "claude-3-opus-20240229": {"input": 0.015, "output": 0.075},  # per 1K tokens
-            "claude-3-sonnet-20240229": {"input": 0.003, "output": 0.015},
-            "claude-3-haiku-20240307": {"input": 0.00025, "output": 0.00125}
-        }
-        
-        # Default to sonnet pricing if model not found
-        model_pricing = pricing.get(model, pricing["claude-3-sonnet-20240229"])
-        
-        input_cost = (input_tokens / 1000) * model_pricing["input"]
-        output_cost = (output_tokens / 1000) * model_pricing["output"]
-        
-        return int((input_cost + output_cost) * 100)  # Convert to cents
     
     def _extract_code_from_response(self, response: str) -> str:
         """Extract Python code from Claude response."""

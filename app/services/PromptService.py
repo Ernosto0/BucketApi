@@ -151,25 +151,20 @@ class PromptServiceBuild:
             raise e
     
     def _estimate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
-        """Estimate OpenAI API cost in cents."""
-        # Same pricing estimates as OpenAI service
-        pricing = {
-            "gpt-4": {"input": 0.03, "output": 0.06},
-            "gpt-4-turbo": {"input": 0.01, "output": 0.03},
-            "gpt-4o-mini": {"input": 0.0015, "output": 0.002},
-            "gpt-3.5-turbo": {"input": 0.003, "output": 0.004},
-            "gpt-3.5-turbo-16k": {"input": 0.003, "output": 0.004},
-            # GPT-5 models (based on your pricing table)
-            "gpt-5": {"input": 1.25, "output": 10.00},
-            "gpt-5-mini": {"input": 0.25, "output": 2.00},
-            "gpt-5-nano": {"input": 0.05, "output": 0.40},
-            "gpt-5-chat-latest": {"input": 1.25, "output": 10.00}
-        }
+        """Estimate OpenAI API cost in cents using centralized pricing."""
+        # Import here to avoid circular imports
+        from .api_pricing_service import api_pricing_service
         
-        # Default to gpt-3.5-turbo pricing if model not found
-        model_pricing = pricing.get(model, pricing["gpt-3.5-turbo"])
-        input_cost = (input_tokens / 1000) * model_pricing["input"]
-        output_cost = (output_tokens / 1000) * model_pricing["output"]
+        # Use centralized pricing from APIpricingService
+        if model in api_pricing_service.AI_MODEL_BASE_COSTS:
+            pricing = api_pricing_service.AI_MODEL_BASE_COSTS[model]
+        else:
+            # Default to gpt-4o-mini pricing if model not found
+            pricing = api_pricing_service.AI_MODEL_BASE_COSTS.get('gpt-4o-mini', {'input': 15, 'output': 60})
+        
+        # Calculate cost (pricing is in cents per 1M tokens)
+        input_cost = (input_tokens / 1000000) * pricing["input"]
+        output_cost = (output_tokens / 1000000) * pricing["output"]
         
         return int((input_cost + output_cost) * 100)
 

@@ -33,22 +33,51 @@ class LLMBaseError(Exception):
 
 
 class PromptBuildError(LLMBaseError):
-    """Raised when there is an error constructing the LLM prompt."""
+    """
+    Raised when there is an error constructing the LLM prompt.
+    
+    Examples:
+    - Template variables missing
+    - Invalid prompt structure
+    - Missing required context for prompt
+    """
     pass
 
 
 class LLMAPIError(LLMBaseError):
-    """Raised when the LLM API request fails."""
+    """
+    Raised when the LLM API request fails.
+    
+    Examples:
+    - API rate limiting exceeded
+    - Network timeout
+    - Invalid API credentials
+    - API service unavailable
+    """
     pass
 
 
 class CodeExtractionError(LLMBaseError):
-    """Raised when code cannot be extracted from the LLM response."""
+    """
+    Raised when code cannot be extracted from the LLM response.
+    
+    Examples:
+    - Response format doesn't contain code blocks
+    - Code extraction regex fails
+    - Response is empty or malformed
+    """
     pass
 
 
 class UsageLoggingError(LLMBaseError):
-    """Raised when usage logging fails."""
+    """
+    Raised when usage logging fails.
+    
+    Examples:
+    - Database write failure
+    - Missing usage data fields
+    - Aggregation service unavailable
+    """
     pass
 
 
@@ -80,42 +109,98 @@ class MultiStepGenerationError(LLMBaseError):
 
 
 class SessionNotFoundError(MultiStepGenerationError):
-    """Raised when a generation session cannot be found."""
+    """
+    Raised when a generation session cannot be found.
+    
+    Examples:
+    - Invalid session_id
+    - Session expired and was cleaned up
+    - Session never created
+    """
     pass
 
 
 class SessionConfigurationError(MultiStepGenerationError):
-    """Raised when there's an error in session configuration."""
+    """
+    Raised when there's an error in session configuration.
+    
+    Examples:
+    - Invalid generation mode
+    - Missing required configuration fields
+    - Conflicting configuration parameters
+    """
     pass
 
 
 class PipelineValidationError(MultiStepGenerationError):
-    """Raised when pipeline validation fails."""
+    """
+    Raised when pipeline validation fails.
+    
+    Examples:
+    - Invalid step sequence
+    - Missing required step dependencies
+    - Configuration doesn't match pipeline requirements
+    """
     pass
 
 
 class StepExecutionError(MultiStepGenerationError):
-    """Raised when a generation step fails to execute."""
+    """
+    Raised when a generation step fails to execute.
+    
+    Examples:
+    - LLM API call fails during step
+    - Step logic encounters an error
+    - Required input data is missing for step
+    """
     pass
 
 
 class StepTimeoutError(MultiStepGenerationError):
-    """Raised when a generation step times out."""
+    """
+    Raised when a generation step times out.
+    
+    Examples:
+    - Step execution exceeds maximum allowed time
+    - LLM API response is too slow
+    - Long-running operation not completed in time
+    """
     pass
 
 
 class TemplateProcessingError(MultiStepGenerationError):
-    """Raised when prompt template processing fails."""
+    """
+    Raised when prompt template processing fails.
+    
+    Examples:
+    - Template variables not found in context
+    - Invalid template syntax
+    - Template rendering engine fails
+    """
     pass
 
 
 class SessionCleanupError(MultiStepGenerationError):
-    """Raised when session cleanup fails."""
+    """
+    Raised when session cleanup fails.
+    
+    Examples:
+    - Cannot delete session files
+    - Cannot update session status in database
+    - Resources cannot be released
+    """
     pass
 
 
 class GenerationModeError(MultiStepGenerationError):
-    """Raised when there's an error with the generation mode."""
+    """
+    Raised when there's an error with the generation mode.
+    
+    Examples:
+    - Invalid mode specified
+    - Mode not supported for current operation
+    - Mode-specific configuration missing
+    """
     pass
 
 

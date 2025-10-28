@@ -22,26 +22,31 @@ class APICodeAnalyzer:
     """Service to analyze generated API code and detect LLM usage patterns."""
     
     def __init__(self):
-        # Model detection patterns
-        self.MODEL_PATTERNS = {
-            # OpenAI models
-            r'model\s*=\s*[\'\"](gpt-4o-mini)[\'"]': 'gpt-4o-mini',
-            r'model\s*=\s*[\'\"](gpt-4o)[\'"]': 'gpt-4o',
-            r'model\s*=\s*[\'\"](gpt-4-turbo)[\'"]': 'gpt-4-turbo',
-            r'model\s*=\s*[\'\"](gpt-4)[\'"]': 'gpt-4',
-            r'model\s*=\s*[\'\"](gpt-3\.5-turbo)[\'"]': 'gpt-3.5-turbo',
-            r'model\s*=\s*[\'\"](gpt-5[^\'\"]*)[\'"]': 'gpt-5',
+        # Model detection patterns (ordered from most specific to least specific)
+        self.MODEL_PATTERNS = [
+            # OpenAI models - specific variants first
+            (r'model\s*=\s*[\'\"](gpt-5-mini)[\'"]', 'gpt-5-mini'),
+            (r'model\s*=\s*[\'\"](gpt-5-nano)[\'"]', 'gpt-5-nano'),
+            (r'model\s*=\s*[\'\"](gpt-5-pro)[\'"]', 'gpt-5-pro'),
+            (r'model\s*=\s*[\'\"](gpt-4o-mini)[\'"]', 'gpt-4o-mini'),
+            (r'model\s*=\s*[\'\"](gpt-4o-2024-05-13)[\'"]', 'gpt-4o-2024-05-13'),
+            (r'model\s*=\s*[\'\"](gpt-4o)[\'"]', 'gpt-4o'),
+            (r'model\s*=\s*[\'\"](gpt-4-turbo)[\'"]', 'gpt-4-turbo'),
+            (r'model\s*=\s*[\'\"](gpt-4)[\'"]', 'gpt-4'),
+            (r'model\s*=\s*[\'\"](gpt-3\.5-turbo)[\'"]', 'gpt-3.5-turbo'),
+            # General GPT-5 pattern (only matches if specific variants don't match first)
+            (r'model\s*=\s*[\'\"](gpt-5(?!-mini|-nano|-pro)[^\'\"]*)[\'"]', 'gpt-5'),
             
             # Claude models
-            r'model\s*=\s*[\'\"](claude-3-haiku[^\'\"]*)[\'"]': 'claude-3-haiku',
-            r'model\s*=\s*[\'\"](claude-3-sonnet[^\'\"]*)[\'"]': 'claude-3-sonnet',
-            r'model\s*=\s*[\'\"](claude-3-opus[^\'\"]*)[\'"]': 'claude-3-opus',
-            r'model\s*=\s*[\'\"](claude-4[^\'\"]*)[\'"]': 'claude-4',
+            (r'model\s*=\s*[\'\"](claude-3-haiku[^\'\"]*)[\'"]', 'claude-3-haiku'),
+            (r'model\s*=\s*[\'\"](claude-3-sonnet[^\'\"]*)[\'"]', 'claude-3-sonnet'),
+            (r'model\s*=\s*[\'\"](claude-3-opus[^\'\"]*)[\'"]', 'claude-3-opus'),
+            (r'model\s*=\s*[\'\"](claude-4[^\'\"]*)[\'"]', 'claude-4'),
             
             # Generic patterns
-            r'[\'\"](gpt-[^\'\"]+)[\'"]': 'gpt-detected',
-            r'[\'\"](claude-[^\'\"]+)[\'"]': 'claude-detected',
-        }
+            (r'[\'\"](gpt-[^\'\"]+)[\'"]', 'gpt-detected'),
+            (r'[\'\"](claude-[^\'\"]+)[\'"]', 'claude-detected'),
+        ]
         
         # LLM service detection patterns
         self.LLM_SERVICE_PATTERNS = [
@@ -154,15 +159,25 @@ class APICodeAnalyzer:
         """Extract AI model names from the code."""
         models_found = []
         
-        for pattern, model_name in self.MODEL_PATTERNS.items():
+        # Enhanced debugging for model detection
+        logger.debug(f"Starting model extraction from code (length: {len(code)})")
+        
+        # Track which model strings we've already matched to avoid duplicates
+        matched_strings = set()
+        
+        for pattern, model_name in self.MODEL_PATTERNS:
             matches = re.findall(pattern, code, re.IGNORECASE)
             if matches:
-                logger.debug(f"Pattern '{pattern}' matched: {matches}")
-            for match in matches:
-                if isinstance(match, str):
-                    models_found.append(match)
-                elif model_name != 'gpt-detected' and model_name != 'claude-detected':
-                    models_found.append(model_name)
+                logger.info(f"Pattern '{pattern}' matched: {matches}")
+                for match in matches:
+                    if isinstance(match, str) and match not in matched_strings:
+                        models_found.append(match)
+                        matched_strings.add(match)
+                        logger.info(f"Added model from match: {match}")
+                    elif model_name != 'gpt-detected' and model_name != 'claude-detected' and model_name not in matched_strings:
+                        models_found.append(model_name)
+                        matched_strings.add(model_name)
+                        logger.info(f"Added model from pattern: {model_name}")
         
         # Remove duplicates while preserving order
         unique_models = []
@@ -170,14 +185,59 @@ class APICodeAnalyzer:
             if model not in unique_models:
                 unique_models.append(model)
         
-        logger.debug(f"AI models detected: {unique_models}")
+        logger.info(f"AI models detected: {unique_models}")
         
-        # Add debug logging for the specific API
+        # Enhanced debugging for failed detection
         if not unique_models:
-            logger.warning("No AI models detected in code. This might indicate a pattern matching issue.")
-            logger.debug(f"Code snippet for debugging: {code[:500]}...")
+            logger.warning("No AI models detected in code. Performing detailed analysis...")
+            
+            # Fallback: Try to extract models using simpler patterns
+            fallback_models = self._fallback_model_detection(code)
+            if fallback_models:
+                logger.info(f"Fallback detection found models: {fallback_models}")
+                unique_models.extend(fallback_models)
+            
+            # Check for common model patterns manually for debugging
+            if 'gpt-4o-mini' in code:
+                logger.warning("Found 'gpt-4o-mini' in code but regex didn't match!")
+                # Try to find the exact context
+                lines = code.split('\n')
+                for i, line in enumerate(lines):
+                    if 'gpt-4o-mini' in line:
+                        logger.warning(f"Line {i+1}: {line.strip()}")
+            
+            if 'model=' in code:
+                logger.warning("Found 'model=' in code, checking context...")
+                lines = code.split('\n')
+                for i, line in enumerate(lines):
+                    if 'model=' in line:
+                        logger.warning(f"Line {i+1}: {line.strip()}")
+            
+            # Show a larger code snippet for debugging
+            logger.debug(f"Code snippet for debugging:\n{code[:1000]}...")
         
         return unique_models
+    
+    def _fallback_model_detection(self, code: str) -> List[str]:
+        """Fallback method to detect models when regex patterns fail."""
+        models = []
+        
+        # Common model names to look for
+        known_models = [
+            'gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo',
+            'claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus', 'claude-4',
+            'claude-3-5-haiku-latest', 'claude-3-5-sonnet-latest'
+        ]
+        
+        # Simple string search for model names
+        for model in known_models:
+            if model in code:
+                # Verify it's actually used as a model parameter
+                if f'"{model}"' in code or f"'{model}'" in code:
+                    models.append(model)
+                    logger.info(f"Fallback detection found model: {model}")
+        
+        return models
     
     def _determine_primary_model(self, models: List[str], code: str) -> Optional[str]:
         """Determine the primary AI model used in the code."""

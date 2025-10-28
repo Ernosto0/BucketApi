@@ -321,7 +321,7 @@ class Usage(BaseModel):
     total_tokens: int
     
     # Cost tracking (in USD cents)
-    estimated_cost_cents: int
+    estimated_cost_cents: float
     
     # Request metadata
     prompt_length: int
@@ -380,7 +380,7 @@ class CreateUsageRequest(BaseModel):
     model_name: str
     input_tokens: int = 0
     output_tokens: int = 0
-    estimated_cost_cents: int = 0
+    estimated_cost_cents: float = 0
     prompt_length: int = 0
     response_length: int = 0
     request_duration_ms: int = 0
@@ -454,12 +454,25 @@ class CreateAPIExecutionUsageRequest(BaseModel):
 class APIMetadata(BaseModel):
     api_slug: str
     user_id: str
-    ai_model_used: str  # e.g., 'gpt-3.5-turbo', 'claude-3-sonnet'
+    ai_model_used: str  # DEPRECATED: Use execution_model_used instead
     estimated_tokens_per_call: int  # Average tokens used per API call
-    estimated_cost_per_call_cents: int  # Cost in cents per API call
+    estimated_cost_per_call_cents: float  # Cost in cents per API call (fractional cents supported)
     base_complexity: str  # 'simple', 'medium', 'complex'
     created_at: datetime
     last_updated: datetime
+    
+    # New fields to separate generation vs execution models
+    generation_model_used: Optional[str] = None  # Model used to generate the API code
+    execution_model_used: Optional[str] = None   # Model used by the API when it executes
+    
+    # Real usage data fields
+    real_avg_tokens_per_call: Optional[int] = None
+    real_avg_cost_per_call_cents: Optional[float] = None
+    real_model_used: Optional[str] = None
+    total_executions: Optional[int] = None
+    successful_executions: Optional[int] = None
+    usage_last_updated: Optional[datetime] = None
+    has_real_usage_data: Optional[bool] = False
 
 # Logging Models
 class SystemLog(BaseModel):
@@ -521,7 +534,7 @@ class LLMCallLog(BaseModel):
     input_tokens: Optional[int] = None
     output_tokens: Optional[int] = None
     total_tokens: Optional[int] = None
-    estimated_cost_cents: Optional[int] = None
+    estimated_cost_cents: Optional[float] = None
     duration_ms: Optional[int] = None
     user_id: Optional[str] = None
     api_key_id: Optional[str] = None

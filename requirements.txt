@@ -25,3 +25,4 @@ transformers>=4.30.0
 PyYAML>=6.0.1
 authlib>=1.2.0
 itsdangerous>=2.1.0
+zstandard>=0.20.0

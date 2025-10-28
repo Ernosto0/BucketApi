@@ -82,9 +82,9 @@ class Settings:
         if self.ENVIRONMENT == "production":
             # 🔒 PRODUCTION: Specify your actual domains
             return [
-                "https://yourdomain.com",
-                "https://app.yourdomain.com", 
-                "https://api.yourdomain.com"
+                "https://bucketapi.com",
+                "https://app.bucketapi.com", 
+                "https://api.bucketapi.com"
             ]
         else:
             # 🔧 DEVELOPMENT: Local development origins

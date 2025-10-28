@@ -501,34 +501,28 @@ class OpenAIService:
             
             raise e
 
-    def _calculate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
+    def _calculate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """Calculate accurate OpenAI cost using usage service."""
         from .usage_service import usage_service
         return usage_service._calculate_cost_cents(model, input_tokens, output_tokens)
     
-    def _estimate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> int:
-        """Estimate OpenAI API cost in cents."""
-        # Rough pricing estimates (as of 2024)
-        pricing = {
-            "gpt-4": {"input": 0.03, "output": 0.06},  # per 1K tokens
-            "gpt-4-turbo": {"input": 0.01, "output": 0.03},
-            "gpt-4o-mini": {"input": 0.0015, "output": 0.002},
-            "gpt-3.5-turbo": {"input": 0.003, "output": 0.004},
-            "gpt-3.5-turbo-16k": {"input": 0.003, "output": 0.004},
-            # GPT-5 models (based on your pricing table)
-            "gpt-5": {"input": 1.25, "output": 10.00},
-            "gpt-5-mini": {"input": 0.25, "output": 2.00},
-            "gpt-5-nano": {"input": 0.05, "output": 0.40},
-            "gpt-5-chat-latest": {"input": 1.25, "output": 10.00}
-        }
+    def _estimate_openai_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
+        """Estimate OpenAI API cost in cents using centralized pricing."""
+        # Import here to avoid circular imports
+        from .api_pricing_service import api_pricing_service
         
-        # Default to gpt-3.5-turbo pricing if model not found
-        model_pricing = pricing.get(model, pricing["gpt-5-mini"])
+        # Use centralized pricing from APIpricingService
+        if model in api_pricing_service.AI_MODEL_BASE_COSTS:
+            pricing = api_pricing_service.AI_MODEL_BASE_COSTS[model]
+        else:
+            # Default to gpt-4o-mini pricing if model not found (cents per 1M tokens)
+            pricing = api_pricing_service.AI_MODEL_BASE_COSTS.get('gpt-4o-mini', {'input': 0.015, 'output': 0.06})
         
-        input_cost = (input_tokens / 1000) * model_pricing["input"]
-        output_cost = (output_tokens / 1000) * model_pricing["output"]
+        # Calculate cost (pricing is in cents per 1M tokens)
+        input_cost = (input_tokens / 1000000) * pricing["input"]
+        output_cost = (output_tokens / 1000000) * pricing["output"]
         
-        return int((input_cost + output_cost) * 100)  # Convert to cents
+        return input_cost + output_cost  # Return fractional cents
     
     async def _make_openai_request(self, system_prompt: str, user_prompt: str) -> str:
         """Make a request to OpenAI API for documentation generation (legacy method)."""

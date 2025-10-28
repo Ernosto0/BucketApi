@@ -45,28 +45,27 @@ class UsageService:
         # Initialize token estimation components
         self._init_token_estimators()
         
-        # Cost per token in cents (approximate, based on current pricing)
+        # Cost per token in cents (corrected pricing to match api_pricing_service)
         self.COST_PER_TOKEN = {
-            # TODO Update this to use the actual pricing from the API at deployment
-            # Claude pricing (input/output tokens) - Updated December 2024
-            'claude-3-haiku': {'input': 0.000025, 'output': 0.000125},  # $0.25/$1.25 per MTok
-            'claude-3.5-haiku': {'input': 0.00008, 'output': 0.0004},   # $0.80/$4.00 per MTok
-            'claude-3-sonnet': {'input': 0.0003, 'output': 0.0015},     # $3/$15 per MTok
-            'claude-3.5-sonnet': {'input': 0.0003, 'output': 0.0015},   # $3/$15 per MTok (legacy)
-            'claude-3-5-sonnet-20241022': {'input': 0.0003, 'output': 0.0015},   # $3/$15 per MTok (current)
-            'claude-3-5-haiku-latest': {'input': 0.00008, 'output': 0.0004},   # $0.80/$4.00 per MTok (latest)
-            'claude-3.7-sonnet': {'input': 0.0003, 'output': 0.0015},   # $3/$15 per MTok
-            'claude-3-opus': {'input': 0.0015, 'output': 0.0075},       # $15/$75 per MTok
-            'claude-4-opus': {'input': 0.0015, 'output': 0.0075},       # $15/$75 per MTok
-            'claude-4-sonnet': {'input': 0.0003, 'output': 0.0015},     # $3/$15 per MTok
+            # Claude pricing (corrected) - per token in cents
+            'claude-3-haiku': {'input': 0.000000025, 'output': 0.000000125},      # $0.00025/$0.00125 per MTok
+            'claude-3.5-haiku': {'input': 0.00000008, 'output': 0.0000004},       # $0.0008/$0.004 per MTok
+            'claude-3-sonnet': {'input': 0.0000003, 'output': 0.0000015},         # $0.003/$0.015 per MTok
+            'claude-3.5-sonnet': {'input': 0.0000003, 'output': 0.0000015},       # $0.003/$0.015 per MTok
+            'claude-3-5-sonnet-20241022': {'input': 0.0000003, 'output': 0.0000015}, # $0.003/$0.015 per MTok
+            'claude-3-5-haiku-latest': {'input': 0.00000008, 'output': 0.0000004}, # $0.0008/$0.004 per MTok
+            'claude-3.7-sonnet': {'input': 0.0000003, 'output': 0.0000015},       # $0.003/$0.015 per MTok
+            'claude-3-opus': {'input': 0.0000015, 'output': 0.0000075},           # $0.015/$0.075 per MTok
+            'claude-4-opus': {'input': 0.0000015, 'output': 0.0000075},           # $0.015/$0.075 per MTok
+            'claude-4-sonnet': {'input': 0.0000003, 'output': 0.0000015},         # $0.003/$0.015 per MTok
             
-            # OpenAI pricing (keeping existing for compatibility)
-            'gpt-3.5-turbo': {'input': 0.000015, 'output': 0.00003},
-            'gpt-4o': {'input': 0.000015, 'output': 0.00003},
-            'gpt-4o-mini': {'input': 0.000015, 'output': 0.00003},
-            'gpt-4': {'input': 0.000015, 'output': 0.00003},
-            'gpt-4-turbo': {'input': 0.000015, 'output': 0.00003},
-            'gpt-5-mini': {'input': 0.00015, 'output': 0.0002},
+            # OpenAI pricing (corrected) - per token in cents
+            'gpt-3.5-turbo': {'input': 0.00000005, 'output': 0.00000015},         # $0.0005/$0.0015 per MTok
+            'gpt-4o': {'input': 0.00000025, 'output': 0.000001},                  # $0.0025/$0.01 per MTok
+            'gpt-4o-mini': {'input': 0.000000015, 'output': 0.00000006},          # $0.00015/$0.0006 per MTok
+            'gpt-4': {'input': 0.0000003, 'output': 0.0000006},                   # $0.003/$0.006 per MTok
+            'gpt-4-turbo': {'input': 0.0000001, 'output': 0.0000003},             # $0.001/$0.003 per MTok
+            'gpt-5-mini': {'input': 0.000000015, 'output': 0.00000006},           # $0.00015/$0.0006 per MTok
         }
         
         # Log warnings for missing dependencies
@@ -107,23 +106,23 @@ class UsageService:
         
         # Model-specific token patterns and multipliers for better estimation
         self.model_estimation_params = {
-            # Claude models - based on observed patterns
-            'claude-3-haiku': {'chars_per_token': 3.8, 'overhead_tokens': 10},
-            'claude-3.5-haiku': {'chars_per_token': 3.8, 'overhead_tokens': 12},
-            'claude-3-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 15},
-            'claude-3.5-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 15},
-            'claude-3.7-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 15},
-            'claude-3-opus': {'chars_per_token': 4.2, 'overhead_tokens': 20},
-            'claude-4-opus': {'chars_per_token': 4.2, 'overhead_tokens': 20},
-            'claude-4-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 15},
+            # Claude models - based on observed patterns (reduced overhead)
+            'claude-3-haiku': {'chars_per_token': 3.8, 'overhead_tokens': 5},
+            'claude-3.5-haiku': {'chars_per_token': 3.8, 'overhead_tokens': 6},
+            'claude-3-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 7},
+            'claude-3.5-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 7},
+            'claude-3.7-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 7},
+            'claude-3-opus': {'chars_per_token': 4.2, 'overhead_tokens': 10},
+            'claude-4-opus': {'chars_per_token': 4.2, 'overhead_tokens': 10},
+            'claude-4-sonnet': {'chars_per_token': 4.1, 'overhead_tokens': 7},
             
-            # OpenAI models - fallback if tiktoken fails
-            'gpt-4': {'chars_per_token': 4.0, 'overhead_tokens': 8},
-            'gpt-4-turbo': {'chars_per_token': 4.0, 'overhead_tokens': 8},
-            'gpt-4o': {'chars_per_token': 3.9, 'overhead_tokens': 10},
-            'gpt-4o-mini': {'chars_per_token': 3.9, 'overhead_tokens': 10},
-            'gpt-5-mini': {'chars_per_token': 3.9, 'overhead_tokens': 10},
-            'gpt-3.5-turbo': {'chars_per_token': 4.2, 'overhead_tokens': 6},
+            # OpenAI models - fallback if tiktoken fails (reduced overhead)
+            'gpt-4': {'chars_per_token': 4.0, 'overhead_tokens': 4},
+            'gpt-4-turbo': {'chars_per_token': 4.0, 'overhead_tokens': 4},
+            'gpt-4o': {'chars_per_token': 3.9, 'overhead_tokens': 5},
+            'gpt-4o-mini': {'chars_per_token': 3.9, 'overhead_tokens': 5},
+            'gpt-5-mini': {'chars_per_token': 3.9, 'overhead_tokens': 5},
+            'gpt-3.5-turbo': {'chars_per_token': 4.2, 'overhead_tokens': 3},
         }
         
         logger.info(f"Initialized token estimation for {len(self.model_estimation_params)} models")
@@ -249,7 +248,7 @@ class UsageService:
             
             daily_result = list(mongodb.llm_usage.aggregate(daily_pipeline))
             daily_tokens_used = daily_result[0]["total_tokens"] if daily_result else 0
-            daily_cost_used_cents = daily_result[0]["total_cost"] if daily_result else 0
+            daily_cost_used_cents = int(round(daily_result[0]["total_cost"] if daily_result else 0))
                 
             # Query monthly usage
             monthly_match = {
@@ -323,13 +322,13 @@ class UsageService:
             
             daily_tokens_remaining = max(0, daily_token_limit - daily_tokens_used)
             monthly_tokens_remaining = max(0, monthly_token_limit - monthly_tokens_used)
-            daily_cost_remaining_cents = max(0, daily_cost_limit_cents - daily_cost_used_cents)
+            daily_cost_remaining_cents = int(max(0, daily_cost_limit_cents - daily_cost_used_cents))
             hourly_tokens_remaining = max(0, hourly_token_limit - hourly_tokens_used)
             minutely_requests_remaining = max(0, minutely_request_limit - minute_requests_used)
             
-            # Estimate cost for the new tokens
+            # Estimate cost for the new tokens using a more appropriate default
             estimated_new_cost_cents = self._calculate_cost_cents(
-                "gpt-5-mini",  # Use default model for estimation
+                "gpt-4o-mini",  # Use more common/realistic default model for estimation
                 tokens_to_use // 2,  # Rough split between input/output
                 tokens_to_use // 2
             )
@@ -571,8 +570,8 @@ class UsageService:
             params = self.model_estimation_params[model_name]
             base_tokens = char_length / params['chars_per_token']
             
-            # Apply a moderate complexity multiplier for generated text
-            complexity_multiplier = 1.1 if is_input else 1.05  # Generated text is often simpler
+            # Apply minimal complexity multiplier for generated text
+            complexity_multiplier = 1.02 if is_input else 1.0  # Generate text complexity already handled
             adjusted_tokens = base_tokens * complexity_multiplier
             
             # Add minimal overhead for output
@@ -589,6 +588,7 @@ class UsageService:
         if not text:
             return 1.0
             
+        # Simplified complexity detection - reduced multiplier
         base_multiplier = 1.0
         
         # Check for code patterns (more tokens per character)
@@ -600,39 +600,37 @@ class UsageService:
         
         code_score = sum(1 for pattern in code_patterns if re.search(pattern, text))
         if code_score > 0:
-            base_multiplier += min(0.3, code_score * 0.1)  # Up to 30% increase for code
+            base_multiplier += min(0.1, code_score * 0.05)  # Reduced: Up to 10% increase for code
         
         # Check for JSON/structured data
         if '{' in text and '}' in text and '"' in text:
-            base_multiplier += 0.15
+            base_multiplier += 0.05  # Reduced: Only 5% increase
         
         # Check for special characters and symbols
         special_char_ratio = len(re.findall(r'[^\w\s]', text)) / len(text) if text else 0
         if special_char_ratio > 0.1:  # More than 10% special characters
-            base_multiplier += min(0.2, special_char_ratio)
+            base_multiplier += min(0.1, special_char_ratio)  # Reduced: Max 10% increase
         
         # Check for repeated patterns (might be more efficient)
         if len(set(text.split())) / len(text.split()) if text.split() else 1 < 0.5:
-            base_multiplier -= 0.1  # Slight reduction for repetitive text
+            base_multiplier -= 0.05  # Slight reduction for repetitive text
         
-        return max(0.8, min(1.5, base_multiplier))  # Clamp between 0.8 and 1.5
+        return max(0.95, min(1.15, base_multiplier))  # Reduced range: 0.95 to 1.15
     
     def _calculate_input_overhead(self, text: str) -> int:
         """Calculate additional overhead tokens for input text characteristics"""
         
         overhead = 0
         
-        # Add overhead for system prompts (usually have special formatting)
+        # Add minimal overhead for system prompts (usually have special formatting)
         if any(keyword in text.lower() for keyword in ['system:', 'instruction:', 'you are', 'your task']):
-            overhead += 5
+            overhead += 2  # Reduced from 5
         
-        # Add overhead for structured prompts
+        # Add minimal overhead for structured prompts
         if text.count('\n') > 3:  # Multi-line prompts
-            overhead += 2
+            overhead += 1  # Reduced from 2
             
-        # Add overhead for questions
-        if '?' in text:
-            overhead += 1
+        # Skip question overhead to keep estimates lower
             
         return overhead
     
@@ -728,31 +726,34 @@ class UsageService:
 
 
 
-    def _calculate_cost_cents(self, model_name: str, input_tokens: int, output_tokens: int) -> int:
-        """Calculate estimated cost in cents for token usage."""
+    def _calculate_cost_cents(self, model_name: str, input_tokens: int, output_tokens: int) -> float:
+        """Calculate estimated cost in cents for token usage using centralized pricing."""
         
-        # Get pricing for model
-        if model_name not in self.COST_PER_TOKEN:
-            logger.warning(f"Unknown model {model_name}, using default pricing")
-            # Default to GPT-4o-mini pricing for unknown models
-            pricing = self.COST_PER_TOKEN.get('gpt-4o-mini', self.COST_PER_TOKEN['gpt-3.5-turbo'])
+        # Import here to avoid circular imports
+        from .api_pricing_service import api_pricing_service
+        
+        # Use centralized pricing from APIpricingService
+        if model_name in api_pricing_service.AI_MODEL_BASE_COSTS:
+            pricing = api_pricing_service.AI_MODEL_BASE_COSTS[model_name]
         else:
-            pricing = self.COST_PER_TOKEN[model_name]
+            logger.warning(f"Unknown model {model_name}, using gpt-4o-mini pricing")
+            # Default to gpt-4o-mini pricing for unknown models (cents per 1M tokens)
+            pricing = api_pricing_service.AI_MODEL_BASE_COSTS.get('gpt-4o-mini', {'input': 0.015, 'output': 0.06})
         
-        # Calculate cost in dollars
-        input_cost = input_tokens * pricing['input']
-        output_cost = output_tokens * pricing['output']
-        total_cost_dollars = input_cost + output_cost
+        # Calculate cost (pricing is in cents per 1M tokens)
+        input_cost = (input_tokens / 1000000) * pricing['input']
+        output_cost = (output_tokens / 1000000) * pricing['output']
+        total_cost_cents = input_cost + output_cost
         
-        # Convert to cents
-        return int(total_cost_dollars * 100)
+        # Return fractional cents (no additional multiplication needed)
+        return total_cost_cents
     
     async def estimate_request_cost(
         self,
         model_name: str,
         estimated_input_tokens: int,
         estimated_output_tokens: int = 1000  # Default estimate
-    ) -> int:
+    ) -> float:
         """Estimate cost in cents for a request before making it."""
         return self._calculate_cost_cents(model_name, estimated_input_tokens, estimated_output_tokens)
 

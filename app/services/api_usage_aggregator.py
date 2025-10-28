@@ -82,7 +82,7 @@ class APIUsageAggregator:
             logger.info(f"Aggregated usage stats for {api_slug}: "
                        f"{stats.total_executions} executions, "
                        f"avg {stats.avg_total_tokens:.1f} tokens, "
-                       f"avg ${stats.avg_cost_per_call_cents/100:.4f} per call")
+                       f"avg {stats.avg_cost_per_call_cents:.6f} cents per call")
             
             return stats
             
@@ -189,11 +189,24 @@ class APIUsageAggregator:
                 logger.debug(f"No usage data available to update pricing for {api_slug}")
                 return False
             
-            # Update API metadata with real usage data (ensure integers where needed)
+            # Get existing metadata to use the correct model if usage data has wrong model
+            existing_metadata = mongodb.api_metadata.find_one({
+                "api_slug": api_slug,
+                "user_id": user_id
+            })
+            
+            # Use the model from metadata if usage data has wrong model (e.g., gpt-5-mini instead of gpt-4o-mini)
+            model_to_use = usage_stats.primary_model_used
+            if existing_metadata and model_to_use != existing_metadata.get("execution_model_used") and model_to_use != existing_metadata.get("ai_model_used"):
+                # Wrong model in usage data, use the correct one from metadata
+                model_to_use = existing_metadata.get("execution_model_used") or existing_metadata.get("ai_model_used")
+                logger.warning(f"Usage data has wrong model for {api_slug}, using correct model from metadata: {model_to_use}")
+            
+            # Update API metadata with real usage data (store fractional cents with precision)
             update_data = {
                 "real_avg_tokens_per_call": int(round(usage_stats.avg_total_tokens)),
-                "real_avg_cost_per_call_cents": int(round(usage_stats.avg_cost_per_call_cents)),
-                "real_model_used": usage_stats.primary_model_used,
+                "real_avg_cost_per_call_cents": round(usage_stats.avg_cost_per_call_cents, 6),  # Store fractional cents
+                "real_model_used": model_to_use,
                 "total_executions": usage_stats.total_executions,
                 "successful_executions": usage_stats.successful_executions,
                 "usage_last_updated": usage_stats.last_updated,
@@ -209,7 +222,7 @@ class APIUsageAggregator:
             if result.modified_count > 0:
                 logger.info(f"Updated pricing for {api_slug} with real usage: "
                            f"avg {usage_stats.avg_total_tokens:.1f} tokens, "
-                           f"${usage_stats.avg_cost_per_call_cents/100:.4f} per call")
+                           f"{usage_stats.avg_cost_per_call_cents:.6f} cents per call")
                 return True
             else:
                 logger.warning(f"No API metadata found to update for {api_slug}")
