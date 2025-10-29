@@ -5,8 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}BucketApi - AI-Powered API Generator{% endblock %}</title>
     
+    <!-- App Icons -->
+    <link rel="icon" type="image/png" href="/static/images/bucketapilogo.png">
+    <link rel="apple-touch-icon" href="/static/images/bucketapilogo.png">
+    <meta property="og:image" content="/static/images/bucketapilogo.png">
+    <meta name="twitter:image" content="/static/images/bucketapilogo.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lemon.js for checkout/payment modals -->
+    <script src="https://app.lemonsqueezy.com/js/lemon.js" defer></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/themes/prism-tomorrow.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/components/prism-core.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/autoloader/prism-autoloader.min.js"></script>
@@ -114,14 +121,13 @@
         <div class="container mx-auto px-4 py-3">
             <div class="flex justify-between items-center">
                 <!-- Logo and Title -->
-                <div class="flex items-center space-x-4 group">
-                    <div class="relative">
-                        <div class="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg animate-glow group-hover:animate-bounce-gentle transition-all duration-300">
-                            <svg class="w-7 h-7 text-white animate-float" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                            </svg>
+                <div class="flex items-center space-x-4 group w-1/3">
+                    <div>
+                        <div class="flex items-center justify-center group-hover:animate-bounce-gentle transition-all duration-300">
+                            <a href="/" class="inline-block">
+                                <img src="/static/images/bucketapilogo.png" alt="BucketApi Logo" class="w-12 h-12 animate-float object-contain" />
+                            </a>
                         </div>
-                        <div class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse-soft"></div>
                     </div>
                     <div class="flex flex-col">
                         <h1 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-500 bg-clip-text text-transparent animate-fade-in">
@@ -139,19 +145,19 @@
                 </button>
 
                 <!-- Navigation -->
-                <nav id="mainNav" class="hidden md:flex items-center space-x-1">
+                <nav id="mainNav" class="hidden md:flex items-center space-x-1 w-1/3 justify-center">
+                    <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Generator</span>
+                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
                     {% if request and request.url.path == '/landing' %}
                     
-                    <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                    <a href="/profile" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
                         <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Dashboard</span>
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
                     <a href="/profile" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
                         <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">My APIs</span>
-                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    </a>
-                    <a href="/api-documentation" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
-                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Documentation</span>
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
                     <a href="/subscription" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
@@ -166,16 +172,12 @@
                     {% endif %}
                     
                     {% else %}
-                    <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                    <a href="/profile" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
                         <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Dashboard</span>
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
                     <a href="/profile" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
                         <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">My APIs</span>
-                        <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    </a>
-                    <a href="/api-documentation" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
-                        <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Documentation</span>
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
                     <a href="/subscription" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
@@ -192,7 +194,7 @@
                 </nav>
 
                 <!-- Auth Section -->
-                <div class="flex items-center space-x-3">
+                <div class="flex items-center space-x-3 w-1/3 justify-end">
                     {% if not user %}
                     {% if request and request.url.path == '/landing' %}
                     
@@ -276,14 +278,11 @@
                 <nav class="flex flex-col space-y-2">
                     {% if request and request.url.path == '/landing' %}
                     <!-- Commented out mobile navigation on landing page
-                    <a href="/" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
+                    <a href="/profile" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
                         Dashboard
                     </a>
                     <a href="/profile" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
                         My APIs
-                    </a>
-                    <a href="/api-documentation" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
-                        Documentation
                     </a>
                     <a href="/subscription" class="mobile-nav-link px-4 py-3 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10 text-slate-300 hover:text-emerald-300">
                         Pricing
