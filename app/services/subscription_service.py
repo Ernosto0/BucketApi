@@ -35,9 +35,10 @@ class SubscriptionService:
                 monthly_tokens=10000,  # Legacy - total tokens
                 monthly_generation_tokens=3000,   # 3k for API generation
                 monthly_execution_tokens=7000,    # 7k for API execution
+                monthly_api_generations=1,  # 1 API generation per month
                 price_cents=0,
                 features=[
-                    "3,000 generation tokens/month (AI model usage)",
+                    "1 API generation/month",
                     "7,000 execution tokens/month (API calls)",
                     "Basic API generation",
                     "Community support",
@@ -51,9 +52,10 @@ class SubscriptionService:
                 monthly_tokens=50000,  # Legacy - total tokens
                 monthly_generation_tokens=15000,  # 15k for API generation
                 monthly_execution_tokens=35000,   # 35k for API execution
+                monthly_api_generations=4,  # 4 API generations per month
                 price_cents=900,  # $9/month
                 features=[
-                    "15,000 generation tokens/month (AI model usage)",
+                    "4 API generations/month",
                     "35,000 execution tokens/month (API calls)",
                     "Priority AI model access",
                     "Email support",
@@ -68,9 +70,10 @@ class SubscriptionService:
                 monthly_tokens=200000,  # Legacy - total tokens
                 monthly_generation_tokens=60000,   # 60k for API generation
                 monthly_execution_tokens=140000,   # 140k for API execution
+                monthly_api_generations=20,  # 20 API generations per month
                 price_cents=2900,  # $29/month
                 features=[
-                    "60,000 generation tokens/month (AI model usage)",
+                    "20 API generations/month",
                     "140,000 execution tokens/month (API calls)",
                     "All AI models including GPT-4, Claude-3 Opus",
                     "Custom API complexity settings",
@@ -85,9 +88,10 @@ class SubscriptionService:
                 monthly_tokens=1000000,  # Legacy - total tokens
                 monthly_generation_tokens=300000,  # 300k for API generation
                 monthly_execution_tokens=700000,   # 700k for API execution
+                monthly_api_generations=100,  # 100 API generations per month
                 price_cents=9900,  # $99/month
                 features=[
-                    "300,000 generation tokens/month (AI model usage)",
+                    "100 API generations/month",
                     "700,000 execution tokens/month (API calls)",
                     "All AI models including latest GPT-4 and Claude-4",
                     "Custom integrations",
@@ -212,6 +216,10 @@ class SubscriptionService:
         
         if tier not in self.SUBSCRIPTION_TIERS:
             raise HTTPException(status_code=400, detail=f"Invalid subscription tier: {tier}")
+        
+        # Free tier doesn't use LemonSqueezy
+        if tier == "free":
+            raise HTTPException(status_code=400, detail="Free tier does not require a checkout. Use change_subscription_tier instead.")
         
         tier_info = self.SUBSCRIPTION_TIERS[tier]
         
@@ -1209,7 +1217,40 @@ class SubscriptionService:
             # Get current subscription
             current_subscription = await self.get_user_subscription(user_id)
             if not current_subscription:
-                # No subscription - create new one
+                # No subscription - check if trying to subscribe to free tier
+                if new_tier == "free":
+                    # Free tier doesn't need LemonSqueezy - just set up locally
+                    tier_info = self.SUBSCRIPTION_TIERS[new_tier]
+                    
+                    # Update user to free tier
+                    mongodb.users.update_one(
+                        {"_id": user_id},
+                        {
+                            "$set": {
+                                "subscription_tier": new_tier,
+                                "subscription_status": "active",
+                                "monthly_token_allocation": tier_info.monthly_tokens
+                            }
+                        }
+                    )
+                    
+                    # Allocate free tier tokens
+                    await api_pricing_service.allocate_separated_monthly_tokens(
+                        user_id=user_id,
+                        generation_tokens=tier_info.monthly_generation_tokens,
+                        execution_tokens=tier_info.monthly_execution_tokens,
+                        source="free_tier_setup"
+                    )
+                    
+                    return {
+                        "success": True,
+                        "message": "Successfully set up free tier",
+                        "new_tier": new_tier,
+                        "new_allocation": tier_info.monthly_tokens,
+                        "requires_checkout": False
+                    }
+                
+                # No subscription - create new paid subscription
                 checkout_url = await self.create_lemonsqueezy_checkout(user_id, new_tier)
                 return {
                     "success": True,
@@ -1226,8 +1267,43 @@ class SubscriptionService:
             
             # Check if downgrading to free
             if new_tier == "free":
-                # Cancel current subscription
-                return await self.cancel_subscription(user_id)
+                # Cancel current subscription in LemonSqueezy
+                cancel_result = await self.cancel_subscription(user_id)
+                
+                # Update user to free tier immediately
+                tier_info = self.SUBSCRIPTION_TIERS[new_tier]
+                
+                # Update user's tier to free
+                mongodb.users.update_one(
+                    {"_id": user_id},
+                    {
+                        "$set": {
+                            "subscription_tier": "free",
+                            "subscription_status": "cancelled",  # Subscription is cancelled but access continues
+                            "monthly_token_allocation": tier_info.monthly_tokens
+                        }
+                    }
+                )
+                
+                # Allocate free tier tokens
+                await api_pricing_service.allocate_separated_monthly_tokens(
+                    user_id=user_id,
+                    generation_tokens=tier_info.monthly_generation_tokens,
+                    execution_tokens=tier_info.monthly_execution_tokens,
+                    source="downgrade_to_free"
+                )
+                
+                # Return success message with cancellation info
+                return {
+                    "success": True,
+                    "message": f"Subscription cancelled successfully. You will retain access until {cancel_result.get('ends_at_formatted', 'the end of your billing period')}. You have been downgraded to the Free tier.",
+                    "ends_at": cancel_result.get("ends_at"),
+                    "ends_at_formatted": cancel_result.get("ends_at_formatted"),
+                    "new_tier": "free",
+                    "new_allocation": tier_info.monthly_tokens,
+                    "status": "cancelled",
+                    "requires_checkout": False
+                }
             
             # Get LemonSqueezy API key
             api_key = os.getenv("LEMONSQUEEZY_API_KEY")

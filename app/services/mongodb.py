@@ -83,6 +83,7 @@ class MongoDB:
         # Usage tracking collections
         self._collections['llm_usage'] = self.db['llm_usage']
         self._collections['api_execution_usage'] = self.db['api_execution_usage']
+        self._collections['api_generation_usage'] = self.db['api_generation_usage']
         
         # API metadata and pricing
         self._collections['api_metadata'] = self.db['api_metadata']
@@ -139,6 +140,13 @@ class MongoDB:
             self.api_execution_usage.create_index([("user_id", ASCENDING)])
             self.api_execution_usage.create_index([("api_slug", ASCENDING)])
             self.api_execution_usage.create_index([("created_at", DESCENDING)])
+            
+            # API Generation Usage indexes
+            self.api_generation_usage.create_index([("user_id", ASCENDING)])
+            self.api_generation_usage.create_index([("api_key_id", ASCENDING)])
+            self.api_generation_usage.create_index([("api_slug", ASCENDING)])
+            self.api_generation_usage.create_index([("created_at", DESCENDING)])
+            self.api_generation_usage.create_index([("success", ASCENDING)])
             
             # API Metadata indexes
             self.api_metadata.create_index([("api_slug", ASCENDING)])
@@ -228,6 +236,10 @@ class MongoDB:
     @property
     def api_execution_usage(self) -> Collection:
         return self._collections['api_execution_usage']
+    
+    @property
+    def api_generation_usage(self) -> Collection:
+        return self._collections['api_generation_usage']
     
     @property
     def api_metadata(self) -> Collection:

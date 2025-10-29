@@ -179,7 +179,7 @@
                     <span class="mx-3">•</span>
                     <span class="px-3 py-1 rounded-full bg-blue-900/20 text-blue-400">No credit card required</span>
                     <span class="mx-3">•</span>
-                    <span class="px-3 py-1 rounded-full bg-blue-900/20 text-blue-400">Deploy in 15 seconds</span>
+                    <span class="px-3 py-1 rounded-full bg-blue-900/20 text-blue-400">Deploy in 60 seconds</span>
                 </div>
 
                 <!-- Key Stats -->
@@ -189,7 +189,7 @@
                     <div class="text-xs text-slate-400">Build Time</div>
                 </div>
                 <div class="glass-effect rounded-xl p-4">
-                    <div class="text-2xl font-bold mb-1 text-blue-400">GPT-4</div>
+                    <div class="text-2xl font-bold mb-1 text-blue-400">GPT-5 and Claude 4</div>
                     <div class="text-xs text-slate-400">AI Powered</div>
                 </div>
                 <div class="glass-effect rounded-xl p-4">
@@ -282,7 +282,7 @@
                         Describe what you need in natural language. No coding required.
                     </p>
                     <div class="text-xs text-blue-400 bg-blue-900/20 px-3 py-2 rounded-lg">
-                        GPT-4 Powered
+                        GPT-5 and Claude 4 Powered
                     </div>
                 </div>
 
@@ -295,10 +295,10 @@
                     </div>
                     <h3 class="text-lg font-bold text-white mb-3">Instant Deployment</h3>
                     <p class="text-slate-400 text-sm mb-4">
-                        APIs go live in under 30 seconds with production-grade infrastructure.
+                        APIs go live in under 60 seconds with production-grade infrastructure.
                     </p>
                     <div class="text-xs text-blue-400 bg-blue-900/20 px-3 py-2 rounded-lg">
-                        &lt;30s Deploy Time
+                        &lt;60s Deploy Time
                     </div>
                 </div>
 
@@ -511,7 +511,7 @@
                         </svg>
                     </a>
                     <div class="text-xs text-slate-500 mt-3">
-                        No credit card required • Secure by default • Deploy in 15 seconds
+                        No credit card required • Secure by default • Deploy in 60 seconds
                     </div>
                 </div>
             </div>
@@ -564,7 +564,7 @@
                         </div>
                         <h3 class="text-xl font-bold text-white mb-4">AI Generation</h3>
                         <p class="text-slate-400 mb-6">
-                            Our GPT-4o AI analyzes your requirements and generates secure, optimized code with documentation.
+                            Our AI analyzes your requirements and generates secure, optimized code with documentation.
                         </p>
                         <div class="bg-slate-800/50 rounded-xl p-4">
                             <div class="flex items-center justify-center space-x-2 text-blue-400">
@@ -629,7 +629,7 @@
                         <div class="flex-1">
                             <h3 class="text-lg font-bold text-white mb-3">How does the AI understand my requirements?</h3>
                             <p class="text-slate-400 leading-relaxed">
-                                Our GPT-4 powered system analyzes your natural language description and converts it into structured API specifications. 
+                                Our AI powered system analyzes your natural language description and converts it into structured API specifications. 
                                 It understands context, data relationships, and common API patterns to generate production-ready code.
                             </p>
                         </div>
@@ -717,7 +717,7 @@
                         <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
                         </svg>
-                        <span>Deploy in 15 seconds</span>
+                        <span>Deploy in 60 seconds</span>
                     </div>
                     <div class="flex items-center space-x-2">
                         <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
@@ -728,7 +728,7 @@
                 </div>
                 
                 <div class="text-slate-500 text-sm">
-                    Beta Access • Enterprise Security • GPT-4 Powered
+                    Beta Access • Enterprise Security • GPT-5 and Claude 4 Powered
                 </div>
             </div>
         </div>
@@ -1227,21 +1227,17 @@ pre code {
                         <div class="text-3xl font-bold ${colorScheme.price} mb-2">${priceDisplay}</div>
                         <div class="text-slate-400 mb-6">${priceSubtext}</div>
                         
-                        <!-- Token Breakdown -->
+                        <!-- API Generation & Execution Limits -->
                         <div class="bg-slate-800/50 rounded-lg p-3 mb-4 text-sm">
-                            <div class="text-${colorScheme.accent} font-semibold mb-2">Token Allocation:</div>
+                            <div class="text-${colorScheme.accent} font-semibold mb-2">Monthly Limits:</div>
                             <div class="text-slate-300 space-y-1">
                                 <div class="flex justify-between">
-                                    <span>Generation:</span>
-                                    <span class="font-mono">${tier.monthly_generation_tokens.toLocaleString()}</span>
+                                    <span>API Generations:</span>
+                                    <span class="font-mono">${tier.monthly_api_generations}</span>
                                 </div>
                                 <div class="flex justify-between">
-                                    <span>Execution:</span>
+                                    <span>Execution Tokens:</span>
                                     <span class="font-mono">${tier.monthly_execution_tokens.toLocaleString()}</span>
-                                </div>
-                                <div class="border-t border-slate-600 pt-1 flex justify-between font-semibold">
-                                    <span>Total:</span>
-                                    <span class="font-mono">${(tier.monthly_generation_tokens + tier.monthly_execution_tokens).toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>

@@ -2665,13 +2665,10 @@ function updateAPIPreview(apiData) {
                         <span>API Endpoint</span>
                     </h4>
                     <div class="space-y-3">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-2">
-                                <span id="apiMethod" class="px-2 py-1 bg-green-600/20 text-green-300 rounded font-mono text-xs">POST</span>
-                                <code id="apiEndpoint" class="text-blue-300 font-mono text-sm bg-slate-700/50 px-2 py-1 rounded">-</code>
-                            </div>
-                           
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span id="apiMethod" class="px-2 py-1 bg-green-600/20 text-green-300 rounded font-mono text-xs whitespace-nowrap">POST</span>
                         </div>
+                        <code id="apiEndpoint" class="block text-blue-300 font-mono text-sm bg-slate-700/50 px-2 py-1 rounded break-all">-</code>
                         <p id="apiDescription" class="text-slate-300 text-sm">-</p>
                     </div>
                 </div>

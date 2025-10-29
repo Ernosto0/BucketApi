@@ -29,6 +29,7 @@ from .models import (
     APIExecutionStatsResponse, APIExecutionLimitsResponse, CreateAPIExecutionUsageRequest,
     EstimateAPIUsageCostResponse, InternalTokenBalance,
     CreateInternalTokenRequest, SeparatedTokenBalance,
+    APIGenerationUsage, APIGenerationLimitsResponse,
     # Subscription models
     Subscription, SubscriptionTier, CreateSubscriptionRequest, CreateSubscriptionResponse,
     SubscriptionStatusResponse, UpdateSubscriptionRequest, SubscriptionTiersResponse,
@@ -50,6 +51,7 @@ from .services.usage_service import usage_service
 from .services.api_execution_usage_service import api_execution_usage_service
 from .services.api_pricing_service import api_pricing_service
 from .services.subscription_service import subscription_service
+from .services.api_generation_usage_service import api_generation_usage_service
 from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.mongodb import init_database, mongodb
 from .routes.auth_routes import router as auth_router, get_current_user, get_current_user_required, require_auth, require_active_user
@@ -799,19 +801,20 @@ async def generate_proposal(
     
     logger.info(f"Generating proposal for user {proposal_request.user_id} with prompt: {proposal_request.prompt[:100]}...")
     
-    # Check usage limits before proceeding
+    # Check API generation limits before allowing proposal generation
+    # This prevents users from even starting the generation process if they've hit their limit
     try:
-        limits = await usage_service.check_usage_limits(
+        generation_limits = await api_generation_usage_service.check_generation_limits(
             user_id=proposal_request.user_id,
             api_key_id=api_key_id,
             tokens_to_use=1000  # Estimated tokens for analysis
         )
         
-        if limits.is_over_limit:
-            logger.warning(f"Rate limit exceeded for user {proposal_request.user_id}: {limits.limit_exceeded_reason}")
+        if generation_limits.is_over_limit:
+            logger.warning(f"API generation limit exceeded for user {proposal_request.user_id}: {generation_limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
-                detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+                detail=generation_limits.limit_exceeded_reason or f"API generation limit exceeded. You have used {generation_limits.monthly_generations_used}/{generation_limits.monthly_generation_limit} generations this month."
             )
     except HTTPException:
         raise
@@ -1131,28 +1134,28 @@ async def generate_api_stream(
     
     logger.info(f"Starting streaming API generation for user {current_user.id}")
     
-    # Check usage limits before proceeding
+    # Check API generation limits and daily token limits before proceeding
     try:
-        limits = await usage_service.check_usage_limits(
+        generation_limits = await api_generation_usage_service.check_generation_limits(
             user_id=current_user.id,
             api_key_id=api_key_id,
-            tokens_to_use=2000  # Estimated tokens for code generation
+            tokens_to_use=2000  # Estimated tokens for API generation
         )
         
-        if limits.is_over_limit:
-            logger.warning(f"Rate limit exceeded for user {current_user.id}: {limits.limit_exceeded_reason}")
+        if generation_limits.is_over_limit:
+            logger.warning(f"API generation or token limit exceeded for user {current_user.id}: {generation_limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
-                detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+                detail=generation_limits.limit_exceeded_reason or f"API generation limit exceeded. You have used {generation_limits.monthly_generations_used}/{generation_limits.monthly_generation_limit} generations this month."
             )
             
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Usage service unavailable: {e}")
+        logger.error(f"API generation usage service unavailable: {e}")
         raise HTTPException(
             status_code=503,
-            detail="Usage tracking service temporarily unavailable. Please try again later."
+            detail="API generation tracking service temporarily unavailable. Please try again later."
         )
     
     async def generate_stream():
@@ -1361,6 +1364,22 @@ async def generate_api_stream(
                     except Exception as e:
                         logger.warning(f"Failed to save API metadata: {e}")
                     
+                    # Record API generation usage
+                    try:
+                        generation_model = getattr(settings, 'CLAUDE_MODEL', 'claude-3-5-haiku-latest')
+                        await api_generation_usage_service.record_api_generation(
+                            user_id=current_user.id,
+                            api_key_id=api_key_id,
+                            api_slug=clean_slug,
+                            generation_model=generation_model,
+                            prompt=api_request.prompt,
+                            success=True
+                        )
+                        logger.info(f"Recorded API generation usage for user {current_user.id}: {clean_slug}")
+                    except Exception as e:
+                        logger.warning(f"Failed to record API generation usage: {e}")
+                        # Continue without recording - this shouldn't block the response
+                    
                     # Send final success message with results
                     yield "data: " + json.dumps({
                         "type": "generation_complete",
@@ -1452,29 +1471,29 @@ async def generate_api(
     
     logger.info(f"Generating API for user {current_user.id} with prompt: {api_request.prompt[:100]}...")
     
-    # Check usage limits before proceeding
+    # Check API generation limits and daily token limits before proceeding
     try:
-        limits = await usage_service.check_usage_limits(
+        generation_limits = await api_generation_usage_service.check_generation_limits(
             user_id=current_user.id,
             api_key_id=api_key_id,
-            tokens_to_use=2000  # Estimated tokens for code generation
+            tokens_to_use=2000  # Estimated tokens for API generation
         )
         
-        if limits.is_over_limit:
-            # Log the limit breach for monitoring
-            logger.warning(f"Rate limit exceeded for user {current_user.id}: {limits.limit_exceeded_reason}")
+        if generation_limits.is_over_limit:
+            logger.warning(f"API generation or token limit exceeded for user {current_user.id}: {generation_limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
-                detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
+                detail=generation_limits.limit_exceeded_reason or f"API generation limit exceeded. You have used {generation_limits.monthly_generations_used}/{generation_limits.monthly_generation_limit} generations this month."
             )
+            
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Usage service unavailable: {e}")
+        logger.error(f"API generation usage service unavailable: {e}")
         # SECURITY FIX: Fail closed instead of open
         raise HTTPException(
             status_code=503,
-            detail="Usage tracking service temporarily unavailable. Please try again later."
+            detail="API generation tracking service temporarily unavailable. Please try again later."
         )
     
     try:
@@ -1636,6 +1655,22 @@ async def generate_api(
             logger.warning(f"Failed to analyze API code during generation: {e}")
             # Continue without analysis - it will be done during first test as fallback
             logger.info(f"API {clean_slug} generated successfully. Pricing analysis will be retried during first test.")
+        
+        # Record API generation usage
+        try:
+            generation_model = getattr(settings, 'CLAUDE_MODEL', 'claude-3-5-haiku-latest')
+            await api_generation_usage_service.record_api_generation(
+                user_id=current_user.id,
+                api_key_id=api_key_id,
+                api_slug=clean_slug,
+                generation_model=generation_model,
+                prompt=api_request.prompt,
+                success=True
+            )
+            logger.info(f"Recorded API generation usage for user {current_user.id}: {clean_slug}")
+        except Exception as e:
+            logger.warning(f"Failed to record API generation usage: {e}")
+            # Continue without recording - this shouldn't block the response
         
         return APIGenerationResponse(
             success=True,
@@ -2932,6 +2967,24 @@ async def get_api_execution_limits(
         logger.error(f"Failed to get API execution limits: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to get execution limits: {str(e)}")
 
+@app.get("/api-generation-limits", response_model=APIGenerationLimitsResponse)
+async def get_api_generation_limits(
+    request: Request,
+    api_key_id: Optional[str] = None,
+    current_user: User = Depends(require_auth_hybrid)
+):
+    """Get API generation limits and current usage for the current user."""
+    try:
+        limits = await api_generation_usage_service.check_generation_limits(
+            user_id=current_user.id,
+            api_key_id=api_key_id,
+            tokens_to_use=2000  # Estimated tokens for API generation
+        )
+        return limits
+    except Exception as e:
+        logger.error(f"Failed to get API generation limits: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get generation limits: {str(e)}")
+
 @app.get("/api/{user_id}/{api_slug}/usage-stats")
 async def get_api_usage_stats(
     user_id: str,
@@ -3741,6 +3794,13 @@ async def create_subscription(
 ):
     """Create a new subscription (generates LemonSqueezy checkout URL)."""
     try:
+        # Free tier doesn't need checkout, use change-tier endpoint instead
+        if request.tier == "free":
+            raise HTTPException(
+                status_code=400,
+                detail="Free tier does not require checkout. Use /subscription/change-tier endpoint instead."
+            )
+        
         # Check if user already has an active subscription
         existing_subscription = await subscription_service.get_user_subscription(current_user.id)
         if existing_subscription and existing_subscription.status == "active":
@@ -3760,6 +3820,8 @@ async def create_subscription(
             message="Checkout URL created successfully",
             checkout_url=checkout_url
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to create subscription: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to create subscription: {str(e)}")

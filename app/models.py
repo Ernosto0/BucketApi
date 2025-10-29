@@ -450,6 +450,32 @@ class CreateAPIExecutionUsageRequest(BaseModel):
     success: bool = True
     error_message: Optional[str] = None
 
+# API Generation Usage Models
+class APIGenerationUsage(BaseModel):
+    id: str
+    user_id: str
+    api_key_id: Optional[str]
+    api_slug: str
+    generation_model: str
+    prompt: str
+    success: bool
+    error_message: Optional[str]
+    created_at: datetime
+
+class APIGenerationLimitsResponse(BaseModel):
+    is_over_limit: bool
+    monthly_generation_limit: int
+    monthly_generations_used: int
+    monthly_generations_remaining: int
+    limit_reset_time: datetime
+    limit_exceeded_reason: Optional[str]
+    subscription_tier: str
+    # Additional token limit information
+    daily_token_limit: Optional[int] = None
+    daily_tokens_used: Optional[int] = None
+    daily_tokens_remaining: Optional[int] = None
+    token_limit_exceeded: Optional[bool] = None
+
 # API Pricing and Internal Token Models
 class APIMetadata(BaseModel):
     api_slug: str
@@ -821,6 +847,9 @@ class SubscriptionTier(BaseModel):
     monthly_generation_tokens: int  # Tokens for API generation (AI model usage)
     monthly_execution_tokens: int   # Tokens for API execution (running generated APIs)
     generation_token_ratio: float = 0.3  # 30% for generation, 70% for execution by default
+    
+    # API generation limits
+    monthly_api_generations: int  # Number of APIs that can be generated per month
 
 class Subscription(BaseModel):
     id: str
