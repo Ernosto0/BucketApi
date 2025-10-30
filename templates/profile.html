@@ -89,179 +89,11 @@
         <div id="usage-tab" class="tab-content active">
             <div class="mb-6">
                 <h1 class="text-2xl font-bold text-white mb-2">Usage & Billing</h1>
-                <p class="text-slate-400">Monitor your LLM usage, costs, and limits</p>
-            </div>
-
-            <!-- Usage Type Tabs -->
-            <div class="flex gap-4 mb-8">
-                <button class="usage-type-tab active" data-usage-tab="llm">
-                    <div class="flex items-center space-x-3">
-                        <div class="p-2 bg-blue-500/20 rounded-lg">
-                            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                            </svg>
-                        </div>
-                        <div class="text-left">
-                            <div class="font-semibold text-white">LLM Usage</div>
-                            <div class="text-sm text-slate-400">API Generation</div>
-                        </div>
-                    </div>
-                </button>
-                <button class="usage-type-tab" data-usage-tab="api-execution">
-                    <div class="flex items-center space-x-3">
-                        <div class="p-2 bg-green-500/20 rounded-lg">
-                            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="13 10V3L4 14h7v7l9-11h-7z"></path>
-                            </svg>
-                        </div>
-                        <div class="text-left">
-                            <div class="font-semibold text-white">API Execution</div>
-                            <div class="text-sm text-slate-400">Generated APIs</div>
-                        </div>
-                    </div>
-                </button>
-            </div>
-
-            <!-- LLM Usage Content -->
-            <div id="llm-usage-content" class="usage-content active">
-                <!-- Usage Statistics Grid -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div class="metric-card">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="p-2 bg-blue-500/20 rounded-lg">
-                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-                                </svg>
-                            </div>
-                            <span class="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full">+12%</span>
-                        </div>
-                        <div class="text-2xl font-bold text-white mb-1" id="totalRequests">0</div>
-                        <div class="text-sm text-slate-400">Total Requests</div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="p-2 bg-green-500/20 rounded-lg">
-                                <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                                </svg>
-                            </div>
-                            <span class="text-xs px-2 py-1 bg-green-500/20 text-green-400 rounded-full">+8%</span>
-                        </div>
-                        <div class="text-2xl font-bold text-white mb-1" id="totalTokens">0</div>
-                        <div class="text-sm text-slate-400">Total Tokens</div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="p-2 bg-purple-500/20 rounded-lg">
-                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
-                                </svg>
-                            </div>
-                            <span class="text-xs px-2 py-1 bg-purple-500/20 text-purple-400 rounded-full">+5%</span>
-                        </div>
-                        <div class="text-2xl font-bold text-white mb-1" id="totalCost">$0.00</div>
-                        <div class="text-sm text-slate-400">Total Cost</div>
-                    </div>
-                    
-                    <div class="metric-card">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="p-2 bg-yellow-500/20 rounded-lg">
-                                <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                                </svg>
-                            </div>
-                            <span class="text-xs px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full">+2%</span>
-                        </div>
-                        <div class="text-2xl font-bold text-white mb-1" id="avgCostPerRequest">$0.00</div>
-                        <div class="text-sm text-slate-400">Avg Cost/Request</div>
-                    </div>
-                </div>
-
-                <!-- Usage Limits Section -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div class="glass-effect rounded-xl p-6">
-                        <h3 class="text-lg font-semibold text-white mb-4">Daily Limits</h3>
-                        <div class="space-y-4">
-                            <div class="limit-item">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-medium text-white">Tokens</span>
-                                    <span class="text-sm text-slate-400" id="dailyTokensText">0 / 100,000</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="dailyTokensProgress" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            
-                            <div class="limit-item">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-medium text-white">Cost</span>
-                                    <span class="text-sm text-slate-400" id="dailyCostText">$0.00 / $10.00</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="dailyCostProgress" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            
-                            <div class="limit-item">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-medium text-white">Requests/Min</span>
-                                    <span class="text-sm text-slate-400" id="minutelyRequestsText">0 / 100</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="minutelyRequestsProgress" style="width: 0%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="glass-effect rounded-xl p-6">
-                        <h3 class="text-lg font-semibold text-white mb-4">Monthly Limits</h3>
-                        <div class="space-y-4">
-                            <div class="limit-item">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-medium text-white">Tokens</span>
-                                    <span class="text-sm text-slate-400" id="monthlyTokensText">0 / 1,000,000</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="monthlyTokensProgress" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            
-                            <div class="limit-item">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-medium text-white">Hourly Tokens</span>
-                                    <span class="text-sm text-slate-400" id="hourlyTokensText">0 / 10,000</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="hourlyTokensProgress" style="width: 0%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Usage Charts -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="glass-effect rounded-xl p-6">
-                        <h3 class="text-lg font-semibold text-white mb-4">Usage by Service</h3>
-                        <div id="serviceUsageChart" class="space-y-3">
-                            <!-- Service usage will be loaded here -->
-                        </div>
-                    </div>
-                    
-                    <div class="glass-effect rounded-xl p-6">
-                        <h3 class="text-lg font-semibold text-white mb-4">Recent Usage</h3>
-                        <div id="recentUsageList" class="space-y-2">
-                            <!-- Recent usage will be loaded here -->
-                        </div>
-                    </div>
-                </div>
+                <p class="text-slate-400">Monitor your API execution usage and limits</p>
             </div>
 
             <!-- API Execution Usage Content -->
-            <div id="api-execution-usage-content" class="usage-content">
+            <div id="api-execution-usage-content" class="usage-content active">
                 <!-- API Execution Statistics Grid -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="metric-card">
@@ -519,6 +351,33 @@
                                 <div class="flex justify-between text-sm">
                                     <span class="text-slate-400">Next billing:</span>
                                     <span id="subscriptionNextBilling" class="text-white">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Usage Limits -->
+                        <div class="space-y-4">
+                            <h4 class="text-md font-semibold text-white mb-3">Usage This Month</h4>
+                            
+                            <!-- API Generations -->
+                            <div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm text-slate-400">API Generations</span>
+                                    <span class="text-sm text-white font-medium" id="apiGenerationsUsage">0 / 0</span>
+                                </div>
+                                <div class="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                    <div class="h-full bg-purple-500 transition-all duration-300" id="apiGenerationsProgress" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                            <!-- Execution Tokens -->
+                            <div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-sm text-slate-400">Execution Tokens</span>
+                                    <span class="text-sm text-white font-medium" id="executionTokensUsage">0 / 0</span>
+                                </div>
+                                <div class="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                                    <div class="h-full bg-blue-500 transition-all duration-300" id="executionTokensProgress" style="width: 0%"></div>
                                 </div>
                             </div>
                         </div>
@@ -841,27 +700,7 @@
         }
     }
 
-    // Usage Type Tab Management
-    function switchUsageTab(usageType) {
-        // Remove active class from all usage tabs and content
-        document.querySelectorAll('.usage-type-tab').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        document.querySelectorAll('.usage-content').forEach(content => {
-            content.classList.remove('active');
-        });
-
-        // Add active class to selected usage tab and content
-        document.querySelector(`[data-usage-tab="${usageType}"]`).classList.add('active');
-        document.getElementById(usageType + '-usage-content').classList.add('active');
-
-        // Load specific usage data
-        if (usageType === 'llm') {
-            loadLLMUsageData();
-        } else if (usageType === 'api-execution') {
-            loadAPIExecutionData();
-        }
-    }
+    // Usage data loading is now handled directly in loadUsageData
 
     // Event Listeners
     document.addEventListener('DOMContentLoaded', function() {
@@ -876,13 +715,7 @@
             });
         });
 
-        // Usage type tab handlers
-        document.querySelectorAll('[data-usage-tab]').forEach(button => {
-            button.addEventListener('click', function() {
-                const usageType = this.getAttribute('data-usage-tab');
-                switchUsageTab(usageType);
-            });
-        });
+        // Usage type tab handlers removed - no longer needed
 
         // Modal handlers
         document.getElementById('createAPIKeyBtn').addEventListener('click', showCreateAPIKeyModal);
@@ -925,222 +758,13 @@
     async function loadUsageData() {
         try {
             console.log('Loading usage data...');
-            await loadLLMUsageData();
             await loadAPIExecutionData();
         } catch (error) {
             console.error('Error loading usage data:', error);
         }
     }
 
-    // Load LLM Usage Data
-    async function loadLLMUsageData() {
-        try {
-            console.log('Loading LLM usage data...');
-            
-            // Fetch usage statistics
-            const statsResponse = await fetch('/usage/stats?days=30', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include'
-            });
-
-            if (!statsResponse.ok) {
-                throw new Error(`Failed to fetch usage stats: ${statsResponse.status}`);
-            }
-
-            const statsData = await statsResponse.json();
-            console.log('Usage stats response:', statsData);
-            console.log('Stats keys:', Object.keys(statsData));
-            console.log('Stats total_requests:', statsData.total_requests);
-            console.log('Stats total_tokens:', statsData.total_tokens);
-
-            // Fetch usage limits
-            const limitsResponse = await fetch('/usage/limits', {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                credentials: 'include'
-            });
-
-            if (!limitsResponse.ok) {
-                throw new Error(`Failed to fetch usage limits: ${limitsResponse.status}`);
-            }
-
-            const limitsResponseData = await limitsResponse.json();
-            console.log('Usage limits response:', limitsResponseData);
-            console.log('Limits keys:', Object.keys(limitsResponseData));
-            console.log('Limits daily_tokens_used:', limitsResponseData.daily_tokens_used);
-
-            // Store data globally
-            usageData = statsData;
-            limitsData = limitsResponseData;
-
-            // Update UI with the data
-            updateLLMUsageUI(statsData, limitsResponseData);
-
-        } catch (error) {
-            console.error('Error loading LLM usage data:', error);
-            // Show error state in UI
-            showUsageError('Failed to load LLM usage data');
-        }
-    }
-
-    // Update LLM Usage UI
-    function updateLLMUsageUI(stats, limits) {
-        try {
-            console.log('Updating UI with stats:', stats);
-            console.log('Updating UI with limits:', limits);
-            
-            // Update metric cards - handle null/undefined values
-            document.getElementById('totalRequests').textContent = (stats?.total_requests || 0).toLocaleString();
-            document.getElementById('totalTokens').textContent = (stats?.total_tokens || 0).toLocaleString();
-            document.getElementById('totalCost').textContent = `$${((stats?.total_cost_cents || 0) / 100).toFixed(2)}`;
-            
-            const avgCostPerRequest = (stats?.total_requests > 0) ? 
-                ((stats?.total_cost_cents || 0) / 100) / stats.total_requests : 0;
-            document.getElementById('avgCostPerRequest').textContent = `$${avgCostPerRequest.toFixed(4)}`;
-
-            // Update daily limits - handle null/undefined values
-            const dailyTokensPercent = (limits?.daily_token_limit > 0) ? 
-                ((limits?.daily_tokens_used || 0) / limits.daily_token_limit) * 100 : 0;
-            document.getElementById('dailyTokensText').textContent = 
-                `${(limits?.daily_tokens_used || 0).toLocaleString()} / ${(limits?.daily_token_limit || 0).toLocaleString()}`;
-            document.getElementById('dailyTokensProgress').style.width = `${Math.min(100, dailyTokensPercent)}%`;
-
-            const dailyCostPercent = (limits?.daily_cost_limit_cents > 0) ? 
-                ((limits?.daily_cost_used_cents || 0) / limits.daily_cost_limit_cents) * 100 : 0;
-            document.getElementById('dailyCostText').textContent = 
-                `$${((limits?.daily_cost_used_cents || 0) / 100).toFixed(2)} / $${((limits?.daily_cost_limit_cents || 0) / 100).toFixed(2)}`;
-            document.getElementById('dailyCostProgress').style.width = `${Math.min(100, dailyCostPercent)}%`;
-
-            const minutelyRequestsPercent = (limits?.minutely_request_limit > 0) ? 
-                ((limits?.minutely_requests_used || 0) / limits.minutely_request_limit) * 100 : 0;
-            document.getElementById('minutelyRequestsText').textContent = 
-                `${limits?.minutely_requests_used || 0} / ${limits?.minutely_request_limit || 0}`;
-            document.getElementById('minutelyRequestsProgress').style.width = `${Math.min(100, minutelyRequestsPercent)}%`;
-
-            // Update monthly limits
-            const monthlyTokensPercent = (limits?.monthly_token_limit > 0) ? 
-                ((limits?.monthly_tokens_used || 0) / limits.monthly_token_limit) * 100 : 0;
-            document.getElementById('monthlyTokensText').textContent = 
-                `${(limits?.monthly_tokens_used || 0).toLocaleString()} / ${(limits?.monthly_token_limit || 0).toLocaleString()}`;
-            document.getElementById('monthlyTokensProgress').style.width = `${Math.min(100, monthlyTokensPercent)}%`;
-
-            const hourlyTokensPercent = (limits?.hourly_token_limit > 0) ? 
-                ((limits?.hourly_tokens_used || 0) / limits.hourly_token_limit) * 100 : 0;
-            document.getElementById('hourlyTokensText').textContent = 
-                `${(limits?.hourly_tokens_used || 0).toLocaleString()} / ${(limits?.hourly_token_limit || 0).toLocaleString()}`;
-            document.getElementById('hourlyTokensProgress').style.width = `${Math.min(100, hourlyTokensPercent)}%`;
-
-            // Update service usage chart
-            updateServiceUsageChart(stats?.by_service || {});
-
-            // Update recent usage list
-            updateRecentUsageList(stats?.recent_usage || []);
-
-        } catch (error) {
-            console.error('Error updating LLM usage UI:', error);
-        }
-    }
-
-    // Update Service Usage Chart
-    function updateServiceUsageChart(byService) {
-        const serviceChart = document.getElementById('serviceUsageChart');
-        serviceChart.innerHTML = '';
-
-        if (!byService || Object.keys(byService).length === 0) {
-            serviceChart.innerHTML = '<p class="text-slate-400 text-sm">No service usage data available</p>';
-            return;
-        }
-
-        // Calculate total for percentages
-        const totalTokens = Object.values(byService).reduce((sum, service) => sum + service.tokens, 0);
-
-        Object.entries(byService).forEach(([serviceName, data]) => {
-            const percentage = totalTokens > 0 ? (data.tokens / totalTokens) * 100 : 0;
-            
-            const serviceItem = document.createElement('div');
-            serviceItem.className = 'flex items-center justify-between p-3 bg-slate-800/30 rounded-lg';
-            serviceItem.innerHTML = `
-                <div class="flex items-center space-x-3">
-                    <div class="w-3 h-3 rounded-full bg-blue-400"></div>
-                    <div>
-                        <div class="text-sm font-medium text-white">${serviceName}</div>
-                        <div class="text-xs text-slate-400">${data.requests} requests</div>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="text-sm font-medium text-white">${data.tokens.toLocaleString()}</div>
-                    <div class="text-xs text-slate-400">${percentage.toFixed(1)}%</div>
-                </div>
-            `;
-            serviceChart.appendChild(serviceItem);
-        });
-    }
-
-    // Update Recent Usage List
-    function updateRecentUsageList(recentUsage) {
-        const recentList = document.getElementById('recentUsageList');
-        recentList.innerHTML = '';
-
-        if (!recentUsage || recentUsage.length === 0) {
-            recentList.innerHTML = '<p class="text-slate-400 text-sm">No recent usage data available</p>';
-            return;
-        }
-
-        recentUsage.forEach(usage => {
-            const usageItem = document.createElement('div');
-            usageItem.className = 'flex items-center justify-between p-2 hover:bg-slate-800/20 rounded-lg';
-            
-            const timeAgo = getTimeAgo(new Date(usage.created_at));
-            const cost = (usage.estimated_cost_cents / 100).toFixed(4);
-            
-            usageItem.innerHTML = `
-                <div class="flex items-center space-x-3">
-                    <div class="w-2 h-2 rounded-full bg-green-400"></div>
-                    <div>
-                        <div class="text-sm text-white">${usage.operation_type}</div>
-                        <div class="text-xs text-slate-400">${usage.model_name}</div>
-                    </div>
-                </div>
-                <div class="text-right">
-                    <div class="text-sm text-white">${usage.total_tokens} tokens</div>
-                    <div class="text-xs text-slate-400">$${cost} • ${timeAgo}</div>
-                </div>
-            `;
-            recentList.appendChild(usageItem);
-        });
-    }
-
-    // Helper function to get time ago
-    function getTimeAgo(date) {
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / (1000 * 60));
-        const diffHours = Math.floor(diffMins / 60);
-        const diffDays = Math.floor(diffHours / 24);
-
-        if (diffMins < 1) return 'Just now';
-        if (diffMins < 60) return `${diffMins}m ago`;
-        if (diffHours < 24) return `${diffHours}h ago`;
-        return `${diffDays}d ago`;
-    }
-
-    // Show usage error
-    function showUsageError(message) {
-        // Update UI to show error state
-        document.getElementById('totalRequests').textContent = 'Error';
-        document.getElementById('totalTokens').textContent = 'Error';
-        document.getElementById('totalCost').textContent = 'Error';
-        document.getElementById('avgCostPerRequest').textContent = 'Error';
-        
-        // Show error in charts
-        document.getElementById('serviceUsageChart').innerHTML = `<p class="text-red-400 text-sm">${message}</p>`;
-        document.getElementById('recentUsageList').innerHTML = `<p class="text-red-400 text-sm">${message}</p>`;
-    }
+    // LLM Usage functions removed - now only showing API execution usage
 
     // Load API Execution Data
     async function loadAPIExecutionData() {
@@ -1897,14 +1521,19 @@
             document.getElementById('subscriptionContent').classList.add('hidden');
             document.getElementById('subscriptionError').classList.add('hidden');
             
-            // Fetch subscription status and tiers
-            const [statusResponse, tiersResponse] = await Promise.all([
+            // Fetch subscription status, tiers, and generation limits
+            const [statusResponse, tiersResponse, generationLimitsResponse] = await Promise.all([
                 fetch('/subscription/status', {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include'
                 }),
                 fetch('/subscription/tiers', {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                }),
+                fetch('/api-generation-limits', {
                     method: 'GET',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include'
@@ -1917,12 +1546,13 @@
             
             const statusData = await statusResponse.json();
             const tiersData = await tiersResponse.json();
+            const generationLimits = generationLimitsResponse.ok ? await generationLimitsResponse.json() : null;
             
             console.log('Subscription status:', statusData);
             console.log('Subscription tiers:', tiersData);
             
             if (statusData.success && tiersData.success) {
-                updateSubscriptionUI(statusData, tiersData);
+                updateSubscriptionUI(statusData, tiersData, generationLimits);
                 document.getElementById('subscriptionContent').classList.remove('hidden');
             } else {
                 throw new Error('Invalid subscription data');
@@ -1937,7 +1567,7 @@
     }
 
     // Update Subscription UI
-    function updateSubscriptionUI(statusData, tiersData) {
+    function updateSubscriptionUI(statusData, tiersData, generationLimits) {
         try {
             const subscription = statusData.subscription;
             const currentTier = statusData.current_tier;
@@ -1997,6 +1627,27 @@
             
             // Update management buttons state
             updateSubscriptionManagementButtons(subscription);
+            
+            // Update API generation and execution limits
+            if (generationLimits && currentTier) {
+                // API Generations
+                const apiGenerationsUsed = generationLimits.monthly_generations_used || 0;
+                const apiGenerationsLimit = currentTier.monthly_api_generations || 0;
+                const apiGenerationsPercent = apiGenerationsLimit > 0 ? (apiGenerationsUsed / apiGenerationsLimit) * 100 : 0;
+                
+                document.getElementById('apiGenerationsUsage').textContent = 
+                    `${apiGenerationsUsed} / ${apiGenerationsLimit}`;
+                document.getElementById('apiGenerationsProgress').style.width = `${Math.min(100, apiGenerationsPercent)}%`;
+                
+                // Execution Tokens
+                const execTokensUsed = generationLimits.daily_tokens_used || 0; // Use daily as proxy, adjust as needed
+                const execTokensLimit = currentTier.monthly_execution_tokens || 0;
+                const execTokensPercent = execTokensLimit > 0 ? (execTokensUsed / execTokensLimit) * 100 : 0;
+                
+                document.getElementById('executionTokensUsage').textContent = 
+                    `${execTokensUsed.toLocaleString()} / ${execTokensLimit.toLocaleString()}`;
+                document.getElementById('executionTokensProgress').style.width = `${Math.min(100, execTokensPercent)}%`;
+            }
         } catch (error) {
             console.error('Error updating subscription UI:', error);
         }
@@ -2062,11 +1713,10 @@
                 
                 <div class="space-y-2 mb-4">
                     <div class="text-xs text-slate-400">
-                        ${tier.monthly_generation_tokens?.toLocaleString() || '0'} generation + 
-                        ${tier.monthly_execution_tokens?.toLocaleString() || '0'} execution tokens
+                        ${tier.monthly_api_generations || '0'} API generations/month
                     </div>
                     <div class="text-xs text-slate-400">
-                        ${((tier.monthly_generation_tokens || 0) + (tier.monthly_execution_tokens || 0)).toLocaleString()} total/month
+                        ${tier.monthly_execution_tokens?.toLocaleString() || '0'} execution tokens/month (API calls)
                     </div>
                 </div>
                 
@@ -2289,8 +1939,16 @@
                             <h3 class="text-xl font-bold text-blue-400">${priceDisplay}</h3>
                         </div>
                         <div class="p-4 flex-grow">
+                            <div class="space-y-2 mb-3">
+                                <div class="text-xs text-slate-400">
+                                    ${tier.monthly_api_generations || '0'} API generations/month
+                                </div>
+                                <div class="text-xs text-slate-400">
+                                    ${tier.monthly_execution_tokens?.toLocaleString() || '0'} execution tokens/month
+                                </div>
+                            </div>
                             <ul class="feature-list space-y-1 text-xs text-slate-300">
-                                ${tier.features.slice(0, 3).map(feature => `<li class=\"flex items-start\"><span class=\"text-green-400 mr-1\">✓</span>${feature}</li>`).join('')}
+                                ${tier.features.slice(0, 2).map(feature => `<li class=\"flex items-start\"><span class=\"text-green-400 mr-1\">✓</span>${feature}</li>`).join('')}
                             </ul>
                         </div>
                         <div class="p-4 pt-0">
