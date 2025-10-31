@@ -421,14 +421,11 @@ async def create_api_key(
     current_user: User = Depends(require_auth_hybrid)
 ):
     """Create a new API key for the authenticated user."""
-    logger.info(f"🎯 POST /api-keys endpoint hit! Creating API key '{key_request.key_name}' for user {current_user.id}")
     result = api_key_service.create_api_key(current_user.id, key_request)
-    logger.info(f"🔄 API key creation result: success={result.success}")
     return result
 
 @app.get("/api-keys", response_model=ListAPIKeysResponse)
 async def list_api_keys(request: Request, current_user: User = Depends(require_auth_hybrid)):
-    logger.info(f"🔑 GET /api-keys endpoint hit! Listing API keys for user {current_user.id}")
     """List all API keys for the authenticated user."""
     api_keys = api_key_service.get_user_api_keys(current_user.id)
     return ListAPIKeysResponse(
@@ -444,7 +441,6 @@ async def update_api_key(
     request: Request,
     current_user: User = Depends(require_auth_hybrid)
 ):
-    logger.info(f"🔄 PUT /api-keys/{key_id} endpoint hit! Updating API key for user {current_user.id}")
     """Update an API key."""
     success = api_key_service.update_api_key(
         current_user.id, 
@@ -460,7 +456,6 @@ async def update_api_key(
 @app.delete("/api-keys/{key_id}", response_model=DeleteAPIKeyResponse)
 async def delete_api_key(key_id: str, request: Request, current_user: User = Depends(require_auth_hybrid)):
     """Delete an API key."""
-    logger.info(f"🔄 DELETE /api-keys/{key_id} endpoint hit! Deleting API key for user {current_user.id}")
     success = api_key_service.delete_api_key(current_user.id, key_id)
     if success:
         return DeleteAPIKeyResponse(

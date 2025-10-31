@@ -146,7 +146,7 @@
 
                 <!-- Navigation -->
                 <nav id="mainNav" class="hidden md:flex items-center space-x-1 w-1/3 justify-center">
-                    <a href="/" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
+                    <a href="{% if not user %}/login{% else %}/{% endif %}" class="nav-link group relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:bg-emerald-500/10">
                         <span class="relative z-10 text-slate-300 group-hover:text-emerald-300">Generator</span>
                         <div class="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-500/20 to-emerald-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>

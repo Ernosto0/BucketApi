@@ -507,17 +507,18 @@ async function sendMessage() {
         }
     }
 
-            // Show typing indicator with generation mode info
-        const modeText = generationMode === 'multi-step' ? 
-            `Analyzing your request...` : 
-            "Analyzing your request... (Single-step)";
-        showTypingIndicator(modeText);
-
     try {
         isGenerating = true;
         
         // Get user ID (from auth or generate temp one)
         const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
+        
+        // Add initial proposal analysis system messages (similar to generate-api)
+        addStreamingMessage('🔍 Starting proposal analysis...', 'greeting');
+        await new Promise(resolve => setTimeout(resolve, 800)); // Small delay for natural flow
+        
+        addStreamingMessage('🧠 Analyzing your requirements and determining feasibility...', 'ai_processing');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay for natural flow
         
         // First, generate a proposal for the prompt
         const proposalResponse = await fetch('/generate-proposal', {
@@ -574,6 +575,9 @@ async function sendMessage() {
             // Handle different proposal response types
             if (proposalResult.status === 'buildable' || proposalResult.status === 'proposal_ready') {
                 console.log('Creating new proposal - calling addProposalMessage');
+                // Add completion message before showing proposal
+                addStreamingMessage('✅ Analysis complete! Creating detailed proposal...', 'step_complete');
+                await new Promise(resolve => setTimeout(resolve, 500)); // Small delay
                 // Show detailed API proposal and ask for confirmation
                 addProposalMessage(proposalResult, message, userId);
             } else if (proposalResult.status === 'needs_clarification') {
