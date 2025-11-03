@@ -1161,7 +1161,7 @@ async def generate_api_stream(
                 "type": "chat_message",
                 "timestamp": datetime.now().isoformat(),
                 "data": {
-                    "message": "🚀 Starting multi-step API generation...",
+                    "message": "🚀 Starting API generation...",
                     "is_ai": True,
                     "message_type": "greeting"
                 }

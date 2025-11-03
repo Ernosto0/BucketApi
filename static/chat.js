@@ -515,10 +515,10 @@ async function sendMessage() {
         
         // Add initial proposal analysis system messages (similar to generate-api)
         addStreamingMessage('🔍 Starting proposal analysis...', 'greeting');
-        await new Promise(resolve => setTimeout(resolve, 800)); // Small delay for natural flow
+        await new Promise(resolve => setTimeout(resolve, 4800)); // Small delay for natural flow
         
         addStreamingMessage('🧠 Analyzing your requirements and determining feasibility...', 'ai_processing');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Small delay for natural flow
+        await new Promise(resolve => setTimeout(resolve, 4000)); // Small delay for natural flow
         
         // First, generate a proposal for the prompt
         const proposalResponse = await fetch('/generate-proposal', {
@@ -2661,14 +2661,14 @@ function updateAPIPreview(apiData) {
             </div>
             
             <!-- API Preview Content (Hidden by default) -->
-            <div id="apiPreviewPanel" class="hidden p-6 space-y-6">
+            <div id="apiPreviewPanel" class="hidden p-6 space-y-4">
                 
-                <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+                <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 w-full">
                     <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
                         <span class="text-blue-400">🌐</span>
                         <span>API Endpoint</span>
                     </h4>
-                    <div class="space-y-3">
+                    <div class="space-y-2">
                         <div class="flex items-center gap-2 flex-wrap">
                             <span id="apiMethod" class="px-2 py-1 bg-green-600/20 text-green-300 rounded font-mono text-xs whitespace-nowrap">POST</span>
                         </div>
@@ -2678,18 +2678,18 @@ function updateAPIPreview(apiData) {
                 </div>
                 
                 <!-- Parameters Section -->
-                <div id="parametersSection" class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+                <div id="parametersSection" class="bg-green-900/20 border border-green-500/30 rounded-xl p-4 w-full">
                     <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
                         <span class="text-green-400">📝</span>
                         <span>Parameters</span>
                     </h4>
                     <div id="parametersTable" class="overflow-x-auto">
-                        <div class="text-slate-400 text-sm text-center py-8">No parameters defined</div>
+                        <div class="text-slate-400 text-sm text-center py-4">No parameters defined</div>
                     </div>
                 </div>
                 
                 <!-- Example Response Section -->
-                <div id="exampleResponseSection" class="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+                <div id="exampleResponseSection" class="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4 w-full">
                     <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
                         <span class="text-purple-400">📋</span>
                         <span>Example Response</span>
@@ -2700,7 +2700,7 @@ function updateAPIPreview(apiData) {
                 </div>
                 
                 <!-- Test Playground Section -->
-                <div id="testPlaygroundSection" class="bg-slate-800/30 border border-slate-600/50 rounded-xl p-4">
+                <div id="testPlaygroundSection" class="bg-slate-800/30 border border-slate-600/50 rounded-xl p-4 w-full">
                     <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
                         <span class="text-blue-400">🧪</span>
                         <span>Test Playground</span>
@@ -2767,7 +2767,7 @@ function updateAPIPreview(apiData) {
                     </div>
                     
                     <!-- Action Buttons -->
-                    <div class="pt-4 border-t border-slate-600/50">
+                    <div id="previewActionButtons" class="hidden pt-4 border-t border-slate-600/50">
                         <div class="flex items-center space-x-3">
                             <button onclick="deployCurrentAPI()" 
                                     id="previewDeployBtn"
@@ -3860,6 +3860,12 @@ async function runPreviewTest() {
             responseStatus.className = 'px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono';
             
             responseBody.textContent = JSON.stringify(testResult.response_data || testResult, null, 2);
+            
+            // Show Deploy and Modify buttons after successful test
+            const actionButtons = document.getElementById('previewActionButtons');
+            if (actionButtons) {
+                actionButtons.classList.remove('hidden');
+            }
         } else {
             status.className = 'w-3 h-3 bg-red-500 rounded-full';
             statusText.textContent = 'Failed';
@@ -3945,8 +3951,7 @@ function hideAPIElements() {
     // Hide API-specific elements (parameters, response, test playground, code snippets, deploy/modify buttons)
     const apiElements = [
         'previewTestResults', 
-        'previewDeployBtn', 
-        'previewModifyBtn',
+        'previewActionButtons',
         'testPlaygroundSection',
         'codeSnippetsSection',
         'parametersSection',
@@ -3959,10 +3964,9 @@ function hideAPIElements() {
 }
 
 function showAPIElements() {
-    // Show API-specific elements (parameters, response, test playground, code snippets, deploy/modify buttons)
+    // Show API-specific elements (parameters, response, test playground, code snippets)
+    // Note: previewActionButtons stays hidden until first successful test
     const apiElements = [
-        'previewDeployBtn', 
-        'previewModifyBtn',
         'testPlaygroundSection',
         'codeSnippetsSection',
         'parametersSection',
@@ -4022,7 +4026,7 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
     if (!proposalSection) {
         proposalSection = document.createElement('div');
         proposalSection.id = 'proposalSection';
-        proposalSection.className = 'space-y-6 p-6';
+        proposalSection.className = 'space-y-4';
         
         // Insert after the API endpoint section
         const apiInfoSection = document.querySelector('#apiPreviewPanel .bg-blue-900\\/20');
@@ -4038,7 +4042,7 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
     
     proposalSection.innerHTML = `
         <!-- Key Features -->
-        <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4">
+        <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 w-full">
             <h4 class="font-semibold text-white mb-3 flex items-center space-x-2">
                 <span class="text-blue-400">⚡</span>
                 <span>Key Features</span>
@@ -4050,9 +4054,9 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
 
         <!-- Input/Output Format -->
         ${proposal.input_format || proposal.output_format ? `
-        <div class="grid md:grid-cols-2 gap-4">
+        <div class="w-full space-y-4">
             ${proposal.input_format ? `
-            <div class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+            <div class="bg-green-900/20 border border-green-500/30 rounded-xl p-4 w-full">
                 <h5 class="font-semibold text-green-400 mb-2">📥 Input Format</h5>
                 <p class="text-sm text-slate-300 mb-2">${proposal.input_format.type || 'JSON'}</p>
                 ${proposal.input_format.fields ? `
@@ -4072,7 +4076,7 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
             </div>
             ` : ''}
             ${proposal.output_format ? `
-            <div class="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
+            <div class="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4 w-full">
                 <h5 class="font-semibold text-purple-400 mb-2">📤 Output Format</h5>
                 <p class="text-sm text-slate-300 mb-2">${proposal.output_format.type || 'JSON'}</p>
                 ${proposal.output_format.fields ? `
@@ -4095,7 +4099,7 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
         ` : ''}
 
         <!-- Confirmation Buttons -->
-        <div id="confirmation-buttons-${Date.now()}" class="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
+        <div id="confirmation-buttons-${Date.now()}" class="bg-green-900/20 border border-green-500/30 rounded-xl p-4 w-full">
             <h4 class="font-semibold text-white mb-4 flex items-center space-x-2">
                 <span class="text-green-400">✅</span>
                 <span>Ready to build this API?</span>
