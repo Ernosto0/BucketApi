@@ -26,3 +26,9 @@ PyYAML>=6.0.1
 authlib>=1.2.0
 itsdangerous>=2.1.0
 zstandard>=0.20.0
+gunicorn>=21.2.0
+python-json-logger>=2.0.7
+pytest
+fastapi
+uvicorn
+httpx
