@@ -64,9 +64,10 @@ from .services.multi_step_generation_service import multi_step_generation_servic
 from .code_generation_config.multi_step_config import GenerationMode
 from .middleware.logging_middleware import LoggingMiddleware, RequestContextMiddleware
 from .config import settings
+from .logging_config import setup_logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
@@ -184,12 +185,8 @@ async def require_admin_auth(request: Request) -> User:
 
 def is_admin_user(email: str) -> bool:
     """Check if a user is an admin based on their email."""
-    # Simple admin check - I will change this later TODO
-    admin_emails = [
-        "ernosto20.03@gmail.com",
-        "admin@localhost",
-        "admin@yourdomain.com"
-    ]
+    admin_emails_str = os.getenv("ADMIN_EMAILS", "admin@localhost,admin@yourdomain.com")
+    admin_emails = [e.strip() for e in admin_emails_str.split(',')]
     logger.info(f"Checking if {email} is an admin user")
     # Check if email is in admin list or contains 'admin'
     return email.lower() in [e.lower() for e in admin_emails] or 'admin' in email.lower()
