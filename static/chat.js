@@ -3794,6 +3794,10 @@ async function runPreviewTest() {
     const responseStatus = document.getElementById('previewResponseStatus');
     const responseBody = document.getElementById('previewResponseBody');
     
+    // Add initial test start message
+    addStreamingMessage('🧪 Starting API test...', 'step_start');
+    await new Promise(resolve => setTimeout(resolve, 2400));
+    
     // Update UI to show testing
     runBtn.disabled = true;
     runBtn.innerHTML = `
@@ -3807,6 +3811,10 @@ async function runPreviewTest() {
     statusText.className = 'text-sm text-yellow-400';
     
     try {
+        // Add validation message
+        addStreamingMessage('🔍 Validating API endpoint and test data...', 'ai_processing');
+        await new Promise(resolve => setTimeout(resolve, 4800));
+        
         // Parse the endpoint URL to get user_id and api_slug
         const urlPath = currentAPISpec.endpoint_url;
         const urlParts = urlPath.split('/').filter(part => part);
@@ -3831,10 +3839,19 @@ async function runPreviewTest() {
             try {
                 const parsedData = JSON.parse(testInputValue);
                 testData.test_data = parsedData;
+                addStreamingMessage('✅ Test input validated successfully', 'step_complete');
             } catch (jsonError) {
                 throw new Error('Invalid JSON format in test input');
             }
+        } else {
+            addStreamingMessage('📝 Using default test parameters', 'default');
         }
+        
+        await new Promise(resolve => setTimeout(resolve, 2400));
+        
+        // Add message for API call
+        addStreamingMessage('🚀 Executing API test request...', 'step_start');
+        await new Promise(resolve => setTimeout(resolve, 2400));
         
         // Call the backend test endpoint
         const response = await fetch('/test-api', {
@@ -3845,13 +3862,27 @@ async function runPreviewTest() {
             body: JSON.stringify(testData)
         });
         
+        addStreamingMessage('📊 Processing test results...', 'ai_processing');
+        await new Promise(resolve => setTimeout(resolve, 2400));
+        
         const testResult = await response.json();
         
         // Show results
         results.classList.remove('hidden');
         
+        // Check if the API actually succeeded - look for errors in response_data
+        const responseData = testResult.response_data || testResult;
+        const hasError = responseData.error || 
+                        responseData.message === 'failed' || 
+                        (responseData.status && responseData.status !== 'success') ||
+                        !testResult.success;
+        
         // Update status
-        if (testResult.success) {
+        if (testResult.success && !hasError) {
+            // Add success message
+            addStreamingMessage('🎉 **Test completed successfully!** API is working correctly.', 'step_complete');
+            await new Promise(resolve => setTimeout(resolve, 800));
+            
             status.className = 'w-3 h-3 bg-green-500 rounded-full';
             statusText.textContent = 'Success';
             statusText.className = 'text-sm text-green-400';
@@ -3859,14 +3890,20 @@ async function runPreviewTest() {
             responseStatus.textContent = '200 OK';
             responseStatus.className = 'px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono';
             
-            responseBody.textContent = JSON.stringify(testResult.response_data || testResult, null, 2);
+            responseBody.textContent = JSON.stringify(responseData, null, 2);
             
             // Show Deploy and Modify buttons after successful test
             const actionButtons = document.getElementById('previewActionButtons');
             if (actionButtons) {
                 actionButtons.classList.remove('hidden');
             }
+            
+            addStreamingMessage('✨ Your API is ready for deployment or further modifications!', 'default');
         } else {
+            // Add failure message
+            addStreamingMessage('❌ **Test failed.** Debugging the issue...', 'step_error');
+            await new Promise(resolve => setTimeout(resolve, 600));
+            
             status.className = 'w-3 h-3 bg-red-500 rounded-full';
             statusText.textContent = 'Failed';
             statusText.className = 'text-sm text-red-400';
@@ -3874,27 +3911,38 @@ async function runPreviewTest() {
             responseStatus.textContent = 'Error';
             responseStatus.className = 'px-2 py-1 bg-red-600/20 text-red-300 rounded text-xs font-mono';
             
-            // Show user-friendly error message instead of raw error
+            // Extract error message from response
+            const errorMessage = responseData.error || testResult.error || 'Test failed';
+            
+            // Show the full response with error highlighted
             responseBody.innerHTML = `
-                <div class="text-red-300 text-center py-2">
-                    <div class="text-sm mb-2">⚠️ Test failed - please try again</div>
-                    <div class="mb-2">
+                <div class="text-red-300 mb-3">
+                    <div class="text-sm font-semibold mb-2 text-red-400">⚠️ API Execution Failed</div>
+                    <div class="text-xs bg-red-900/20 border border-red-500/30 rounded p-3 mb-3">
+                        <div class="font-semibold mb-1">Error:</div>
+                        <div class="text-red-200">${errorMessage}</div>
+                    </div>
+                    <div class="mb-3">
                         <button onclick="runPreviewTest()" 
                                 class="px-3 py-1 bg-red-600/20 text-red-300 border border-red-500/30 rounded text-xs hover:bg-red-600/30 transition-all duration-200">
-                            🔄 Retry
+                            🔄 Retry Test
                         </button>
                     </div>
                     <details class="text-left">
-                        <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300">Debug info</summary>
-                        <div class="text-xs text-slate-500 font-mono bg-slate-800/50 p-2 rounded border-l-2 border-red-500/50 mt-1">
-                            ${JSON.stringify({error: testResult.error || 'Test failed'}, null, 2)}
-                        </div>
+                        <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-300">Full Response</summary>
+                        <pre class="text-xs text-slate-300 font-mono bg-slate-800/50 p-2 rounded border-l-2 border-red-500/50 mt-1 overflow-x-auto">${JSON.stringify(responseData, null, 2)}</pre>
                     </details>
                 </div>
             `;
+            
+            addStreamingMessage('🔧 Please check your API code or try modifying the API to fix the error.', 'default');
         }
         
     } catch (error) {
+        // Add error message
+        addStreamingMessage('💥 **Unexpected error occurred** during testing.', 'step_error');
+        await new Promise(resolve => setTimeout(resolve, 400));
+        
         results.classList.remove('hidden');
         
         status.className = 'w-3 h-3 bg-red-500 rounded-full';
@@ -3922,6 +3970,8 @@ async function runPreviewTest() {
                 </details>
             </div>
         `;
+        
+        addStreamingMessage('🔧 Please check your connection and try again, or contact support if the issue persists.', 'default');
     } finally {
         // Reset button
         runBtn.disabled = false;

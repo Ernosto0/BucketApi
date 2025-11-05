@@ -65,6 +65,7 @@ from .code_generation_config.multi_step_config import GenerationMode
 from .middleware.logging_middleware import LoggingMiddleware, RequestContextMiddleware
 from .config import settings
 from .logging_config import setup_logging
+import os
 
 # Configure logging
 setup_logging()
