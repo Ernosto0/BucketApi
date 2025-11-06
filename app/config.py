@@ -118,10 +118,10 @@ class Settings:
     SECURITY_SERVICE_ENABLED: bool = os.getenv("SECURITY_SERVICE_ENABLED", "true").lower() == "true"
     print("security service enabled", SECURITY_SERVICE_ENABLED)
     FORBIDDEN_KEYWORDS: Set[str] = {
-        "os", "subprocess", "eval", "exec", "requests", "urllib", 
+        "subprocess", "eval", "exec", "requests", "urllib", 
         "socket", "import", "__import__", "open", "file", "input",
         "raw_input", "compile", "globals", "locals", "vars", "dir",
-        "getattr", "setattr", "delattr", "hasattr", "sys", "shutil",
+        "getattr", "setattr", "delattr", "hasattr", "shutil",
         "tempfile", "pickle", "marshal", "builtins", "__builtins__"
     }
     

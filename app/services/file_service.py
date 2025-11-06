@@ -402,7 +402,8 @@ class FileService:
     
     async def load_and_execute_api(self, user_id: str, api_slug: str, 
                            file_bytes: Optional[bytes] = None, 
-                           input_data: Optional[Dict[str, Any]] = None) -> Any:
+                           input_data: Optional[Dict[str, Any]] = None,
+                           is_test_execution: bool = False) -> Any:
         """Load and execute the generated API from Python file."""
         full_slug = f"{user_id}_{api_slug}"
         file_path = self._get_api_file_path(full_slug)
@@ -419,7 +420,8 @@ class FileService:
             result, execution_time, success, error = await api_execution_usage_service.execute_api_with_limits(
                 code=code,
                 input_data=input_data or {},
-                file_bytes=file_bytes
+                file_bytes=file_bytes,
+                is_test_execution=is_test_execution
             )
             
             if not success:

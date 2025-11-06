@@ -8,6 +8,10 @@ import multiprocessing
 import signal
 import psutil
 import platform
+from datetime import datetime
+
+# Import our new venv execution service
+from .venv_execution_service import venv_execution_service
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +19,14 @@ class SandboxService:
     """Service for executing API code in a sandboxed environment with resource limits."""
     
     def __init__(self):
-        self.DEFAULT_TIMEOUT_SECONDS = 10  # Reduced from 30 to 10 seconds
+        self.DEFAULT_TIMEOUT_SECONDS = 30  # Increased for venv execution
         self.DEFAULT_MEMORY_LIMIT_MB = 512  # Default memory limit in MB
-        self.DEFAULT_CPU_TIME_LIMIT_SECONDS = 10  # Reduced from 30 to 10 seconds
+        self.DEFAULT_CPU_TIME_LIMIT_SECONDS = 20  # Increased for venv execution
         self.IS_WINDOWS = platform.system() == 'Windows'
+        
+        # Use venv execution by default
+        self.use_venv_execution = True
+        self.venv_execution_service = venv_execution_service
         
     def _set_process_limits(self, memory_mb: int, cpu_time: int):
         """Set resource limits for the current process."""
@@ -202,16 +210,67 @@ class SandboxService:
         file_bytes: Optional[bytes] = None,
         timeout_seconds: int = None,
         memory_limit_mb: int = None,
-        cpu_limit: int = None
+        cpu_limit: int = None,
+        is_test_execution: bool = False
     ) -> Any:
         """
         Execute API code in a sandboxed environment with resource limits.
+        Now uses the new venv execution system with automatic dependency management.
         """
         # Use default limits if not specified
         timeout = timeout_seconds or self.DEFAULT_TIMEOUT_SECONDS
         memory_limit = memory_limit_mb or self.DEFAULT_MEMORY_LIMIT_MB
-        cpu_time_limit = cpu_limit or self.DEFAULT_CPU_TIME_LIMIT_SECONDS
         
+        try:
+            if self.use_venv_execution:
+                # Use new venv execution system with smart dependency management
+                if is_test_execution:
+                    logger.info("Executing API test with dependency preparation")
+                    # First time: prepare dependencies
+                    result = await self.venv_execution_service.execute_api_in_venv(
+                        code=code,
+                        input_data=input_data,
+                        file_bytes=file_bytes,
+                        timeout_seconds=timeout,
+                        memory_limit_mb=memory_limit,
+                        auto_install_dependencies=True,
+                        skip_dependency_check=False
+                    )
+                else:
+                    logger.info("Executing API using venv execution system (dependencies already prepared)")
+                    # Regular execution: skip dependency check for performance
+                    result = await self.venv_execution_service.execute_api_in_venv(
+                        code=code,
+                        input_data=input_data,
+                        file_bytes=file_bytes,
+                        timeout_seconds=timeout,
+                        memory_limit_mb=memory_limit,
+                        auto_install_dependencies=False,
+                        skip_dependency_check=True
+                    )
+                
+                return result
+                
+            else:
+                # Fallback to old execution method (for compatibility)
+                logger.info("Executing API using legacy execution system")
+                return await self._execute_legacy_sandboxed(
+                    code, input_data, file_bytes, timeout, memory_limit
+                )
+                
+        except Exception as e:
+            logger.error(f"Error in sandboxed execution: {str(e)}")
+            raise
+    
+    async def _execute_legacy_sandboxed(
+        self,
+        code: str,
+        input_data: Dict[str, Any],
+        file_bytes: Optional[bytes],
+        timeout: int,
+        memory_limit: int
+    ) -> Any:
+        """Legacy execution method (fallback)."""
         # Create a process pool for execution
         ctx = multiprocessing.get_context('spawn')  # Use spawn for better isolation
         pool = None
@@ -221,7 +280,7 @@ class SandboxService:
             
             # Prepare the execution function
             exec_func = partial(self._execute_in_process, code, input_data, 
-                              memory_limit, cpu_time_limit, file_bytes)
+                              memory_limit, self.DEFAULT_CPU_TIME_LIMIT_SECONDS, file_bytes)
             
             # Create a future for the process pool execution
             loop = asyncio.get_event_loop()
@@ -238,7 +297,7 @@ class SandboxService:
                 raise Exception(f"API execution timed out after {timeout} seconds")
             
         except Exception as e:
-            logger.error(f"Error in sandboxed execution: {str(e)}")
+            logger.error(f"Error in legacy sandboxed execution: {str(e)}")
             raise
         
         finally:
@@ -253,6 +312,118 @@ class SandboxService:
                     child.kill()
                 except psutil.NoSuchProcess:
                     pass
+    
+    async def prepare_api_dependencies(self, code: str) -> Dict:
+        """
+        Prepare dependencies for an API without executing it.
+        Call this during API testing/validation phase.
+        """
+        try:
+            logger.info("Preparing API dependencies...")
+            
+            if self.use_venv_execution:
+                # Use the package installer directly to prepare environment
+                prep_result = await self.venv_execution_service.package_installer.prepare_execution_environment(code)
+                
+                return {
+                    "success": prep_result["success"],
+                    "dependencies_prepared": True,
+                    "installation_results": prep_result.get("installation_results", {}),
+                    "analysis": prep_result.get("analysis", {}),
+                    "message": "Dependencies prepared successfully" if prep_result["success"] else prep_result.get("error"),
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                return {
+                    "success": True,
+                    "dependencies_prepared": False,
+                    "message": "Legacy mode - no dependency preparation needed",
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+        except Exception as e:
+            logger.error(f"Error preparing API dependencies: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "dependencies_prepared": False,
+                "timestamp": datetime.now().isoformat()
+            }
+    
+    def toggle_venv_execution(self, enabled: bool):
+        """Toggle between venv execution and legacy execution."""
+        self.use_venv_execution = enabled
+        logger.info(f"Venv execution {'enabled' if enabled else 'disabled'}")
+    
+    def get_execution_info(self) -> Dict:
+        """Get information about the execution system."""
+        return {
+            "venv_execution_enabled": self.use_venv_execution,
+            "execution_stats": self.venv_execution_service.get_execution_stats() if self.use_venv_execution else {},
+            "default_limits": {
+                "timeout_seconds": self.DEFAULT_TIMEOUT_SECONDS,
+                "memory_limit_mb": self.DEFAULT_MEMORY_LIMIT_MB,
+                "cpu_time_limit_seconds": self.DEFAULT_CPU_TIME_LIMIT_SECONDS
+            },
+            "system_info": {
+                "platform": platform.system(),
+                "is_windows": self.IS_WINDOWS
+            }
+        }
+    
+    async def test_execution_system(self) -> Dict:
+        """Test both execution systems."""
+        results = {}
+        
+        # Test venv execution
+        if self.use_venv_execution:
+            try:
+                venv_result = await self.venv_execution_service.test_venv_execution()
+                results["venv_execution"] = venv_result
+            except Exception as e:
+                results["venv_execution"] = {
+                    "success": False,
+                    "error": str(e)
+                }
+        
+        # Test legacy execution with simple code
+        try:
+            test_code = '''
+async def run(file_bytes=None, input_data=None):
+    return {"message": "Legacy execution test", "input": input_data}
+'''
+            
+            # Temporarily disable venv execution for legacy test
+            original_setting = self.use_venv_execution
+            self.use_venv_execution = False
+            
+            legacy_result = await self.execute_api_sandboxed(
+                code=test_code,
+                input_data={"test": "legacy"},
+                timeout_seconds=10
+            )
+            
+            results["legacy_execution"] = {
+                "success": True,
+                "result": legacy_result
+            }
+            
+            # Restore original setting
+            self.use_venv_execution = original_setting
+            
+        except Exception as e:
+            results["legacy_execution"] = {
+                "success": False,
+                "error": str(e)
+            }
+            # Restore original setting
+            self.use_venv_execution = original_setting
+        
+        return {
+            "test_results": results,
+            "execution_info": self.get_execution_info(),
+            "timestamp": "test_completed"
+        }
 
     @staticmethod
     def _wrap_code_in_fastapi(code: str) -> str:

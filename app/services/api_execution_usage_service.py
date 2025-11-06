@@ -281,7 +281,8 @@ class APIExecutionUsageService:
         file_bytes: Optional[bytes] = None,
         timeout_seconds: Optional[int] = None,
         memory_limit_mb: Optional[int] = None,
-        cpu_limit: Optional[int] = None
+        cpu_limit: Optional[int] = None,
+        is_test_execution: bool = False
     ) -> Tuple[Any, float, bool, Optional[str]]:
         """
         Execute an API with resource limits and tracking.
@@ -300,7 +301,8 @@ class APIExecutionUsageService:
                 file_bytes=file_bytes,
                 timeout_seconds=timeout_seconds or self.DEFAULT_TIMEOUT_SECONDS,
                 memory_limit_mb=memory_limit_mb or self.DEFAULT_MEMORY_LIMIT_MB,
-                cpu_limit=cpu_limit or self.DEFAULT_CPU_LIMIT_SECONDS
+                cpu_limit=cpu_limit or self.DEFAULT_CPU_LIMIT_SECONDS,
+                is_test_execution=is_test_execution
             )
             success = True
             
