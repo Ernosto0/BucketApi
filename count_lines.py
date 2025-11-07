@@ -1,7 +1,7 @@
 # This script is used to count the lines of code in the project. I love watching the numbers go up.
 import os
 
-# Current lines of code count: 39200 10/25/2025
+# Current lines of code count: 43321 11/06/2025
 
 def count_lines(path, extensions=None, ignore_dirs=None):
     total_lines = 0
@@ -31,7 +31,7 @@ def count_lines(path, extensions=None, ignore_dirs=None):
 if __name__ == "__main__":
     project_path = "."  # current folder
     extensions = [".py", ".js", ".html", ".css"]  
-    ignore_dirs = ["venv", "__pycache__", "generated_apis"]  
+    ignore_dirs = ["venvs", "venv", "__pycache__", "generated_apis"]  
     lines = count_lines(project_path, extensions, ignore_dirs)
     print("="*50)
     print(f"✅ Total lines of code: {lines}")
