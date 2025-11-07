@@ -1425,6 +1425,9 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Store proposal data to avoid embedding large prompts in HTML attributes
+const proposalDataStore = new Map();
+
 function addProposalMessage(analysis, originalPrompt, userId) {
     // Update the API preview panel with the proposal
     updateAPIProposal(analysis, originalPrompt, userId);
@@ -3935,7 +3938,7 @@ async function runPreviewTest() {
                 </div>
             `;
             
-            addStreamingMessage('🔧 Please check your API code or try modifying the API to fix the error.', 'default');
+            addStreamingMessage('🔧 Please try again', 'default');
         }
         
     } catch (error) {
@@ -4085,6 +4088,14 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
         }
     }
     
+    // Generate a unique ID for this proposal and store the data
+    const proposalId = `proposal-${Date.now()}`;
+    proposalDataStore.set(proposalId, {
+        originalPrompt: originalPrompt,
+        userId: userId,
+        analysis: analysis
+    });
+    
     // Create functionality HTML
     const functionalityHtml = proposal.functionality ? 
         proposal.functionality.map(func => `<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">${func}</span></li>`).join('') : 
@@ -4155,16 +4166,16 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
                 <span>Ready to build this API?</span>
             </h4>
             <div class="flex flex-wrap gap-3">
-                <button onclick="startAPIBuild('${originalPrompt.replace(/'/g, "\\'")}', '${userId}', this)" 
-                        class="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                <button data-action="build" data-proposal-id="${proposalId}"
+                        class="proposal-action-btn px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
                     🚀 Build It!
                 </button>
-                <button onclick="requestModifications('${originalPrompt.replace(/'/g, "\\'")}', '${userId}')" 
-                        class="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                <button data-action="modify" data-proposal-id="${proposalId}"
+                        class="proposal-action-btn px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
                     ✏️ Modify
                 </button>
-                <button onclick="cancelAPIBuild()" 
-                        class="px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
+                <button data-action="cancel"
+                        class="proposal-action-btn px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
                     ❌ Cancel
                 </button>
             </div>
@@ -4292,6 +4303,9 @@ function updateExampleResponseFromProposal(proposal) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🎉 [v2.0] Chat.js loaded - NEW VERSION with proposal data store');
+    console.log('🎉 [v2.0] ProposalDataStore initialized:', proposalDataStore);
+    
     // Focus on input
     document.getElementById('chatInput').focus();
     
@@ -4304,6 +4318,60 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Ensure scroll to bottom button starts hidden
     document.getElementById('scrollToBottomBtn').classList.add('hidden');
+    
+    // Event delegation for proposal action buttons
+    document.addEventListener('click', function(event) {
+        const button = event.target.closest('.proposal-action-btn');
+        if (!button) {
+            return;
+        }
+        
+        console.log('🎯 [v2.0] Proposal action button clicked!');
+        
+        const action = button.getAttribute('data-action');
+        const proposalId = button.getAttribute('data-proposal-id');
+        
+        console.log('🎯 [v2.0] Action:', action, 'Proposal ID:', proposalId);
+        console.log('🎯 [v2.0] ProposalDataStore size:', proposalDataStore.size);
+        
+        // Retrieve stored proposal data
+        let proposalData = null;
+        if (proposalId) {
+            proposalData = proposalDataStore.get(proposalId);
+            console.log('🎯 [v2.0] Retrieved proposal data:', proposalData ? 'Found' : 'NOT FOUND');
+            if (proposalData) {
+                console.log('🎯 [v2.0] Prompt length:', proposalData.originalPrompt?.length);
+            }
+        }
+        
+        if (!proposalData && action !== 'cancel') {
+            console.error('❌ [v2.0] Proposal data not found for ID:', proposalId);
+            console.error('❌ [v2.0] Available IDs in store:', Array.from(proposalDataStore.keys()));
+            return;
+        }
+        
+        const prompt = proposalData?.originalPrompt;
+        const userId = proposalData?.userId;
+        
+        console.log('🚀 [v2.0] Executing action:', action);
+        
+        switch(action) {
+            case 'build':
+                console.log('🚀 [v2.0] Starting API build with prompt length:', prompt?.length);
+                startAPIBuild(prompt, userId, button);
+                break;
+            case 'modify':
+                console.log('✏️ [v2.0] Requesting modifications');
+                requestModifications(prompt, userId);
+                break;
+            case 'cancel':
+                console.log('❌ [v2.0] Cancelling API build');
+                cancelAPIBuild();
+                break;
+            default:
+                console.warn('⚠️ [v2.0] Unknown proposal action:', action);
+        }
+    });
 }); 
 
 // Test scenario management functions
