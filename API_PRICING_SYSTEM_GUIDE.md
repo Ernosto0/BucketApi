@@ -8,8 +8,8 @@ The AI-Powered API Generator now includes a sophisticated pricing system that ca
 
 ### 1. Internal Tokens
 - **Purpose**: Internal currency for API usage (separate from AI model tokens)
-- **Exchange Rate**: 10 internal tokens = 1 cent
-- **Monthly Allocation**: 10,000 internal tokens (worth $10) for free tier users
+- **Exchange Rate**: 10,000 internal tokens = $1 (or 100 internal tokens = 1 cent)
+- **Monthly Allocation**: 100,000 internal tokens (worth $10) for free tier users
 - **Expiration**: Tokens expire at the end of the month following allocation
 
 ### 2. API Metadata and Pricing
@@ -40,7 +40,7 @@ base_cost_per_1k_tokens = 3.0  # $0.03 for GPT-4
 estimated_tokens = 1500
 complexity_multiplier = 1.5  # Medium complexity
 cost_per_call_cents = (1500/1000) * 3.0 * 1.5 = 6.75 cents
-internal_tokens_per_call = 6.75 * 10 = 67.5 ≈ 68 tokens
+internal_tokens_per_call = 6.75 * 100 = 675 tokens
 ```
 
 ### 2. API Testing Phase

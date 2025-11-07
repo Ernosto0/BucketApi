@@ -68,3 +68,8 @@ htmlcov/
 
 # Railway
 .railway/ 
+
+# Markdown files
+*.md
+
+/venvs
