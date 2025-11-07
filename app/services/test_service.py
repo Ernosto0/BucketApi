@@ -72,7 +72,8 @@ class TestService:
                     user_id=request.user_id,
                     api_slug=request.api_slug,
                     file_bytes=file_bytes,
-                    input_data=request.test_data
+                    input_data=request.test_data,
+                    is_test_execution=True  # This is a test execution
                 )
                 
                 # Ensure result is JSON serializable

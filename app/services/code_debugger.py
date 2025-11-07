@@ -135,6 +135,10 @@ class CodeDebugger:
         import_issues = self._check_missing_imports(code)
         issues.extend(import_issues)
         
+        # Check for dangerous os operations
+        os_issues = self._check_dangerous_os_operations(code)
+        issues.extend(os_issues)
+        
         # Check for hardcoded API keys
         if '"your-api-key-here"' in code or "'your-api-key-here'" in code:
             issues.append("Hardcoded API key placeholder found")
@@ -218,6 +222,10 @@ class CodeDebugger:
             'json.': 'import json',
             'datetime.': 'from datetime import datetime',
             'os.getenv': 'import os',
+            'os.path.': 'import os',
+            'os.environ': 'import os',
+            'os.getcwd': 'import os',
+            'os.listdir': 'import os',
             'io.BytesIO': 'import io',
             'PyPDF2.': 'import PyPDF2',
             're.': 'import re'
@@ -234,6 +242,25 @@ class CodeDebugger:
         if 'response_format={"type": "json_object"}' in code and 'raw_entities = json.loads' in code:
             if 'if not isinstance(raw_entities, list)' in code:
                 issues.append("Incorrect assumption about OpenAI JSON object format")
+        
+        return issues
+    
+    def _check_dangerous_os_operations(self, code: str) -> List[str]:
+        """Check for dangerous os operations and suggest safer alternatives."""
+        issues = []
+        
+        # Dangerous os operations and their safer alternatives
+        dangerous_patterns = {
+            'os.system(': 'Use subprocess.run() with shell=False for safer command execution',
+            'os.popen(': 'Use subprocess.Popen() for better control over process execution',
+            'os.remove(': 'Consider using pathlib.Path.unlink() or add proper error handling',
+            'os.rmdir(': 'Consider using pathlib.Path.rmdir() or shutil.rmtree() with proper checks',
+            'os.unlink(': 'Consider using pathlib.Path.unlink() with proper error handling'
+        }
+        
+        for pattern, suggestion in dangerous_patterns.items():
+            if pattern in code:
+                issues.append(f"Dangerous operation detected: {pattern} - {suggestion}")
         
         return issues
     
@@ -1440,11 +1467,12 @@ Analyze if this test result is logically valid and return your assessment as JSO
                         "response_data": None
                     }
             
-            # Execute the API with limits
+            # Execute the API with limits (this is a test execution)
             result, execution_time_ms, success, error_message = await api_execution_usage_service.execute_api_with_limits(
                 code=code,
                 input_data=test_request.get('test_data', {}),
-                file_bytes=file_bytes
+                file_bytes=file_bytes,
+                is_test_execution=True
             )
             
             execution_time = time.time() - start_time

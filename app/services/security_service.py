@@ -10,9 +10,7 @@ class SecurityService:
             r'exec\s*\(',
             r'eval\s*\(',
             r'compile\s*\(',
-            r'import\s+sys\b',
             r'import\s+subprocess\b',
-            r'from\s+sys\s+import',
             r'from\s+subprocess\s+import',
             r'getattr\s*\(',
             r'setattr\s*\(',
@@ -24,15 +22,12 @@ class SecurityService:
             r'\.system\s*\(',
             r'\.popen\s*\(',
             r'\.call\s*\(',
-            r'\.remove\s*\(',
-            r'\.rmdir\s*\(',
-            r'\.unlink\s*\(',
-            # Allow os.getenv() but block dangerous os operations
+            # Dangerous os operations are now handled separately
         ]
         
-        # Forbidden dangerous imports
+        # Forbidden dangerous imports (removed os and sys - handled at operation level)
         self.forbidden_imports = {
-            'subprocess', 'sys', 'importlib', 'builtins', '__builtin__',
+            'subprocess', 'importlib', 'builtins', '__builtin__',
             'ctypes', 'multiprocessing', 'threading', 'socket', 'ssl',
             'ftplib', 'telnetlib', 'smtplib', 'imaplib', 'poplib',
             'webbrowser', 'tempfile', 'shutil', 'pickle', 'marshal',
@@ -43,6 +38,25 @@ class SecurityService:
             'token', 'tokenize', 'tabnanny', 'pyclbr', 'modulefinder',
             'trace', 'linecache', 'site', 'sysconfig'
         }
+        
+        # Dangerous os operations that should be blocked
+        self.dangerous_os_patterns = [
+            r'os\.system\s*\(',
+            r'os\.popen\s*\(',
+            r'os\.spawn\w*\s*\(',
+            r'os\.exec\w*\s*\(',
+            r'os\.fork\s*\(',
+            r'os\.kill\w*\s*\(',
+            r'os\.remove\s*\(',
+            r'os\.unlink\s*\(',
+            r'os\.rmdir\s*\(',
+            r'os\.removedirs\s*\(',
+            r'os\.rename\s*\(',
+            r'os\.renames\s*\(',
+            r'os\.chmod\s*\(',
+            r'os\.chown\s*\(',
+            r'os\.chroot\s*\(',
+        ]
     
     def validate_code(self, code: str) -> Tuple[bool, List[str]]:
         """
@@ -60,6 +74,9 @@ class SecurityService:
         
         # Check for forbidden patterns
         violations.extend(self._check_forbidden_patterns(code))
+        
+        # Check dangerous os operations
+        violations.extend(self._check_dangerous_os_operations(code))
         
         # Check imports
         violations.extend(self._check_imports(code))
@@ -93,6 +110,17 @@ class SecurityService:
         
         return violations
     
+    def _check_dangerous_os_operations(self, code: str) -> List[str]:
+        """Check for dangerous os operations in the code."""
+        violations = []
+        
+        for pattern in self.dangerous_os_patterns:
+            matches = re.findall(pattern, code, re.IGNORECASE)
+            if matches:
+                violations.append(f"Dangerous os operation detected: '{pattern}'")
+        
+        return violations
+    
     def _check_imports(self, code: str) -> List[str]:
         """Check if any imports are in the forbidden list."""
         violations = []
@@ -123,11 +151,16 @@ class SecurityService:
                         if func_name in ['eval', 'exec', 'compile', '__import__']:
                             violations.append(f"Dangerous function call detected: '{func_name}'")
                 
-                # Check for attribute access to dangerous modules
+                # Check for attribute access to dangerous os operations
                 if isinstance(node, ast.Attribute):
                     if isinstance(node.value, ast.Name):
-                        if node.value.id == 'os' and node.attr == 'system':
-                            violations.append("Dangerous os.system() call detected")
+                        if node.value.id == 'os':
+                            # Check if it's a dangerous os operation
+                            dangerous_ops = {'system', 'popen', 'spawn', 'exec', 'fork', 'kill', 'killpg',
+                                           'remove', 'unlink', 'rmdir', 'removedirs', 'rename', 'renames',
+                                           'chmod', 'chown', 'chroot', 'setuid', 'setgid', 'umask'}
+                            if node.attr in dangerous_ops:
+                                violations.append(f"Dangerous os.{node.attr} operation detected")
                 
         except SyntaxError as e:
             violations.append(f"Syntax error in generated code: {str(e)}")

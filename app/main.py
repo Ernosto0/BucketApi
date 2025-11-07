@@ -56,7 +56,6 @@ from .services.PromptService import PromptServiceBuild, PromptServiceModify
 from .services.mongodb import init_database, mongodb
 from .routes.auth_routes import router as auth_router, get_current_user, get_current_user_required, require_auth, require_active_user
 from .routes.oauth_routes import router as oauth_router
-# MongoDB imports handled through services
 from .services.test_service import test_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
 from .services.exceptions import create_secure_error, SecureHTTPException
@@ -2391,6 +2390,7 @@ async def test_api(request: TestRequest):
                 api_slug=request.api_slug,
                 file_bytes=file_bytes,
                 input_data=parsed_input_data,
+                is_test_execution=True  # This is a test execution
             )
             
             execution_time = time.time() - start_time
