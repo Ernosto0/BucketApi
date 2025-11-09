@@ -285,10 +285,10 @@ async function runAPITestDetails() {
                 
                 const isFirstTimeAnalysis = testResult.response_headers['x-first-time-analysis'] === 'true';
                 const analysisNote = isFirstTimeAnalysis ? 
-                    '<div class="text-xs text-blue-300 mt-1">💡 Pricing calculated by analyzing your API code</div>' : '';
+                    '<div class="text-xs text-blue-300 mt-1"><strong>Note:</strong> Pricing calculated by analyzing your API code</div>' : '';
                 
                 pricingEl.innerHTML = `
-                    <div class="text-sm font-medium text-blue-200 mb-2">💰 API Pricing Information</div>
+                    <div class="text-sm font-medium text-blue-200 mb-2"><strong>API Pricing Information</strong></div>
                     <div class="grid grid-cols-2 gap-4 text-xs">
                         <div>
                             <span class="text-gray-400">Cost per call:</span>
@@ -709,7 +709,7 @@ function populateRecentExecutions(executions) {
     
     const executionHtml = executions.map(execution => {
         const statusClass = execution.success ? 'text-green-400' : 'text-red-400';
-        const statusIcon = execution.success ? '✓' : '✗';
+        const statusIcon = execution.success ? 'Success' : 'Failed';
         const date = new Date(execution.created_at).toLocaleString();
         
         return `

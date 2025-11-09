@@ -92,11 +92,17 @@ class APIGenerationUsageService:
             monthly_result = list(mongodb.api_generation_usage.aggregate(monthly_pipeline))
             monthly_generations_used = monthly_result[0]["total_generations"] if monthly_result else 0
             
+            logger.info(f"API Generation Limit Check - User: {user_id}, Used: {monthly_generations_used}, Limit: {monthly_generation_limit}, Tier: {subscription_tier}")
+            
             # Calculate remaining usage
             monthly_generations_remaining = max(0, monthly_generation_limit - monthly_generations_used)
             
-            # Check if adding a new generation would exceed API generation limits
-            is_over_api_limit = (monthly_generations_used + 1) > monthly_generation_limit
+            # Check if user has already reached or exceeded API generation limits
+            # Use >= instead of > to prevent any generation once limit is reached
+            is_over_api_limit = monthly_generations_used >= monthly_generation_limit
+            
+            if is_over_api_limit:
+                logger.warning(f"⛔ API generation limit exceeded - User: {user_id}, Used: {monthly_generations_used}/{monthly_generation_limit}")
             
             # Also check daily token limits using the existing usage service
             token_limits = await usage_service.check_usage_limits(

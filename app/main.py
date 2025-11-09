@@ -1198,7 +1198,7 @@ async def generate_api_stream(
                         "type": "chat_message",
                         "timestamp": datetime.now().isoformat(),
                         "data": {
-                            "message": "🔍 Now I'm validating the code for security and saving your API...",
+                            "message": "Now I'm validating the code for security and saving your API...",
                             "is_ai": True,
                             "message_type": "post_processing"
                         }
@@ -3701,8 +3701,8 @@ async def list_all_users(
 
 @app.get("/subscription", response_class=HTMLResponse)
 async def subscription_page(request: Request):
-    """Subscription management page."""
-    return templates.TemplateResponse("subscription.html", {"request": request})
+    """Redirect to pricing section on landing page."""
+    return RedirectResponse(url="/landing#pricing", status_code=302)
 
 @app.get("/subscription/success", response_class=HTMLResponse)
 async def subscription_success_page(request: Request):
@@ -3745,13 +3745,14 @@ async def get_subscription_status(
     try:
         subscription = await subscription_service.get_user_subscription(current_user.id)
         
-        # Get current tier details
-        current_tier = None
-        if subscription:
-            tier_name = subscription.tier
-            current_tier = subscription_service.SUBSCRIPTION_TIERS.get(tier_name)
-        else:
-            # If no subscription, user is on free tier
+        # Get current tier details from USER document (source of truth for limits)
+        # This ensures consistency with limit checks in api_generation_usage_service
+        user = mongodb.users.find_one({"_id": current_user.id})
+        tier_name = user.get("subscription_tier", "free") if user else "free"
+        current_tier = subscription_service.SUBSCRIPTION_TIERS.get(tier_name)
+        
+        if not current_tier:
+            # Fallback to free tier if tier not found
             current_tier = subscription_service.SUBSCRIPTION_TIERS.get("free")
         
         # Get current usage

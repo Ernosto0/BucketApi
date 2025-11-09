@@ -1260,7 +1260,7 @@ class MultiStepGenerationService:
             content = response
             if step_id == "step2_implementation":
                 yield (self._format_chat_message(
-                    "🔍 Extracting and validating the generated code...", 
+                    "Extracting and validating the generated code...", 
                     step_id=step_id, 
                     phase="code_extraction"
                 ), None)
@@ -1842,23 +1842,23 @@ class MultiStepGenerationService:
             "starting": f"🚀 Starting {step_name}...",
             "loading_template": "📝 Loading prompt template and configuration...",
             "preparing_prompts": "🔧 Preparing AI prompts with your requirements...",
-            "calling_ai": "🤖 Sending request to AI model...",
-            "thinking": "🧠 AI is analyzing and processing your request...",
-            "processing_response": "⚡ Processing AI response...",
+            "calling_ai": "Sending request to AI model...",
+            "thinking": "AI is analyzing and processing your request...",
+            "processing_response": "Processing AI response...",
             "completing": f"✅ {step_name} completed successfully!",
         }
         
         # Step-specific chat messages - simplified
         step_specific_messages = {
             "step1_analysis_design": {
-                "starting": "🔍 Analyzing your requirements and designing API structure...",
-                "calling_ai": "🧠 AI is analyzing your requirements and designing the optimal structure...",
+                "starting": "Analyzing your requirements and designing API structure...",
+                "calling_ai": "AI is analyzing your requirements and designing the optimal structure...",
                 "processing_response": "📊 Processing analysis and design...",
                 "completing": "✅ Analysis and design completed!",
             },
             "step2_implementation": {
-                "starting": "⚡ Implementing your API based on the design...",
-                "calling_ai": "🤖 AI is generating your API implementation code...",
+                "starting": "Implementing your API based on the design...",
+                "calling_ai": "AI is generating your API implementation code...",
                 "processing_response": "🔧 Processing and validating the generated code...",
                 "completing": "✅ API implementation completed!",
             },
@@ -1869,9 +1869,9 @@ class MultiStepGenerationService:
                 "completing": "✅ Tests and documentation completed!",
             },
             "step4_optimization": {
-                "starting": "⚡ Optimizing your API for performance and security...",
-                "calling_ai": "🔧 AI is optimizing your API...",
-                "processing_response": "⚡ Processing optimizations...",
+                "starting": "Optimizing your API for performance and security...",
+                "calling_ai": "AI is optimizing your API...",
+                "processing_response": "Processing optimizations...",
                 "completing": "✅ API optimization completed!",
             }
         }

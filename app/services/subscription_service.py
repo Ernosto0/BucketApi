@@ -53,7 +53,7 @@ class SubscriptionService:
                 monthly_generation_tokens=15000,  # 15k for API generation
                 monthly_execution_tokens=35000,   # 35k for API execution
                 monthly_api_generations=4,  # 4 API generations per month
-                price_cents=900,  # $9/month
+                price_cents=999,  # $9.99/month
                 features=[
                     "4 API generations/month",
                     "35,000 execution tokens/month (API calls)",
@@ -71,11 +71,11 @@ class SubscriptionService:
                 monthly_generation_tokens=60000,   # 60k for API generation
                 monthly_execution_tokens=140000,   # 140k for API execution
                 monthly_api_generations=20,  # 20 API generations per month
-                price_cents=2900,  # $29/month
+                price_cents=2000,  # $20/month
                 features=[
                     "20 API generations/month",
                     "140,000 execution tokens/month (API calls)",
-                    "All AI models including GPT-4, Claude-3 Opus",
+                    "All AI models including GPT-5, Claude-4 Opus",
                     "Custom API complexity settings",
                     "Priority support",
                     "Advanced analytics"
@@ -768,9 +768,70 @@ class SubscriptionService:
     
     async def _handle_subscription_cancelled(self, payload: Dict[str, Any]):
         """Handle subscription cancellation webhook."""
-        # Update subscription status to cancelled
-        # Keep existing tokens until they expire
-        pass
+        try:
+            data = payload.get("data", {})
+            attributes = data.get("attributes", {})
+            
+            # Extract subscription data
+            lemonsqueezy_subscription_id = str(data.get("id", ""))
+            ends_at = attributes.get("ends_at")
+            
+            logger.info(f"Subscription cancelled webhook - ID: {lemonsqueezy_subscription_id}, Ends at: {ends_at}")
+            
+            # Find the subscription in our database
+            db_subscription = mongodb.subscriptions.find_one({
+                "lemonsqueezy_subscription_id": lemonsqueezy_subscription_id
+            })
+            
+            if not db_subscription:
+                logger.warning(f"Subscription not found for cancellation: {lemonsqueezy_subscription_id}")
+                return
+            
+            user_id = db_subscription["user_id"]
+            
+            # Parse the ends_at date
+            ends_at_datetime = None
+            if ends_at:
+                try:
+                    ends_at_datetime = datetime.fromisoformat(ends_at.replace('Z', '+00:00'))
+                except (ValueError, TypeError):
+                    logger.warning(f"Could not parse ends_at date: {ends_at}")
+                    ends_at_datetime = db_subscription.get("current_period_end")
+            else:
+                ends_at_datetime = db_subscription.get("current_period_end")
+            
+            # Update subscription status
+            update_data = {
+                "status": "cancelled",
+                "updated_at": datetime.utcnow()
+            }
+            
+            if ends_at_datetime:
+                update_data["current_period_end"] = ends_at_datetime
+            
+            mongodb.subscriptions.update_one(
+                {"_id": db_subscription["_id"]},
+                {"$set": update_data}
+            )
+            
+            # Downgrade user to free tier immediately
+            # User retains execution tokens until period end, but API generation limit is downgraded immediately
+            free_tier = self.SUBSCRIPTION_TIERS["free"]
+            mongodb.users.update_one(
+                {"_id": user_id},
+                {
+                    "$set": {
+                        "subscription_status": "cancelled",
+                        "subscription_tier": "free",  # Downgrade to free tier immediately
+                        "monthly_token_allocation": free_tier.monthly_tokens
+                    }
+                }
+            )
+            
+            logger.info(f"✅ Processed subscription cancellation for user {user_id}, downgraded to free tier")
+            
+        except Exception as e:
+            logger.error(f"Failed to handle subscription_cancelled: {str(e)}", exc_info=True)
     
     async def _handle_payment_success(self, payload: Dict[str, Any]):
         """Handle successful payment webhook."""
@@ -970,12 +1031,15 @@ class SubscriptionService:
                         }
                     )
                     
-                    # Update user status
+                    # Update user status and downgrade to free tier immediately
+                    free_tier = self.SUBSCRIPTION_TIERS["free"]
                     mongodb.users.update_one(
                         {"_id": user_id},
                         {
                             "$set": {
-                                "subscription_status": "cancelled"
+                                "subscription_status": "cancelled",
+                                "subscription_tier": "free",  # Downgrade to free tier immediately
+                                "monthly_token_allocation": free_tier.monthly_tokens
                             }
                         }
                     )
@@ -1033,12 +1097,16 @@ class SubscriptionService:
                 {"$set": update_data}
             )
             
-            # Update user status
+            # Update user status and downgrade to free tier immediately
+            # User retains execution tokens until period end, but API generation limit is downgraded immediately
+            free_tier = self.SUBSCRIPTION_TIERS["free"]
             mongodb.users.update_one(
                 {"_id": user_id},
                 {
                     "$set": {
-                        "subscription_status": "cancelled"
+                        "subscription_status": "cancelled",
+                        "subscription_tier": "free",  # Downgrade to free tier immediately
+                        "monthly_token_allocation": free_tier.monthly_tokens
                     }
                 }
             )

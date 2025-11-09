@@ -32,3 +32,4 @@ pytest
 fastapi
 uvicorn
 httpx
+schedule==1.2.0

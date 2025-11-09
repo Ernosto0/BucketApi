@@ -22,13 +22,13 @@ class LemonSqueezyConfig:
             "starter": {
                 "product_id": os.getenv("LEMONSQUEEZY_STARTER_PRODUCT_ID", ""),
                 "variant_id": os.getenv("LEMONSQUEEZY_STARTER_VARIANT_ID", ""),
-                "price_cents": 900,  # $9/month
+                "price_cents": 999,  # $9.99/month
                 "name": "Starter Plan"
             },
             "professional": {
                 "product_id": os.getenv("LEMONSQUEEZY_PROFESSIONAL_PRODUCT_ID", ""),
                 "variant_id": os.getenv("LEMONSQUEEZY_PROFESSIONAL_VARIANT_ID", ""),
-                "price_cents": 2900,  # $29/month
+                "price_cents": 2000,  # $20/month
                 "name": "Professional Plan"
             },
             "enterprise": {
