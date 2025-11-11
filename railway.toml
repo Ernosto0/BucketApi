@@ -2,7 +2,7 @@
 builder = "DOCKERFILE"
 
 [deploy]
-startCommand = "sh -c 'gunicorn -k uvicorn.workers.UvicornWorker -w 4 --bind 0.0.0.0:$PORT app.main:app'"
+startCommand = "sh -c 'gunicorn -k uvicorn.workers.UvicornWorker -w 4 --timeout 300 --graceful-timeout 300 --keep-alive 5 --bind 0.0.0.0:$PORT app.main:app'"
 healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"

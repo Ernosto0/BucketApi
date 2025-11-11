@@ -31,5 +31,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application with Gunicorn
-CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker -w 4 --bind 0.0.0.0:${PORT:-8000} app.main:app"]
+# Run the application with Gunicorn with increased timeout for long-running AI generations
+CMD ["sh", "-c", "gunicorn -k uvicorn.workers.UvicornWorker -w 4 --timeout 300 --graceful-timeout 300 --keep-alive 5 --bind 0.0.0.0:${PORT:-8000} app.main:app"]

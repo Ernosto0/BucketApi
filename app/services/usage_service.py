@@ -16,7 +16,11 @@ except ImportError:
 
 try:
     import warnings
+    import os
+    # Suppress transformers warnings about PyTorch/TensorFlow not being installed
+    os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
     with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning)
         warnings.filterwarnings("ignore", message=".*PyTorch, TensorFlow.*")
         from transformers import AutoTokenizer
     TRANSFORMERS_AVAILABLE = True

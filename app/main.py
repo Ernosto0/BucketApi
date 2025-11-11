@@ -16,6 +16,12 @@ import json
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
 import logging
+import os
+import warnings
+
+# Suppress transformers library warnings about PyTorch/TensorFlow not being installed
+os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
+warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
 from .models import (
     User, UserLogin, LoginResponse, UserProfile, AuthResponse,
     ProposalRequest, ProposalResponse, ProposalModificationRequest, ProposalModificationResponse,
@@ -3971,6 +3977,124 @@ async def change_subscription_tier_endpoint(
     except Exception as e:
         logger.error(f"Failed to change subscription tier: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to change subscription tier: {str(e)}")
+
+@app.get("/subscription/debug")
+async def debug_subscription(
+    current_user: User = Depends(require_active_user)
+):
+    """Debug endpoint to check subscription status across all sources."""
+    try:
+        # Get user from database
+        user_doc = mongodb.users.find_one({"_id": current_user.id})
+        
+        # Get subscription from subscriptions collection
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        
+        # Get all subscriptions for this user
+        all_subs = list(mongodb.subscriptions.find({"user_id": current_user.id}).sort("created_at", -1))
+        
+        # Get generation limits
+        generation_limits = await api_generation_usage_service.check_generation_limits(
+            user_id=current_user.id,
+            api_key_id=None,
+            tokens_to_use=0
+        )
+        
+        return {
+            "success": True,
+            "user_email": user_doc.get("email"),
+            "user_tier_from_db": user_doc.get("subscription_tier"),
+            "user_status_from_db": user_doc.get("subscription_status"),
+            "user_allocation_from_db": user_doc.get("monthly_token_allocation"),
+            "lemonsqueezy_customer_id": user_doc.get("lemonsqueezy_customer_id"),
+            "lemonsqueezy_subscription_id": user_doc.get("lemonsqueezy_subscription_id"),
+            "active_subscription": {
+                "tier": subscription.tier if subscription else None,
+                "status": subscription.status if subscription else None,
+                "lemonsqueezy_id": subscription.lemonsqueezy_subscription_id if subscription else None,
+            } if subscription else None,
+            "all_subscriptions_count": len(all_subs),
+            "all_subscriptions": [
+                {
+                    "tier": s.get("tier"),
+                    "status": s.get("status"),
+                    "created_at": s.get("created_at").isoformat() if s.get("created_at") else None,
+                    "lemonsqueezy_subscription_id": s.get("lemonsqueezy_subscription_id")
+                } for s in all_subs[:5]  # Show last 5
+            ],
+            "generation_limits": {
+                "monthly_limit": generation_limits.monthly_generation_limit,
+                "used": generation_limits.monthly_generations_used,
+                "remaining": generation_limits.monthly_generations_remaining,
+                "tier": generation_limits.subscription_tier,
+                "is_over_limit": generation_limits.is_over_limit,
+                "reason": generation_limits.limit_exceeded_reason
+            }
+        }
+    except Exception as e:
+        logger.error(f"Failed to debug subscription: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to debug subscription: {str(e)}")
+
+@app.post("/subscription/sync")
+async def sync_subscription(
+    current_user: User = Depends(require_active_user)
+):
+    """Manually sync subscription from subscriptions collection to user document."""
+    try:
+        # Get active subscription
+        subscription = await subscription_service.get_user_subscription(current_user.id)
+        
+        if not subscription:
+            return {
+                "success": False,
+                "message": "No active subscription found",
+                "action": "User remains on current tier"
+            }
+        
+        # Get tier info
+        tier_info = subscription_service.SUBSCRIPTION_TIERS.get(subscription.tier)
+        if not tier_info:
+            raise HTTPException(status_code=500, detail=f"Invalid tier: {subscription.tier}")
+        
+        # Update user document with subscription data
+        mongodb.users.update_one(
+            {"_id": current_user.id},
+            {
+                "$set": {
+                    "subscription_tier": subscription.tier,
+                    "subscription_status": subscription.status,
+                    "monthly_token_allocation": tier_info.monthly_tokens,
+                    "lemonsqueezy_customer_id": subscription.lemonsqueezy_customer_id,
+                    "lemonsqueezy_subscription_id": subscription.lemonsqueezy_subscription_id
+                }
+            }
+        )
+        
+        # Allocate tokens if needed
+        await api_pricing_service.allocate_separated_monthly_tokens(
+            user_id=current_user.id,
+            generation_tokens=tier_info.monthly_generation_tokens,
+            execution_tokens=tier_info.monthly_execution_tokens,
+            source="manual_sync"
+        )
+        
+        logger.info(f"✅ Manually synced subscription for user {current_user.id} to tier {subscription.tier}")
+        
+        return {
+            "success": True,
+            "message": f"Successfully synced subscription to {tier_info.display_name} tier",
+            "tier": subscription.tier,
+            "status": subscription.status,
+            "monthly_api_generations": tier_info.monthly_api_generations,
+            "monthly_generation_tokens": tier_info.monthly_generation_tokens,
+            "monthly_execution_tokens": tier_info.monthly_execution_tokens
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to sync subscription: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to sync subscription: {str(e)}")
 
 
 if __name__ == "__main__":
