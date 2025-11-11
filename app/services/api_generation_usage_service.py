@@ -65,8 +65,15 @@ class APIGenerationUsageService:
             month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             
             # Get user's subscription tier to determine limits
-            user = mongodb.users.find_one({"_id": user_id})
-            subscription_tier = user.get("subscription_tier", "free") if user else "free"
+            # FIXED: Always get the latest subscription from subscriptions collection
+            # This is the source of truth and prevents sync issues with user document
+            subscription = await subscription_service.get_user_subscription(user_id)
+            subscription_tier = subscription.tier if subscription else "free"
+            
+            # Fallback: if no subscription found, check user document
+            if not subscription:
+                user = mongodb.users.find_one({"_id": user_id})
+                subscription_tier = user.get("subscription_tier", "free") if user else "free"
             
             tier_info = subscription_service.SUBSCRIPTION_TIERS.get(subscription_tier)
             monthly_generation_limit = tier_info.monthly_api_generations if tier_info else 1
