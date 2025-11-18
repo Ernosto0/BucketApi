@@ -2401,8 +2401,18 @@ async def test_api(request: TestRequest):
             
             execution_time = time.time() - start_time
             
-            # Format response data
-            if isinstance(result, dict):
+            # Format response data - handle binary data specially
+            if isinstance(result, bytes):
+                # Binary data (like images) - base64 encode for JSON serialization
+                response_data = {
+                    "result_type": "binary",
+                    "content_type": "application/octet-stream",
+                    "size_bytes": len(result),
+                    "data_base64": base64.b64encode(result).decode('ascii'),
+                    "message": "Binary data returned successfully"
+                }
+                status_code = 200
+            elif isinstance(result, dict):
                 response_data = result
                 status_code = 200
             else:

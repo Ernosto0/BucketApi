@@ -2363,24 +2363,70 @@ function hideTypingIndicator() {
 }
 
 // Utility functions
+function downloadBinaryResponse(base64Data, contentType) {
+    try {
+        // Convert base64 to blob
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: contentType || 'application/octet-stream' });
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Determine file extension from content type
+        let extension = 'bin';
+        if (contentType) {
+            if (contentType.includes('image/png')) extension = 'png';
+            else if (contentType.includes('image/jpeg')) extension = 'jpg';
+            else if (contentType.includes('image/gif')) extension = 'gif';
+            else if (contentType.includes('application/pdf')) extension = 'pdf';
+        }
+        
+        a.download = `api-response.${extension}`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Show success notification
+        showNotification('Downloaded successfully!', 'success');
+    } catch (error) {
+        console.error('Failed to download binary data:', error);
+        showNotification('Failed to download', 'error');
+    }
+}
+
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-emerald-600' : 'bg-red-600';
+    notification.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-xl shadow-xl z-50 animate-slide-up`;
+    notification.innerHTML = `
+        <div class="flex items-center space-x-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span>${message}</span>
+        </div>
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
         // Show temporary feedback
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-xl z-50 animate-slide-up';
-        notification.innerHTML = `
-            <div class="flex items-center space-x-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                <span>Copied to clipboard!</span>
-            </div>
-        `;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
+        showNotification('Copied to clipboard!', 'success');
     });
 }
 
@@ -3893,7 +3939,38 @@ async function runPreviewTest() {
             responseStatus.textContent = '200 OK';
             responseStatus.className = 'px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono';
             
-            responseBody.textContent = JSON.stringify(responseData, null, 2);
+            // Handle binary data specially
+            if (responseData.result_type === 'binary') {
+                responseBody.innerHTML = `
+                    <div class="space-y-2">
+                        <div class="text-blue-300">
+                            <div class="text-sm font-semibold mb-2">📦 Binary Data Response</div>
+                            <div class="text-xs space-y-1">
+                                <div>Type: <span class="text-green-300">${responseData.content_type || 'application/octet-stream'}</span></div>
+                                <div>Size: <span class="text-green-300">${responseData.size_bytes} bytes</span></div>
+                                <div class="text-slate-400">${responseData.message || 'Binary data returned successfully'}</div>
+                            </div>
+                        </div>
+                        ${responseData.data_base64 && responseData.data_base64.startsWith('iVBORw') ? `
+                            <div class="mt-3">
+                                <div class="text-xs text-slate-400 mb-2">Preview (PNG Image):</div>
+                                <img src="data:image/png;base64,${responseData.data_base64}" 
+                                     alt="API Response Image" 
+                                     class="max-w-full h-auto rounded border border-slate-600"
+                                     style="max-height: 300px;">
+                            </div>
+                        ` : ''}
+                        <div class="mt-2">
+                            <button onclick="downloadBinaryResponse('${responseData.data_base64}', '${responseData.content_type}')" 
+                                    class="px-3 py-1 bg-blue-600/20 text-blue-300 border border-blue-500/30 rounded text-xs hover:bg-blue-600/30 transition-all duration-200">
+                                💾 Download Binary Data
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                responseBody.textContent = JSON.stringify(responseData, null, 2);
+            }
             
             // Show Deploy and Modify buttons after successful test
             const actionButtons = document.getElementById('previewActionButtons');

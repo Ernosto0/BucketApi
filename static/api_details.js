@@ -322,8 +322,39 @@ async function runAPITestDetails() {
             displayData = testResult;
         }
 
-        responseBodyEl.textContent = typeof displayData === 'object' ? 
-            JSON.stringify(displayData, null, 2) : String(displayData);
+        // Handle binary data specially
+        if (displayData && displayData.result_type === 'binary') {
+            responseBodyEl.innerHTML = `
+                <div class="space-y-2">
+                    <div class="text-blue-300">
+                        <div class="text-sm font-semibold mb-2">📦 Binary Data Response</div>
+                        <div class="text-xs space-y-1">
+                            <div>Type: <span class="text-green-300">${displayData.content_type || 'application/octet-stream'}</span></div>
+                            <div>Size: <span class="text-green-300">${displayData.size_bytes} bytes</span></div>
+                            <div class="text-slate-400">${displayData.message || 'Binary data returned successfully'}</div>
+                        </div>
+                    </div>
+                    ${displayData.data_base64 && displayData.data_base64.startsWith('iVBORw') ? `
+                        <div class="mt-3">
+                            <div class="text-xs text-slate-400 mb-2">Preview (PNG Image):</div>
+                            <img src="data:image/png;base64,${displayData.data_base64}" 
+                                 alt="API Response Image" 
+                                 class="max-w-full h-auto rounded border border-slate-600"
+                                 style="max-height: 300px;">
+                        </div>
+                    ` : ''}
+                    <div class="mt-2">
+                        <button onclick="downloadBinaryResponseDetails('${displayData.data_base64}', '${displayData.content_type}')" 
+                                class="px-3 py-1 bg-blue-600/20 text-blue-300 border border-blue-500/30 rounded text-xs hover:bg-blue-600/30 transition-all duration-200">
+                            💾 Download Binary Data
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            responseBodyEl.textContent = typeof displayData === 'object' ? 
+                JSON.stringify(displayData, null, 2) : String(displayData);
+        }
 
         // Response headers - use headers from test result
         const headers = testResult.response_headers || {};
@@ -812,5 +843,47 @@ function formatBytes(bytes) {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// Function to download binary response data
+function downloadBinaryResponseDetails(base64Data, contentType) {
+    try {
+        // Convert base64 to blob
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: contentType || 'application/octet-stream' });
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Determine file extension from content type
+        let extension = 'bin';
+        if (contentType) {
+            if (contentType.includes('image/png')) extension = 'png';
+            else if (contentType.includes('image/jpeg')) extension = 'jpg';
+            else if (contentType.includes('image/gif')) extension = 'gif';
+            else if (contentType.includes('application/pdf')) extension = 'pdf';
+        }
+        
+        a.download = `api-response.${extension}`;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Show success message
+        console.log('Binary data downloaded successfully');
+    } catch (error) {
+        console.error('Failed to download binary data:', error);
+        alert('Failed to download binary data');
+    }
 }
 

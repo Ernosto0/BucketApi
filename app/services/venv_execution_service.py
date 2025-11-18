@@ -212,9 +212,23 @@ try:
         # Sync function
         result = run(file_bytes=file_bytes, input_data=input_data)
     
+    # Handle binary data by base64-encoding it
+    if isinstance(result, bytes):
+        result_encoded = {{
+            "_type": "bytes",
+            "_data": base64.b64encode(result).decode('ascii')
+        }}
+    elif isinstance(result, io.BytesIO):
+        result_encoded = {{
+            "_type": "bytes",
+            "_data": base64.b64encode(result.getvalue()).decode('ascii')
+        }}
+    else:
+        result_encoded = result
+    
     # Return the result as JSON
     output = {{
-        "result": result,
+        "result": result_encoded,
         "success": True,
         "execution_info": {{
             "has_file_bytes": file_bytes is not None,
@@ -278,14 +292,17 @@ except Exception as e:
                 
                 # Check if process completed successfully
                 if process.returncode != 0:
-                    error_msg = stderr.decode('utf-8') if stderr else "Unknown error"
+                    error_msg = stderr.decode('utf-8', errors='replace') if stderr else "Unknown error"
                     logger.error(f"Process {execution_id} failed with return code {process.returncode}: {error_msg}")
                     raise Exception(f"API execution failed: {error_msg}")
                 
-                # Parse the JSON output
-                output_str = stdout.decode('utf-8').strip()
-                if not output_str:
-                    raise Exception("API execution produced no output")
+                # Parse the JSON output - handle potential encoding issues
+                try:
+                    output_str = stdout.decode('utf-8').strip()
+                except UnicodeDecodeError as decode_error:
+                    logger.error(f"Failed to decode stdout as UTF-8 for {execution_id}: {decode_error}")
+                    logger.debug(f"First 100 bytes of stdout: {stdout[:100]}")
+                    raise Exception(f"API execution produced non-text output. Make sure your API returns JSON-serializable data, not raw binary data.")
                 
                 try:
                     result = json.loads(output_str)
@@ -298,7 +315,14 @@ except Exception as e:
                             logger.debug(f"Traceback for {execution_id}: {traceback_info}")
                         raise Exception(error_msg)
                     
-                    return result.get("result")
+                    # Decode base64-encoded binary data if present
+                    api_result = result.get("result")
+                    if isinstance(api_result, dict) and api_result.get("_type") == "bytes":
+                        # This was binary data that was base64-encoded
+                        import base64
+                        return base64.b64decode(api_result["_data"])
+                    
+                    return api_result
                     
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse JSON output for {execution_id}: {output_str}")
