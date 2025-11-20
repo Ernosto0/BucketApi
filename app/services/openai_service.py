@@ -32,210 +32,225 @@ class OpenAIService:
             logger.error(f"Failed to load documentation prompts: {str(e)}")
             raise HTTPException(status_code=500, 
                             detail="Failed to load documentation prompts")
-    
-    async def generate_api_code(self, prompt: str, sample_input: Optional[str] = None, 
-                               expected_output: Optional[str] = None, user_id: Optional[str] = None,
-                               api_key_id: Optional[str] = None) -> str:
-        """Generate FastAPI-compatible code based on user prompt."""
-        
-        logger.info(f"Generating API code for prompt: {prompt[:100]}...")
-        
-        system_prompt = """You are an expert Python developer specializing in AI-powered APIs using FastAPI. 
-        Generate clean, secure, and efficient Python code that implements the requested functionality.
-        
-        IMPORTANT: When the user requests AI-powered functionality (like text analysis, extraction, classification, etc.), 
-        you SHOULD make real API calls to AI services like OpenAI, Anthropic, or other AI APIs.
-        
-        CRITICAL - NEVER USE THESE DEPRECATED PATTERNS:
-        - openai.Completion.create() (DEPRECATED)
-        - openai.ChatCompletion.create() (DEPRECATED) 
-        - openai.api_key = "..." (DEPRECATED)
-        - engine="text-davinci-003" (DEPRECATED)
-        
-        ALWAYS USE MODERN OPENAI CLIENT:
-        - from openai import OpenAI
-        - client = OpenAI(api_key=api_key)
-        - client.chat.completions.create()
-        - model="gpt-4o-mini" or "gpt-4"
-        
-        IMPORTANT RULES:
-        1. Always wrap your code in an ASYNC function called `run(file_bytes=None, input_data=None)`
-        2. The function should accept either file_bytes (bytes) or input_data (dict)
-        3. Always return a JSON-serializable result
-        4. CRITICAL: All external API calls MUST be async:
-           - Use asyncio.to_thread() for synchronous operations
-           - Use aiohttp or httpx for HTTP requests
-           - Wrap OpenAI calls in asyncio.to_thread()
-        5. You CAN make API calls to external AI services
-        6. Never use dangerous modules like os, subprocess, eval, exec for system operations
-        7. Use safe libraries: json, re, datetime, math, base64, hashlib, aiohttp/httpx, openai
-        8. Include proper error handling with try-catch blocks
-        9. Add docstrings and comments for clarity
-        10. If working with files, assume file_bytes contains the file content
-        11. For text processing, decode file_bytes to string first
-        12. Return results in a structured format: {"result": your_data, "message": "success"}
-        13. For AI-powered requests, make REAL API calls to OpenAI or other AI services
-        14. Include API keys as environment variables or hardcode them for demo purposes
-        15. Always include confidence scores and detailed AI analysis in results
-        16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
-        17. For file processing, always handle bytes properly - use io.BytesIO for binary data
-        
-        EXAMPLE OF PROPER ASYNC OPENAI CALL:
-        ```python
-        # Make AI API call
-        response = await asyncio.to_thread(
-            client.chat.completions.create,
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Your system message"},
-                {"role": "user", "content": "Your user message"}
-            ]
-        )
-        ```
-        
-        
-        # Use MODERN OpenAI client (v1.0+)
-        api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            return {"error": "OpenAI API key not found", "message": "failed"}
-        
-        client = OpenAI(api_key=api_key)
-        
-        # Make AI API call for name and date extraction
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Extract all person names and dates from the text. Return JSON with 'names' and 'dates' arrays."},
-                {"role": "user", "content": f"Extract names and dates from: {text[:2000]}"}
-            ],
-            temperature=0.2,
-            max_tokens=500
-        )
-        
-        ai_response = response.choices[0].message.content
-        
-        # Try to parse AI response as JSON, fallback if needed
+
+    def _load_documentation_modification_prompt(self) -> Dict[str, str]:
+        """Load the documentation modification prompts from JSON file."""
         try:
-            extracted_data = json.loads(ai_response)
-        except:
-            extracted_data = {"raw_response": ai_response}
-        
-        result = {
-            "extracted_data": extracted_data,
-            "ai_model": "gpt-4o-mini",
-            "text_length": len(text),
-            "confidence": 0.9,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        return {"result": result, "message": "success"}
-            
-    except Exception as e:
-        return {"error": str(e), "message": "failed"}
-         ```
-        """
-        
-        user_prompt = f"""
-        Please generate Python code for the following API:
-        
-        Description: {prompt}
-        """
-        
-        if sample_input:
-            user_prompt += f"\nSample Input: {sample_input}"
-        
-        if expected_output:
-            user_prompt += f"\nExpected Output: {expected_output}"
-        
-        user_prompt += "\n\nGenerate only the Python code, no explanations."
-        
-        # Track usage
-        start_time = time.time()
-        success = False
-        error_message = None
-        response_length = 0
-        
-        try:
-            logger.info("Making OpenAI API request...")
-            response = await self.make_openai_request(
-                system_prompt, user_prompt,
-                user_id=user_id,
-                api_key_id=api_key_id,
-                operation_type="code_generation"
-            )
-            logger.info("OpenAI API request successful")
-            code = self._extract_code_from_response(response)
-            logger.info(f"Generated code length: {len(code)} characters")
-            
-            success = True
-            response_length = len(code)
-            
-            return code
+            prompt_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 
+                                    'prompts', 'openai', 'documentation_modification.json')
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                prompts = json.load(f)
+            return prompts
         except Exception as e:
-            error_message = str(e)
-            logger.error(f"Failed to generate API code: {str(e)}")
-            raise Exception(f"Failed to generate API code: {str(e)}")
-        finally:
-            # Record usage regardless of success/failure
-            if user_id:
-                duration_ms = int((time.time() - start_time) * 1000)
-                prompt_length = len(user_prompt)
+            logger.error(f"Failed to load documentation modification prompts: {str(e)}")
+            raise HTTPException(status_code=500, 
+                            detail="Failed to load documentation modification prompts")
+
+
+    """ We dont use that function any more. It was built for early testing and is now deprecated."""
+    # async def generate_api_code(self, prompt: str, sample_input: Optional[str] = None, 
+    #                            expected_output: Optional[str] = None, user_id: Optional[str] = None,
+    #                            api_key_id: Optional[str] = None) -> str:
+    #     """Generate FastAPI-compatible code based on user prompt."""
+        
+    #     logger.info(f"Generating API code for prompt: {prompt[:100]}...")
+        
+    #     system_prompt = """You are an expert Python developer specializing in AI-powered APIs using FastAPI. 
+    #     Generate clean, secure, and efficient Python code that implements the requested functionality.
+        
+    #     IMPORTANT: When the user requests AI-powered functionality (like text analysis, extraction, classification, etc.), 
+    #     you SHOULD make real API calls to AI services like OpenAI, Anthropic, or other AI APIs.
+        
+    #     CRITICAL - NEVER USE THESE DEPRECATED PATTERNS:
+    #     - openai.Completion.create() (DEPRECATED)
+    #     - openai.ChatCompletion.create() (DEPRECATED) 
+    #     - openai.api_key = "..." (DEPRECATED)
+    #     - engine="text-davinci-003" (DEPRECATED)
+        
+    #     ALWAYS USE MODERN OPENAI CLIENT:
+    #     - from openai import OpenAI
+    #     - client = OpenAI(api_key=api_key)
+    #     - client.chat.completions.create()
+    #     - model="gpt-4o-mini" or "gpt-4"
+        
+    #     IMPORTANT RULES:
+    #     1. Always wrap your code in an ASYNC function called `run(file_bytes=None, input_data=None)`
+    #     2. The function should accept either file_bytes (bytes) or input_data (dict)
+    #     3. Always return a JSON-serializable result
+    #     4. CRITICAL: All external API calls MUST be async:
+    #        - Use asyncio.to_thread() for synchronous operations
+    #        - Use aiohttp or httpx for HTTP requests
+    #        - Wrap OpenAI calls in asyncio.to_thread()
+    #     5. You CAN make API calls to external AI services
+    #     6. Never use dangerous modules like os, subprocess, eval, exec for system operations
+    #     7. Use safe libraries: json, re, datetime, math, base64, hashlib, aiohttp/httpx, openai
+    #     8. Include proper error handling with try-catch blocks
+    #     9. Add docstrings and comments for clarity
+    #     10. If working with files, assume file_bytes contains the file content
+    #     11. For text processing, decode file_bytes to string first
+    #     12. Return results in a structured format: {"result": your_data, "message": "success"}
+    #     13. For AI-powered requests, make REAL API calls to OpenAI or other AI services
+    #     14. Include API keys as environment variables or hardcode them for demo purposes
+    #     15. Always include confidence scores and detailed AI analysis in results
+    #     16. For PDF processing, wrap file_bytes in io.BytesIO() before passing to PDF libraries
+    #     17. For file processing, always handle bytes properly - use io.BytesIO for binary data
+        
+    #     EXAMPLE OF PROPER ASYNC OPENAI CALL:
+    #     ```python
+    #     # Make AI API call
+    #     response = await asyncio.to_thread(
+    #         client.chat.completions.create,
+    #         model="gpt-4o-mini",
+    #         messages=[
+    #             {"role": "system", "content": "Your system message"},
+    #             {"role": "user", "content": "Your user message"}
+    #         ]
+    #     )
+    #     ```
+        
+        
+    #     # Use MODERN OpenAI client (v1.0+)
+    #     api_key = os.getenv('OPENAI_API_KEY')
+    #     if not api_key:
+    #         return {"error": "OpenAI API key not found", "message": "failed"}
+        
+    #     client = OpenAI(api_key=api_key)
+        
+    #     # Make AI API call for name and date extraction
+    #     response = client.chat.completions.create(
+    #         model="gpt-4o-mini",
+    #         messages=[
+    #             {"role": "system", "content": "Extract all person names and dates from the text. Return JSON with 'names' and 'dates' arrays."},
+    #             {"role": "user", "content": f"Extract names and dates from: {text[:2000]}"}
+    #         ],
+    #         temperature=0.2,
+    #         max_tokens=500
+    #     )
+        
+    #     ai_response = response.choices[0].message.content
+        
+    #     # Try to parse AI response as JSON, fallback if needed
+    #     try:
+    #         extracted_data = json.loads(ai_response)
+    #     except:
+    #         extracted_data = {"raw_response": ai_response}
+        
+    #     result = {
+    #         "extracted_data": extracted_data,
+    #         "ai_model": "gpt-4o-mini",
+    #         "text_length": len(text),
+    #         "confidence": 0.9,
+    #         "timestamp": datetime.now().isoformat()
+    #     }
+        
+    #     return {"result": result, "message": "success"}
+            
+    # except Exception as e:
+    #     return {"error": str(e), "message": "failed"}
+    #      ```
+    #     """
+        
+    #     user_prompt = f"""
+    #     Please generate Python code for the following API:
+        
+    #     Description: {prompt}
+    #     """
+        
+    #     if sample_input:
+    #         user_prompt += f"\nSample Input: {sample_input}"
+        
+    #     if expected_output:
+    #         user_prompt += f"\nExpected Output: {expected_output}"
+        
+    #     user_prompt += "\n\nGenerate only the Python code, no explanations."
+        
+    #     # Track usage
+    #     start_time = time.time()
+    #     success = False
+    #     error_message = None
+    #     response_length = 0
+        
+    #     try:
+    #         logger.info("Making OpenAI API request...")
+    #         response = await self.make_openai_request(
+    #             system_prompt, user_prompt,
+    #             user_id=user_id,
+    #             api_key_id=api_key_id,
+    #             operation_type="code_generation"
+    #         )
+    #         logger.info("OpenAI API request successful")
+    #         code = self._extract_code_from_response(response)
+    #         logger.info(f"Generated code length: {len(code)} characters")
+            
+    #         success = True
+    #         response_length = len(code)
+            
+    #         return code
+    #     except Exception as e:
+    #         error_message = str(e)
+    #         logger.error(f"Failed to generate API code: {str(e)}")
+    #         raise Exception(f"Failed to generate API code: {str(e)}")
+    #     finally:
+    #         # Record usage regardless of success/failure
+    #         if user_id:
+    #             duration_ms = int((time.time() - start_time) * 1000)
+    #             prompt_length = len(user_prompt)
                 
-                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
-                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
-                estimated_output_tokens = max(1, response_length // 4) if success else 0
+    #             # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+    #             estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+    #             estimated_output_tokens = max(1, response_length // 4) if success else 0
                 
-                # Log LLM call
-                try:
-                    await logging_service.log_llm_call(
-                        service_type="openai",
-                        model_name=settings.OPENAI_MODEL,
-                        operation_type="code_generation",
-                        system_prompt=system_prompt,
-                        user_prompt=user_prompt,
-                        prompt_length=prompt_length,
-                        response_content=code if success else None,
-                        response_length=response_length,
-                        input_tokens=estimated_input_tokens,
-                        output_tokens=estimated_output_tokens,
-                        total_tokens=estimated_input_tokens + estimated_output_tokens,
-                        estimated_cost_cents=self._calculate_openai_cost(settings.OPENAI_MODEL, estimated_input_tokens, estimated_output_tokens),
-                        duration_ms=duration_ms,
-                        user_id=user_id,
-                        api_key_id=api_key_id,
-                        success=success,
-                        error_message=error_message,
-                        operation_context={
-                            "has_sample_input": sample_input is not None,
-                            "has_expected_output": expected_output is not None,
-                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
-                        }
-                    )
-                except Exception as log_error:
-                    logger.error(f"Failed to log LLM call: {log_error}")
+    #             # Log LLM call
+    #             try:
+    #                 await logging_service.log_llm_call(
+    #                     service_type="openai",
+    #                     model_name=settings.OPENAI_MODEL,
+    #                     operation_type="code_generation",
+    #                     system_prompt=system_prompt,
+    #                     user_prompt=user_prompt,
+    #                     prompt_length=prompt_length,
+    #                     response_content=code if success else None,
+    #                     response_length=response_length,
+    #                     input_tokens=estimated_input_tokens,
+    #                     output_tokens=estimated_output_tokens,
+    #                     total_tokens=estimated_input_tokens + estimated_output_tokens,
+    #                     estimated_cost_cents=self._calculate_openai_cost(settings.OPENAI_MODEL, estimated_input_tokens, estimated_output_tokens),
+    #                     duration_ms=duration_ms,
+    #                     user_id=user_id,
+    #                     api_key_id=api_key_id,
+    #                     success=success,
+    #                     error_message=error_message,
+    #                     operation_context={
+    #                         "has_sample_input": sample_input is not None,
+    #                         "has_expected_output": expected_output is not None,
+    #                         "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+    #                     }
+    #                 )
+    #             except Exception as log_error:
+    #                 logger.error(f"Failed to log LLM call: {log_error}")
                 
-                try:
-                    await usage_service.record_usage(
-                        user_id=user_id,
-                        api_key_id=api_key_id,
-                        service_type="openai",
-                        operation_type="code_generation",
-                        model_name=settings.OPENAI_MODEL,
-                        input_tokens=estimated_input_tokens,
-                        output_tokens=estimated_output_tokens,
-                        prompt_length=prompt_length,
-                        response_length=response_length,
-                        request_duration_ms=duration_ms,
-                        operation_context={
-                            "has_sample_input": sample_input is not None,
-                            "has_expected_output": expected_output is not None,
-                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
-                        },
-                        success=success,
-                        error_message=error_message
-                    )
-                except Exception as usage_error:
-                    logger.error(f"Failed to record usage: {usage_error}")
+    #             try:
+    #                 await usage_service.record_usage(
+    #                     user_id=user_id,
+    #                     api_key_id=api_key_id,
+    #                     service_type="openai",
+    #                     operation_type="code_generation",
+    #                     model_name=settings.OPENAI_MODEL,
+    #                     input_tokens=estimated_input_tokens,
+    #                     output_tokens=estimated_output_tokens,
+    #                     prompt_length=prompt_length,
+    #                     response_length=response_length,
+    #                     request_duration_ms=duration_ms,
+    #                     operation_context={
+    #                         "has_sample_input": sample_input is not None,
+    #                         "has_expected_output": expected_output is not None,
+    #                         "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+    #                     },
+    #                     success=success,
+    #                     error_message=error_message
+    #                 )
+    #             except Exception as usage_error:
+    #                 logger.error(f"Failed to record usage: {usage_error}")
     
     async def generate_documentation(self, code: str, prompt: str, user_id: Optional[str] = None,
                                     api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Tuple[str, dict, str]:
@@ -346,6 +361,116 @@ class OpenAIService:
                 except Exception as usage_error:
                     logger.error(f"Failed to record usage: {usage_error}")
     
+
+    async def modify_api_documentation(self, code: str, prompt: str, user_id: Optional[str] = None,
+                                        api_key_id: Optional[str] = None, api_slug: Optional[str] = None,
+                                        existing_documentation: Optional[str] = None) -> Tuple[str, dict, str]:
+        """Modify the documentation of an existing API when the user wants to modify the API and create a new version of the API."""
+
+        prompts = self._load_documentation_modification_prompt()
+        system_prompt = prompts["system_prompt"]
+
+        # Prepare existing documentation section if provided
+        existing_doc_section = ""
+        if existing_documentation:
+            existing_doc_section = f"\n\n**Existing Documentation:**\n{existing_documentation}"
+
+        user_prompt = prompts["user_prompt_template"].format(
+            prompt=prompt,
+            code=code,
+            user_id=user_id or "USER_ID",
+            api_slug=api_slug or "API_SLUG",
+            existing_documentation_section=existing_doc_section
+        )
+        
+        # Track usage
+        start_time = time.time()
+        success = False
+        error_message = None
+        response_length = 0
+
+
+        try:
+            response = await self.make_openai_request(
+                system_prompt, user_prompt,
+                prompt_config=self._load_documentation_modification_prompt(),
+                user_id=user_id,
+                api_key_id=api_key_id,
+                operation_type="documentation_modification",
+                api_slug=api_slug
+            )
+            doc, openapi_spec, curl = self._parse_documentation_response(response)
+            
+            success = True
+            response_length = len(doc) + len(str(openapi_spec)) + len(curl)
+            
+            return doc, openapi_spec, curl
+
+        except Exception as e:
+            error_message = str(e)
+            raise Exception(f"Failed to modify documentation: {str(e)}")
+        finally:
+            # Record usage regardless of success/failure
+            if user_id:
+                duration_ms = int((time.time() - start_time) * 1000)
+                prompt_length = len(user_prompt)
+                
+                # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+                estimated_input_tokens = max(1, (len(system_prompt) + len(user_prompt)) // 4)
+                estimated_output_tokens = max(1, response_length // 4) if success else 0
+                
+                # Log LLM call
+                try:
+                    await logging_service.log_llm_call(
+                        service_type="openai",
+                        model_name=settings.OPENAI_MODEL,
+                        operation_type="documentation",
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        prompt_length=prompt_length,
+                        response_content=f"Doc: {doc[:200]}... OpenAPI: {str(openapi_spec)[:100]}... Curl: {curl[:200]}..." if success else None,
+                        response_length=response_length,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        total_tokens=estimated_input_tokens + estimated_output_tokens,
+                        estimated_cost_cents=self._calculate_openai_cost(settings.OPENAI_MODEL, estimated_input_tokens, estimated_output_tokens),
+                        duration_ms=duration_ms,
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        api_slug=api_slug,
+                        success=success,
+                        error_message=error_message,
+                        operation_context={
+                            "code_length": len(code),
+                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                        }
+                    )
+                except Exception as log_error:
+                    logger.error(f"Failed to log LLM call: {log_error}")
+                
+                try:
+                    await usage_service.record_usage(
+                        user_id=user_id,
+                        api_key_id=api_key_id,
+                        service_type="openai",
+                        operation_type="documentation",
+                        model_name=settings.OPENAI_MODEL,
+                        input_tokens=estimated_input_tokens,
+                        output_tokens=estimated_output_tokens,
+                        prompt_length=prompt_length,
+                        response_length=response_length,
+                        request_duration_ms=duration_ms,
+                        operation_context={
+                            "code_length": len(code),
+                            "prompt_preview": prompt[:100] + "..." if len(prompt) > 100 else prompt
+                        },
+                        api_slug=api_slug,
+                        success=success,
+                        error_message=error_message
+                    )
+                except Exception as usage_error:
+                    logger.error(f"Failed to record usage: {usage_error}")
+
     async def make_openai_request(self, system_prompt: str, user_prompt: str, prompt_config: Dict[str, Any] = None, 
                                  user_id: Optional[str] = None, api_key_id: Optional[str] = None, 
                                  operation_type: str = "general", api_slug: Optional[str] = None) -> str:

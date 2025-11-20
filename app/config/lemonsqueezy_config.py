@@ -39,8 +39,6 @@ class LemonSqueezyConfig:
             }
         }
         
-        # Checkout URL template
-        self.checkout_base_url = "https://your-store.lemonsqueezy.com/checkout/buy"
         
     def get_product_info(self, tier: str) -> Dict[str, str]:
         """Get product information for a subscription tier."""

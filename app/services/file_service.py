@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional, Any, Dict, List
 from datetime import datetime
 from ..config import settings
-from ..models import SavedAPI, SaveAPIRequest, User
+from ..models import SavedAPI, SaveAPIRequest, User, APIVersion
 from ..services.auth_service import auth_service
 from .mongodb import mongodb
 import logging
@@ -278,6 +278,23 @@ class FileService:
         
         mongodb.saved_apis.insert_one(db_api)
         
+        # Create initial version (v1) from the current code
+        try:
+            current_code = self.load_api_code(request.user_id, request.api_slug)
+            self.save_version(
+                user_id=request.user_id,
+                api_slug=request.api_slug,
+                code=current_code,
+                prompt=request.prompt,
+                endpoint_url=request.endpoint_url,
+                commit_message="Initial version",
+                version_override=1
+            )
+            logger.info(f"Created initial version for API {request.api_slug}")
+        except Exception as e:
+            logger.warning(f"Failed to create initial version for {request.api_slug}: {e}")
+            # Don't fail the whole save operation if versioning fails
+        
         # Return SavedAPI model
         return SavedAPI(
             api_slug=db_api["api_slug"],
@@ -292,7 +309,9 @@ class FileService:
             expected_output=db_api["expected_output"],
             created_at=db_api["created_at"],
             saved_at=db_api["saved_at"],
-            is_saved=db_api["is_saved"]
+            is_saved=db_api["is_saved"],
+            current_version=1,
+            versions=[]
         )
     
     def get_api_metadata(self, user_id: str, api_slug: str) -> Optional[SavedAPI]:
@@ -304,6 +323,16 @@ class FileService:
         
         if not db_api:
             return None
+        
+        # Handle versions field - convert dicts to APIVersion objects
+        versions = []
+        if "versions" in db_api and db_api["versions"]:
+            for v_dict in db_api["versions"]:
+                try:
+                    versions.append(APIVersion(**v_dict))
+                except Exception as e:
+                    logger.warning(f"Failed to parse version: {e}")
+                    continue
         
         return SavedAPI(
             api_slug=db_api["api_slug"],
@@ -318,7 +347,9 @@ class FileService:
             expected_output=db_api.get("expected_output"),
             created_at=db_api["created_at"],
             saved_at=db_api["saved_at"],
-            is_saved=db_api.get("is_saved", True)
+            is_saved=db_api.get("is_saved", True),
+            current_version=db_api.get("current_version", 1),
+            versions=versions
         )
     
     def get_api_details(self, user_id: str, api_slug: str) -> Dict[str, Any]:
@@ -374,25 +405,163 @@ class FileService:
             }
         
         # Convert SavedAPI to dict and add file info
-        api_details = {
-            "api_slug": api_metadata.api_slug,
-            "user_id": api_metadata.user_id,
-            "api_name": api_metadata.api_name,
-            "prompt": api_metadata.prompt,
-            "endpoint_url": api_metadata.endpoint_url,
-            "documentation": api_metadata.documentation,
-            "curl_example": api_metadata.curl_example,
-            "openapi_spec": api_metadata.openapi_spec,
-            "sample_input": api_metadata.sample_input,
-            "expected_output": api_metadata.expected_output,
-            "created_at": api_metadata.created_at,
-            "saved_at": api_metadata.saved_at,
-            "is_saved": api_metadata.is_saved,
-            **file_info
-        }
+        # Use model_dump() to properly serialize Pydantic model including nested objects
+        try:
+            api_details = api_metadata.model_dump()
+        except AttributeError:
+            # Fallback for older Pydantic versions
+            api_details = api_metadata.dict()
+        
+        # Add file info
+        api_details.update(file_info)
         
         return api_details
     
+    def create_initial_version_if_needed(self, user_id: str, api_slug: str) -> None:
+        """
+        Check if API has versions tracked. If not, create version 1 from current code.
+        """
+        metadata = self.get_api_metadata(user_id, api_slug)
+        if not metadata:
+            return
+            
+        if not metadata.versions:
+            try:
+                # Load current code
+                current_code = self.load_api_code(user_id, api_slug)
+                
+                # Create v1
+                self.save_version(
+                    user_id=user_id,
+                    api_slug=api_slug,
+                    code=current_code,
+                    prompt=metadata.prompt,
+                    endpoint_url=metadata.endpoint_url,
+                    commit_message="Initial version",
+                    version_override=1
+                )
+            except Exception as e:
+                logger.error(f"Failed to create initial version for {api_slug}: {e}")
+
+    def save_version(self, user_id: str, api_slug: str, code: str, prompt: str, endpoint_url: str, commit_message: Optional[str] = None, version_override: Optional[int] = None) -> int:
+        """Save a new version of the API."""
+        # Get current metadata
+        metadata = self.get_api_metadata(user_id, api_slug)
+        if not metadata:
+            raise Exception("API metadata not found")
+            
+        # Determine version number
+        if version_override:
+            next_version = version_override
+        else:
+            # If no versions exist, start at 2 (assuming v1 was just created or current state is v1)
+            # But if create_initial_version_if_needed was called, we should have v1.
+            current_max = metadata.current_version or 0
+            if not metadata.versions and current_max == 1:
+                # Metadata says v1 but no versions list? inconsistent.
+                # Just find max from versions list if available
+                if metadata.versions:
+                    current_max = max(v.version for v in metadata.versions)
+                else:
+                    current_max = 0
+            
+            # If we are saving a NEW version, increment
+            next_version = current_max + 1
+        
+        # Create version file slug: user_id_api_slug_v{num}
+        # Note: save_api_code logic splits by first underscore for user_id.
+        # So we need: user_id + "_" + api_slug + "_v" + num
+        # But api_slug might contain underscores. 
+        # _get_safe_file_path calls _validate_api_slug.
+        # We will manually construct the path to avoid "user_id" parsing issues in save_api_code if we used that.
+        
+        safe_slug = self._validate_api_slug(api_slug)
+        version_filename = f"{user_id}_{safe_slug}_v{next_version}.py"
+        file_path = self.safe_base_path / version_filename
+        
+        # Save file
+        try:
+            with open(file_path, 'w', encoding='utf-8', newline='\n') as f:
+                f.write(code)
+        except Exception as e:
+            logger.error(f"Failed to save version file {version_filename}: {e}")
+            raise
+            
+        # Relative path for DB
+        try:
+            rel_path = file_path.relative_to(self.safe_base_path)
+        except ValueError:
+             rel_path = version_filename # Fallback
+        
+        # Create version object data
+        version_data = {
+            "version": next_version,
+            "created_at": datetime.utcnow(),
+            "prompt": prompt,
+            "endpoint_url": endpoint_url,
+            "commit_message": commit_message or f"Version {next_version}",
+            "code_path": str(rel_path)
+        }
+        
+        # Update MongoDB
+        # We need to convert to dict manually if using pymongo direct update, 
+        # but SavedAPI model suggests we might want to use it.
+        # Since we are using update_one, we pass raw dict.
+        
+        update_op = {
+            "$push": {"versions": version_data},
+            "$set": {"current_version": next_version}
+        }
+        
+        # If this is v1 and we want to ensure versions list is initialized
+        if not metadata.versions and next_version == 1:
+             # Just push is fine, it will create the array if missing (standard mongo behavior)
+             pass
+             
+        mongodb.saved_apis.update_one(
+            {"user_id": user_id, "api_slug": api_slug},
+            update_op
+        )
+        
+        return next_version
+
+    def restore_version(self, user_id: str, api_slug: str, version_num: int) -> str:
+        """Restore a specific version of the API."""
+        metadata = self.get_api_metadata(user_id, api_slug)
+        if not metadata:
+            raise Exception("API metadata not found")
+            
+        # Find the version
+        target_version = None
+        for v in metadata.versions:
+            if v.version == version_num:
+                target_version = v
+                break
+        
+        if not target_version:
+            raise Exception(f"Version {version_num} not found")
+            
+        # Load version code
+        if target_version.code_path:
+            version_path = self.safe_base_path / target_version.code_path
+        else:
+            # Fallback
+            safe_slug = self._validate_api_slug(api_slug)
+            version_filename = f"{user_id}_{safe_slug}_v{version_num}.py"
+            version_path = self.safe_base_path / version_filename
+            
+        if not version_path.exists():
+             raise FileNotFoundError(f"Version file not found: {version_path}")
+             
+        with open(version_path, 'r', encoding='utf-8') as f:
+            code = f.read()
+            
+        # Overwrite main API file
+        main_slug = f"{user_id}_{api_slug}"
+        self.save_api_code(main_slug, code)
+        
+        return code
+
     def is_api_saved(self, user_id: str, api_slug: str) -> bool:
         """Check if an API has been saved with metadata in database."""
         return mongodb.saved_apis.find_one({
@@ -459,6 +628,16 @@ class FileService:
         
         saved_apis = []
         for db_api in db_apis:
+            # Handle versions field - convert dicts to APIVersion objects
+            versions = []
+            if "versions" in db_api and db_api["versions"]:
+                for v_dict in db_api["versions"]:
+                    try:
+                        versions.append(APIVersion(**v_dict))
+                    except Exception as e:
+                        logger.warning(f"Failed to parse version: {e}")
+                        continue
+            
             saved_apis.append(SavedAPI(
                 api_slug=db_api["api_slug"],
                 user_id=db_api["user_id"],
@@ -467,11 +646,14 @@ class FileService:
                 endpoint_url=db_api["endpoint_url"],
                 documentation=db_api["documentation"],
                 curl_example=db_api["curl_example"],
+                openapi_spec=db_api.get("openapi_spec"),
                 sample_input=db_api.get("sample_input"),
                 expected_output=db_api.get("expected_output"),
                 created_at=db_api["created_at"],
                 saved_at=db_api["saved_at"],
-                is_saved=db_api.get("is_saved", True)
+                is_saved=db_api.get("is_saved", True),
+                current_version=db_api.get("current_version", 1),
+                versions=versions
             ))
         
         return saved_apis

@@ -14,7 +14,7 @@ import base64
 import uuid
 import json
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 import logging
 import os
 import warnings
@@ -44,7 +44,8 @@ from .models import (
     LLMLogsRequest, LLMLogsResponse, ChatLogsRequest, ChatLogsResponse,
     LogStatisticsResponse,
     # Multi-step generation models
-    MultiStepGenerationRequest, PipelineInfoResponse
+    MultiStepGenerationRequest, PipelineInfoResponse,
+    APIVersion
 )
 from .services.openai_service import openai_service
 from .services.claude_service import claude_service
@@ -1696,12 +1697,88 @@ async def generate_api(
             detail=f"Failed to generate API: {str(e)}"
         )
 
+
+@app.get("/api/{user_id}/{api_slug}/versions", response_model=List[APIVersion])
+async def get_api_versions(
+    user_id: str,
+    api_slug: str,
+    request: Request,
+    user: User = Depends(get_current_user)
+):
+    """Get list of versions for an API."""
+    # Verify the user owns this API
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    metadata = file_service.get_api_metadata(user_id, api_slug)
+    if not metadata:
+        raise HTTPException(status_code=404, detail="API not found")
+    
+    # Serialize versions to dicts
+    versions_list = []
+    for v in metadata.versions:
+        if hasattr(v, 'model_dump'):
+            versions_list.append(v.model_dump())
+        elif hasattr(v, 'dict'):
+            versions_list.append(v.dict())
+        elif isinstance(v, dict):
+            versions_list.append(v)
+        else:
+            # Fallback
+            versions_list.append({
+                "version": v.version,
+                "created_at": v.created_at.isoformat() if isinstance(v.created_at, datetime) else v.created_at,
+                "prompt": v.prompt,
+                "endpoint_url": v.endpoint_url,
+                "commit_message": v.commit_message,
+                "code_path": v.code_path
+            })
+    
+    return versions_list
+
+@app.post("/api/{user_id}/{api_slug}/restore/{version}", response_model=APIModificationResponse)
+async def restore_api_version(
+    user_id: str,
+    api_slug: str,
+    version: int,
+    request: Request,
+    user: User = Depends(get_current_user)
+):
+    """Restore a specific version of the API."""
+    # Verify the user owns this API
+    if user.id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        code = file_service.restore_version(user_id, api_slug, version)
+        
+        # Return response similar to modify_api so frontend can update
+        endpoint_url = f"{settings.API_PREFIX}/{user_id}/{api_slug}"
+        return APIModificationResponse(
+            success=True,
+            message=f"Restored version {version}",
+            endpoint_url=endpoint_url,
+            api_slug=api_slug,
+            user_id=user_id,
+            modified_at=datetime.now(),
+            documentation="Documentation restored (please refresh)", 
+            curl_example=f"curl {endpoint_url}",
+            prompt="Restored version", 
+            modification_prompt=f"Restore version {version}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to restore version: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# modify the existing api code based on the user prompt and create a new version
 @app.post("/modify-api", response_model=APIModificationResponse)
 async def modify_api(
     modification_request: APIModificationRequest,
     request: Request,
     user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key_hybrid)
 ):
+
     """
     Modify an existing API's code based on user prompt.
     
@@ -1709,26 +1786,27 @@ async def modify_api(
     For proposal-level modifications, use the /modify-proposal endpoint instead.
     
     The endpoint assumes the modification request has been validated and is ready
-    to be applied to the existing code.
+    to be applied to the existing code and creates a new version of the API.
     """
+
     # Extract user and API key info
     current_user, api_key_id = user_and_key
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
-    logger.info(f"Modifying API {request.api_slug} for user {request.user_id} with prompt: {request.prompt[:100]}...")
+    logger.info(f"Modifying API {modification_request.api_slug} for user {modification_request.user_id} with prompt: {modification_request.prompt[:100]}...")
     
     # Check usage limits before proceeding
     try:
         limits = await usage_service.check_usage_limits(
-            user_id=request.user_id,
+            user_id=modification_request.user_id,
             api_key_id=api_key_id,
             tokens_to_use=1500  # Estimated tokens for code modification
         )
         
         if limits.is_over_limit:
             # Log the limit breach for monitoring
-            logger.warning(f"Rate limit exceeded for user {request.user_id}: {limits.limit_exceeded_reason}")
+            logger.warning(f"Rate limit exceeded for user {modification_request.user_id}: {limits.limit_exceeded_reason}")
             raise HTTPException(
                 status_code=429,
                 detail=limits.limit_exceeded_reason or f"Usage limit exceeded. Daily tokens used: {limits.daily_tokens_used}/{limits.daily_token_limit}"
@@ -1745,14 +1823,17 @@ async def modify_api(
     
     try:
         # Check if API exists
-        if not file_service.api_exists(request.user_id, request.api_slug):
+        if not file_service.api_exists(modification_request.user_id, modification_request.api_slug):
             raise HTTPException(
                 status_code=404,
-                detail=f"API not found: {request.user_id}/{request.api_slug}"
+                detail=f"API not found: {modification_request.user_id}/{modification_request.api_slug}"
             )
         
         # Load existing code
-        existing_code = file_service.load_api_code(request.user_id, request.api_slug)
+        existing_code = file_service.load_api_code(modification_request.user_id, modification_request.api_slug)
+        
+        # Ensure we have a version history started before modifying
+        file_service.create_initial_version_if_needed(modification_request.user_id, modification_request.api_slug)
         
         # Analysis is now handled by the separate /modify-proposal endpoint
         # This endpoint focuses on applying validated modifications to existing code
@@ -1772,21 +1853,22 @@ async def modify_api(
         # Generate modified code using Claude
         logger.info("Calling Claude service to modify existing code...")
         raw_code = await claude_service.modify_api_code(
-            prompt=request.prompt,
-            sample_input=request.sample_input,
-            expected_output=request.expected_output,
+            prompt=modification_request.prompt,
+            sample_input=modification_request.sample_input,
+            expected_output=modification_request.expected_output,
             existing_code=existing_code,
-            user_id=request.user_id,
+            user_id=modification_request.user_id,
             api_key_id=api_key_id,
-            api_slug=request.api_slug
+            api_slug=modification_request.api_slug
         )
+
         logger.info("Code generation completed successfully")
         logger.debug(f"Generated code preview: {raw_code[:300]}...")
         
         # Debug and fix the generated code
         logger.info("Analyzing and fixing generated code...")
         code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
-            raw_code, request.prompt, request.user_id, api_key_id
+            raw_code, modification_request.prompt, modification_request.user_id, api_key_id
         )
         
         if issues_found:
@@ -1808,30 +1890,69 @@ async def modify_api(
             )
         
         # Save the new code
-        full_slug = f"{request.user_id}_{request.api_slug}"
+        full_slug = f"{modification_request.user_id}_{modification_request.api_slug}"
         await file_service.save_api_code(full_slug, code)
         
-        # Generate documentation
+        # Save new version
+        endpoint_url = f"{settings.API_PREFIX}/{modification_request.user_id}/{modification_request.api_slug}"
+        try:
+            file_service.save_version(
+                user_id=modification_request.user_id,
+                api_slug=modification_request.api_slug,
+                code=code,
+                prompt=modification_request.prompt,
+                endpoint_url=endpoint_url,
+                commit_message=f"Modification: {modification_request.prompt[:50]}..."
+            )
+        except Exception as e:
+            logger.error(f"Failed to save version history: {e}")
+        
+
+        # Modify the documentation of the existing API 
 
         if settings.GENERATE_DOCS_SERVICE == "OPENAI_SERVICE":
             doc_service = openai_service
         else:
             doc_service = claude_service
 
-        documentation, openapi_spec, curl_example = await doc_service.generate_documentation(
-            code=code, 
-            prompt=request.prompt,
-            user_id=request.user_id,
-            api_key_id=api_key_id,
-            api_slug=request.api_slug
-        )
+        # Check if there is existing documentation; if not, create from scratch, else modify
+        existing_doc = await file_service.load_api_documentation(
+            user_id=modification_request.user_id,
+            api_slug=modification_request.api_slug
+        ) if hasattr(file_service, "load_api_documentation") else None
+
+        if not existing_doc or not existing_doc.get("documentation"):
+            documentation, openapi_spec, curl_example = await doc_service.generate_documentation(
+                code=code,
+                prompt=modification_request.prompt,
+                user_id=modification_request.user_id,
+                api_key_id=api_key_id,
+                api_slug=modification_request.api_slug
+            )
+        else:
+            # Get existing documentation content
+            existing_doc_content = existing_doc.get("documentation", "")
+            if existing_doc.get("openapi_spec"):
+                existing_doc_content += f"\n\n## OpenAPI Specification\n```yaml\n{existing_doc.get('openapi_spec')}\n```"
+            if existing_doc.get("curl_example"):
+                existing_doc_content += f"\n\n## Curl Example\n{existing_doc.get('curl_example')}"
+            
+            documentation, openapi_spec, curl_example = await doc_service.modify_api_documentation(
+                code=code,
+                prompt=modification_request.prompt,
+                user_id=modification_request.user_id,
+                api_key_id=api_key_id,
+                api_slug=modification_request.api_slug,
+                existing_documentation=existing_doc_content
+            )
+
         logger.info(f"Documentation generated with {doc_service}")
         # Build endpoint URL
-        endpoint_url = f"{settings.API_PREFIX}/{request.user_id}/{request.api_slug}"
+        endpoint_url = f"{settings.API_PREFIX}/{modification_request.user_id}/{modification_request.api_slug}"
         
         # Update curl example with actual endpoint
-        if "your-endpoint-url" in curl_example:
-            curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
+        if "bucketapi" in curl_example:
+            curl_example = curl_example.replace("bucketapi", endpoint_url)
         
         return APIModificationResponse(
             success=True,
@@ -1839,8 +1960,8 @@ async def modify_api(
             endpoint_url=endpoint_url,
             documentation=documentation,
             curl_example=curl_example,
-            api_slug=request.api_slug,
-            user_id=request.user_id,
+            api_slug=modification_request.api_slug,
+            user_id=modification_request.user_id,
             modified_at=datetime.now(),
             debug_info={
                 "issues_found": issues_found,
@@ -2215,8 +2336,60 @@ async def apidetails(user_id: str, api_slug: str):
     """
     try:
         api_details = file_service.get_api_details(user_id, api_slug)
-        return api_details
+        
+        # Convert to JSON-serializable format
+        import json
+        from bson import ObjectId
+        
+        def json_serializer(obj):
+            """JSON serializer for objects not serializable by default json code"""
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            if isinstance(obj, ObjectId):
+                return str(obj)
+            if hasattr(obj, 'model_dump'):
+                return obj.model_dump()
+            if hasattr(obj, 'dict'):
+                return obj.dict()
+            raise TypeError(f"Type {type(obj)} not serializable")
+        
+        # Recursively serialize the dict
+        def serialize_dict(d):
+            if isinstance(d, dict):
+                return {k: serialize_dict(v) for k, v in d.items()}
+            elif isinstance(d, list):
+                return [serialize_dict(item) for item in d]
+            elif isinstance(d, datetime):
+                return d.isoformat()
+            elif hasattr(d, 'model_dump'):
+                return serialize_dict(d.model_dump())
+            elif hasattr(d, 'dict'):
+                return serialize_dict(d.dict())
+            else:
+                try:
+                    json_serializer(d)
+                    return d
+                except (TypeError, AttributeError):
+                    return str(d)
+        
+        serialized = serialize_dict(api_details)
+        
+        # Verify it's JSON serializable before returning
+        try:
+            json.dumps(serialized)
+        except TypeError as e:
+            logger.error(f"JSON serialization failed: {e}")
+            logger.error(f"Problematic data: {serialized}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to serialize API details: {str(e)}"
+            )
+        
+        return serialized
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.error(f"Error getting API details for {user_id}/{api_slug}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get API details: {str(e)}"
@@ -2576,7 +2749,8 @@ async def test_api(request: TestRequest):
                 "complexity_multiplier": api_cost.complexity_multiplier,
                 "estimated_tokens_used": api_cost.estimated_tokens_used
             }
-            logger.info(f"Cost estimationNNNNNNNNNNNNNNNNNNNNNN: {cost_estimation}")
+            logger.info(f"Cost estimation: {cost_estimation}")
+
         except HTTPException as http_e:
             if http_e.status_code == 404:
                 # API metadata not found - this is the first test, analyze the code

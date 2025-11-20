@@ -22,6 +22,17 @@ class MongoDB:
     def connect(self):
         """Establish connection to MongoDB"""
         try:
+            # Check if MongoDB URL is configured
+            if not settings.MONGODB_URL:
+                error_msg = "MONGODB_URL environment variable is not set. Please configure it in your .env file or environment variables."
+                logger.error(f"❌ {error_msg}")
+                raise ValueError(error_msg)
+            
+            if not settings.MONGODB_DB_NAME:
+                error_msg = "MONGODB_DB_NAME environment variable is not set. Please configure it in your .env file or environment variables."
+                logger.error(f"❌ {error_msg}")
+                raise ValueError(error_msg)
+            
             self.client = MongoClient(
                 settings.MONGODB_URL,
                 # Connection Pool Settings
@@ -69,7 +80,18 @@ class MongoDB:
             
         except Exception as e:
             logger.error(f"❌ Failed to connect to MongoDB: {str(e)}")
-            logger.error(f"Connection URL: {settings.MONGODB_URL[:50]}...")  # Log partial URL for debugging
+            # Safely log connection URL (handle None case)
+            if settings.MONGODB_URL:
+                # Log partial URL for debugging (hide credentials)
+                url_display = settings.MONGODB_URL[:50] + "..." if len(settings.MONGODB_URL) > 50 else settings.MONGODB_URL
+                # Mask credentials in URL
+                if "@" in url_display:
+                    parts = url_display.split("@")
+                    if len(parts) == 2:
+                        url_display = "mongodb://***:***@" + parts[1]
+                logger.error(f"Connection URL: {url_display}")
+            else:
+                logger.error("Connection URL: Not configured (MONGODB_URL is None)")
             raise
     
     def _init_collections(self):

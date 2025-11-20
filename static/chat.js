@@ -340,9 +340,145 @@ function handleGenerationModeChange() {
 }
 
 // Initialize generation mode on page load
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // Initialize generation mode
     handleGenerationModeChange();
+    
+    // Initialize mode switcher (default to generation mode)
+    switchToGenerationMode();
+
+    // Check for modify parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const modifySlug = urlParams.get('modify');
+    const modifyUserId = urlParams.get('user_id');
+    
+    if (modifySlug && modifyUserId) {
+        // Clear chat first (remove generation welcome message)
+        const chatMessages = document.getElementById('chatMessages');
+        if (chatMessages) {
+            chatMessages.innerHTML = '';
+        }
+        
+        // Reset conversation state
+        currentConversation = [];
+        conversationState = null;
+        currentProposalId = null;
+        currentProposal = null;
+        
+        try {
+             const response = await fetch(`/api/${modifyUserId}/${modifySlug}/apidetails`);
+             if (response.ok) {
+                 currentApiData = await response.json();
+                 isModificationMode = true;
+                 
+                 // Update mode switcher to show modification mode active
+                 const genBtn = document.getElementById('generationModeBtn');
+                 const modBtn = document.getElementById('modificationModeBtn');
+                 if (genBtn && modBtn) {
+                     genBtn.className = 'px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-1.5';
+                     modBtn.className = 'px-3 py-1.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-1.5';
+                 }
+                 
+                 // Hide API selector since API is already selected via URL
+                 const apiSelector = document.getElementById('apiSelectorContainer');
+                 if (apiSelector) {
+                     apiSelector.classList.add('hidden');
+                 }
+                 
+                 // Show modification mode UI
+                 showModificationModeUI();
+                 
+                 // Load API details in preview panel
+                 loadAPIDetailsInPreview(currentApiData);
+                 
+                 // Enable chat input
+                 const chatInput = document.getElementById('chatInput');
+                 if (chatInput) {
+                     chatInput.disabled = false;
+                 }
+                 
+                 // Add modification welcome message
+                 setTimeout(() => {
+                     addModificationWelcomeMessage(currentApiData);
+                 }, 300);
+                 
+                 // Switch to modification view if needed, or just conversation state.
+                 conversationState = 'api_modification'; // Use appropriate state if defined
+             } else {
+                 console.error("Failed to load API for modification", response.status);
+                 addMessage('assistant', "❌ I couldn't load the API you requested to modify. Please select it from your profile.", { skipDelay: true });
+             }
+        } catch (e) {
+            console.error("Error loading API for modification", e);
+            addMessage('assistant', "❌ I couldn't load the API you requested to modify. Please select it from your profile.", { skipDelay: true });
+        }
+    } else if (modifySlug) {
+        // Fallback to old method if only slug is provided (for backwards compatibility)
+        // Clear chat first (remove generation welcome message)
+        const chatMessages = document.getElementById('chatMessages');
+        if (chatMessages) {
+            chatMessages.innerHTML = '';
+        }
+        
+        // Reset conversation state
+        currentConversation = [];
+        conversationState = null;
+        currentProposalId = null;
+        currentProposal = null;
+        
+        try {
+             // Extract user_id from slug (assuming format user_id_api_name)
+             // This is a bit hacky, but efficient.
+             const parts = modifySlug.split('_');
+             const presumedUserId = parts[0];
+             
+             const response = await fetch(`/api/${presumedUserId}/${modifySlug}/apidetails`);
+             if (response.ok) {
+                 currentApiData = await response.json();
+                 isModificationMode = true;
+                 
+                 // Update mode switcher to show modification mode active
+                 const genBtn = document.getElementById('generationModeBtn');
+                 const modBtn = document.getElementById('modificationModeBtn');
+                 if (genBtn && modBtn) {
+                     genBtn.className = 'px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-1.5';
+                     modBtn.className = 'px-3 py-1.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-1.5';
+                 }
+                 
+                 // Hide API selector since API is already selected via URL
+                 const apiSelector = document.getElementById('apiSelectorContainer');
+                 if (apiSelector) {
+                     apiSelector.classList.add('hidden');
+                 }
+                 
+                 // Show modification mode UI
+                 showModificationModeUI();
+                 
+                 // Load API details in preview panel
+                 loadAPIDetailsInPreview(currentApiData);
+                 
+                 // Enable chat input
+                 const chatInput = document.getElementById('chatInput');
+                 if (chatInput) {
+                     chatInput.disabled = false;
+                 }
+                 
+                 // Add modification welcome message
+                 setTimeout(() => {
+                     addModificationWelcomeMessage(currentApiData);
+                 }, 300);
+                 
+                 // Switch to modification view if needed, or just conversation state.
+                 conversationState = 'api_modification'; // Use appropriate state if defined
+             } else {
+                 console.error("Failed to load API for modification", response.status);
+                 addMessage('assistant', "❌ I couldn't load the API you requested to modify. Please select it from your profile.", { skipDelay: true });
+             }
+        } catch (e) {
+            console.error("Error loading API for modification", e);
+            addMessage('assistant', "❌ I couldn't load the API you requested to modify. Please select it from your profile.", { skipDelay: true });
+        }
+    }
 });
 
 function showActionButtons() {
@@ -461,18 +597,17 @@ async function sendMessage() {
     }, 300);
 
     // Check if we're in modification mode
-    if (isModificationMode) {
-        // Reset modification mode flag
-        isModificationMode = false;
+    if (isModificationMode && currentApiData) {
+        console.log('Processing modification request for API:', currentApiData.api_slug);
         
-        // Reset placeholder
-        input.placeholder = "Describe your API requirements... (e.g., 'Create an API that extracts text from PDF files')";
-        
-        // Get user ID (from auth or generate temp one)
-        const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
+        // Get user ID from currentApiData or auth
+        const userId = currentApiData.user_id || (currentUser ? currentUser.id : 'temp_' + Date.now());
         
         // Process the modification request directly
         await processModificationRequest(message, userId);
+        
+        // Keep modification mode active until successful modification
+        // The processModificationRequest will handle resetting if needed
         return;
     }
 
@@ -1771,7 +1906,7 @@ function resetPreviewPanel() {
     updatePreviewHeader('🔧 API Preview', 'Live preview of your API as it\'s being built');
 }
 
-function addAPIResultMessage(result) {
+function addAPIResultMessage(result, isModification = false) {
     const endpointUrl = window.location.origin + result.endpoint_url;
     
     // Update the API preview panel
@@ -1780,23 +1915,52 @@ function addAPIResultMessage(result) {
     // Extract or generate smart test data based on the API
     const testData = {"json": "Place Holder", "description": "Place Holder", "examples": []}
     
+    // Choose message based on context
+    const title = isModification 
+        ? "✅ API Modified Successfully!" 
+        : "🎉 API Generated Successfully!";
+    const subtitle = isModification
+        ? "Your changes have been applied!"
+        : "Your API is ready!";
+    const description = isModification
+        ? "Check the preview panel on the right to test the updated API, get code snippets, or make additional changes."
+        : "Check the preview panel on the right to test, get code snippets, and deploy your API.";
+    const nextSteps = isModification
+        ? "Use the API Preview panel to test your updated endpoint, copy code snippets, or make more modifications!"
+        : "Use the API Preview panel to test your endpoint, copy code snippets for integration, or deploy it live!";
+    const badgeColor = isModification
+        ? "bg-orange-900/50 text-orange-400 border-orange-500/30"
+        : "status-buildable";
+    const cardBorder = isModification
+        ? "border-orange-500/30"
+        : "border-green-500/30";
+    const iconBg = isModification
+        ? "bg-orange-500/20"
+        : "bg-green-500/20";
+    const iconColor = isModification
+        ? "text-orange-400"
+        : "text-green-400";
+    const textColor = isModification
+        ? "text-orange-200"
+        : "text-green-200";
+    
     const content = `
         <div class="space-y-4">
             <div class="flex items-center space-x-2">
-                <span class="status-badge status-buildable">Success</span>
-                <h3 class="font-semibold text-white">🎉 API Generated Successfully!</h3>
+                <span class="status-badge ${badgeColor}">Success</span>
+                <h3 class="font-semibold text-white">${title}</h3>
             </div>
             
-            <div class="glass-card rounded-xl p-6 border-green-500/30">
+            <div class="glass-card rounded-xl p-6 ${cardBorder}">
                 <div class="flex items-center space-x-3 mb-4">
-                    <div class="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
-                        <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="w-12 h-12 ${iconBg} rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 ${iconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                     </div>
                     <div class="flex-1">
-                        <h4 class="font-medium text-white mb-1">Your API is ready!</h4>
-                        <p class="text-sm text-green-200">Check the preview panel on the right to test, get code snippets, and deploy your API.</p>
+                        <h4 class="font-medium text-white mb-1">${subtitle}</h4>
+                        <p class="text-sm ${textColor}">${description}</p>
                 </div>
                         </div>
                 
@@ -1813,7 +1977,7 @@ function addAPIResultMessage(result) {
                     
                 <div class="mt-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
                     <p class="text-blue-300 text-sm">
-                        <strong>💡 Next Steps:</strong> Use the API Preview panel to test your endpoint, copy code snippets for integration, or deploy it live!
+                        <strong>💡 Next Steps:</strong> ${nextSteps}
                     </p>
                 </div>
             </div>
@@ -2555,25 +2719,28 @@ async function processModificationRequest(modificationPrompt, userId) {
         hideTypingIndicator();
 
         if (result.success) {
+            // Update current API data with modified version
+            currentApiData = {...currentApiData, ...result};
+            
             // Check if this is a final API or a modified proposal
             if (result.endpoint_url) {
-                // This is a final API
-            currentApiData = result;
-            addAPIResultMessage(result);
-                addMessage('system', '✅ API modified successfully! The updated version is now available in the Preview panel.');
-            
-            // Reset placeholder
-            const chatInput = document.getElementById('chatInput');
-            if (chatInput) {
-                chatInput.placeholder = "Describe your API requirements... (e.g., 'Create an API that extracts text from PDF files')";
-            }
-            
-            // Hide chat input again since modification is complete
-            hideChatInput();
-        } else {
+                // This is a final modified API
+                addAPIResultMessage(result, true); // Pass true to indicate this is a modification
+                // Don't add duplicate system message - addAPIResultMessage already shows modification message
+                
+                // Keep modification mode active so user can make more changes or exit
+                const chatInput = document.getElementById('chatInput');
+                if (chatInput) {
+                    chatInput.placeholder = "Want to make more changes? Describe them here, or click 'Exit & Return' to go back.";
+                }
+            } else {
                 // This might be a modified proposal
-                currentApiData = result;
-                addMessage('system', '✅ Proposal updated successfully! Review the changes in the Preview panel.');
+                addMessage('system', '✅ Modification proposal generated! Review the changes in the Preview panel and click "Build It" to apply them.');
+                
+                const chatInput = document.getElementById('chatInput');
+                if (chatInput) {
+                    chatInput.placeholder = "Describe additional changes or click 'Build It' to apply the modifications.";
+                }
             }
         } else {
             // Handle different types of responses
@@ -4498,5 +4665,643 @@ async function regenerateTestScenarios() {
         // Restore button state
         generateBtn.textContent = originalText;
         generateBtn.disabled = false;
+    }
+}
+
+// ===========================
+// MODE SWITCHING FUNCTIONS
+// ===========================
+
+/**
+ * Switch to Generation Mode
+ */
+function switchToGenerationMode() {
+    console.log('Switching to Generation Mode');
+    
+    // Clear ALL chat messages including welcome message
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        chatMessages.innerHTML = '';
+    }
+    
+    // Reset conversation state
+    currentConversation = [];
+    conversationState = null;
+    currentProposalId = null;
+    currentProposal = null;
+    
+    // Update UI
+    const genBtn = document.getElementById('generationModeBtn');
+    const modBtn = document.getElementById('modificationModeBtn');
+    const apiSelector = document.getElementById('apiSelectorContainer');
+    
+    // Update button styles
+    genBtn.className = 'px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-1.5';
+    modBtn.className = 'px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-1.5';
+    
+    // Hide API selector
+    if (apiSelector) {
+        apiSelector.classList.add('hidden');
+    }
+    
+    // Remove modification mode banner if exists
+    const banner = document.getElementById('modificationModeBanner');
+    if (banner) {
+        banner.remove();
+    }
+    
+    // Reset state
+    isModificationMode = false;
+    currentApiData = null;
+    
+    // Update placeholder
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.placeholder = "Describe your API requirements... (e.g., 'Create an API that extracts text from PDF files')";
+        chatInput.disabled = false;
+    }
+    
+    // Reset preview panel
+    document.getElementById('emptyState').classList.remove('hidden');
+    document.getElementById('apiPreviewPanel').classList.add('hidden');
+    
+    // Show generation mode welcome message
+    showGenerationWelcomeMessage();
+    
+    console.log('✅ Switched to Generation Mode');
+}
+
+/**
+ * Switch to Modification Mode
+ */
+async function switchToModificationMode() {
+    console.log('Switching to Modification Mode');
+    
+    // Clear ALL chat messages including welcome message
+    const chatMessages = document.getElementById('chatMessages');
+    if (chatMessages) {
+        chatMessages.innerHTML = '';
+    }
+    
+    // Reset conversation state
+    currentConversation = [];
+    conversationState = null;
+    currentProposalId = null;
+    currentProposal = null;
+    
+    // Update UI
+    const genBtn = document.getElementById('generationModeBtn');
+    const modBtn = document.getElementById('modificationModeBtn');
+    const apiSelector = document.getElementById('apiSelectorContainer');
+    
+    // Update button styles
+    genBtn.className = 'px-3 py-1.5 bg-slate-700/50 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-1.5';
+    modBtn.className = 'px-3 py-1.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg text-xs font-medium transition-all duration-200 flex items-center space-x-1.5';
+    
+    // Show API selector
+    if (apiSelector) {
+        apiSelector.classList.remove('hidden');
+    }
+    
+    // Load user's APIs
+    await loadUserAPIsForModification();
+    
+    // Reset preview panel to empty state
+    document.getElementById('emptyState').classList.remove('hidden');
+    document.getElementById('apiPreviewPanel').classList.add('hidden');
+    
+    // Update placeholder
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.placeholder = "First, select an API above. Then describe the changes you'd like to make...";
+        chatInput.disabled = true; // Disable until API is selected
+    }
+    
+    // Show modification mode welcome message
+    showModificationWelcomeMessage();
+    
+    console.log('✅ Switched to Modification Mode (awaiting API selection)');
+}
+
+/**
+ * Load user's APIs for the modification selector
+ */
+async function loadUserAPIsForModification() {
+    const apiSelector = document.getElementById('apiSelector');
+    
+    if (!apiSelector) return;
+    
+    try {
+        // Get current user ID
+        const userId = currentUser ? currentUser.id : null;
+        
+        if (!userId) {
+            apiSelector.innerHTML = '<option value="">Please log in to see your APIs</option>';
+            return;
+        }
+        
+        // Fetch user's APIs
+        const response = await fetch(`/api/${userId}`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to load APIs');
+        }
+        
+        const data = await response.json();
+        const apis = data.apis || [];
+        
+        if (!apis || apis.length === 0) {
+            apiSelector.innerHTML = '<option value="">No APIs found. Generate one first!</option>';
+            return;
+        }
+        
+        // Populate selector with better formatting
+        apiSelector.innerHTML = '<option value="">📋 Select an API to modify...</option>';
+        
+        // Sort APIs by last modified (most recent first)
+        const sortedApis = apis.sort((a, b) => {
+            const dateA = new Date(a.last_modified || a.created_at || 0);
+            const dateB = new Date(b.last_modified || b.created_at || 0);
+            return dateB - dateA;
+        });
+        
+        sortedApis.forEach(api => {
+            const option = document.createElement('option');
+            option.value = api.api_slug;
+            option.dataset.userId = userId; // Use the userId from request since it's the same
+            
+            // Format the display name with emoji indicators
+            const name = api.api_name || api.api_slug;
+            const statusEmoji = api.code_available ? '✓' : '○';
+            const dateStr = formatRelativeDate(api.last_modified || api.created_at);
+            
+            option.textContent = `${statusEmoji} ${name} • ${dateStr}`;
+            apiSelector.appendChild(option);
+        });
+        
+        console.log(`✅ Loaded ${apis.length} APIs for modification`);
+        
+    } catch (error) {
+        console.error('Error loading APIs:', error);
+        apiSelector.innerHTML = '<option value="">Error loading APIs. Please try again.</option>';
+    }
+}
+
+/**
+ * Format relative date for API selector
+ */
+function formatRelativeDate(dateString) {
+    if (!dateString) return 'Unknown';
+    
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+    
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Handle API selection in modification mode
+ */
+async function handleApiSelection() {
+    const apiSelector = document.getElementById('apiSelector');
+    const selectedSlug = apiSelector.value;
+    
+    if (!selectedSlug) {
+        // No API selected, disable input
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+            chatInput.disabled = true;
+            chatInput.placeholder = "First, select an API above. Then describe the changes you'd like to make...";
+        }
+        return;
+    }
+    
+    // Get user ID from selected option
+    const selectedOption = apiSelector.options[apiSelector.selectedIndex];
+    const userId = selectedOption.dataset.userId;
+    
+    console.log('API selected for modification:', selectedSlug, 'User:', userId);
+    
+    try {
+        // Load API details
+        const response = await fetch(`/api/${userId}/${selectedSlug}/apidetails`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to load API details');
+        }
+        
+        currentApiData = await response.json();
+        isModificationMode = true;
+        
+        // Show modification mode UI
+        showModificationModeUI();
+        
+        // Load API details in preview
+        loadAPIDetailsInPreview(currentApiData);
+        
+        // Enable chat input
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+            chatInput.disabled = false;
+            chatInput.placeholder = "Describe the changes you'd like to make to this API...";
+            chatInput.focus();
+        }
+        
+        // Add welcome message
+        addModificationWelcomeMessage(currentApiData);
+        
+        console.log('✅ API loaded for modification');
+        
+    } catch (error) {
+        console.error('Error loading API for modification:', error);
+        alert('Failed to load API details. Please try again.');
+    }
+}
+
+// ===========================
+// MODIFICATION MODE FUNCTIONS
+// ===========================
+
+/**
+ * Show modification mode UI indicator (deprecated - using top bar instead)
+ */
+function showModificationModeUI() {
+    // Update input placeholder
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.placeholder = "Describe the changes you'd like to make to your API... (e.g., 'Add email validation' or 'Change response format to XML')";
+    }
+    
+    console.log('✅ Modification mode UI activated');
+}
+
+/**
+ * Show generation mode welcome message
+ */
+function showGenerationWelcomeMessage() {
+    const message = `
+        <div class="message-animation">
+            <div class="flex items-start space-x-3 max-w-4xl">
+                <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                    </svg>
+                </div>
+                <div class="glass-card rounded-2xl p-6 flex-1">
+                    <div class="mb-4">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <span class="status-badge status-buildable">Ready</span>
+                            <h3 class="font-semibold text-white">Welcome to AI API Generator!</h3>
+                        </div>
+                        <p class="text-slate-300 mb-4">I'm here to help you create powerful APIs using natural language. Here's how it works:</p>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-2 gap-4 text-sm">
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-white mb-1">Describe Your API</h4>
+                                <p class="text-slate-400">Tell me what you want your API to do in plain English</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-white mb-1">AI Generation</h4>
+                                <p class="text-slate-400">I'll generate the code, documentation, and endpoint</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-white mb-1">Test & Deploy</h4>
+                                <p class="text-slate-400">Test your API instantly and deploy it live</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-white mb-1">Save & Manage</h4>
+                                <p class="text-slate-400">Save your APIs and manage them from your profile</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    addMessage('assistant', message, { skipDelay: true });
+    console.log('✅ Showed generation welcome message');
+}
+
+/**
+ * Show modification mode welcome message (before API selection)
+ */
+function showModificationWelcomeMessage() {
+    const message = `
+        <div class="message-animation">
+            <div class="flex items-start space-x-3 max-w-4xl">
+                <div class="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                </div>
+                <div class="glass-card rounded-2xl p-6 flex-1">
+                    <div class="mb-4">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <span class="status-badge bg-orange-900/50 text-orange-400 border-orange-500/30">Modification Mode</span>
+                            <h3 class="font-semibold text-white">Modify Your Existing APIs</h3>
+                        </div>
+                        <p class="text-slate-300 mb-4">Select an API from the dropdown above to get started. Then describe the changes you'd like to make.</p>
+                    </div>
+                    
+                    <div class="bg-orange-900/20 border border-orange-500/30 rounded-lg p-4">
+                        <p class="text-orange-200 text-sm">
+                            <strong>💡 Tip:</strong> You can add features, change behavior, remove functionality, or fix issues. Just describe what you want in plain English!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    addMessage('assistant', message, { skipDelay: true });
+    console.log('✅ Showed modification welcome message');
+}
+
+/**
+ * Add a modification-specific welcome message (after API selection)
+ */
+function addModificationWelcomeMessage(apiData) {
+    const apiName = apiData.api_name || apiData.api_slug || 'Unknown API';
+    
+    const message = `
+        <div class="glass-card rounded-2xl p-6 flex-1">
+            <div class="flex items-center space-x-2 mb-3">
+                <span class="status-badge bg-orange-900/50 text-orange-400 border-orange-500/30">Modification Mode</span>
+                <h3 class="font-semibold text-white">Ready to modify <span class="text-orange-400">${apiName}</span></h3>
+            </div>
+            
+            <p class="text-slate-300 text-sm mb-4">Describe the changes you'd like to make. For example:</p>
+            
+            <div class="grid md:grid-cols-2 gap-2 text-xs">
+                <div class="flex items-start space-x-2 text-slate-400">
+                    <span class="text-blue-400">•</span>
+                    <span>"Add email validation to the input"</span>
+                </div>
+                <div class="flex items-start space-x-2 text-slate-400">
+                    <span class="text-purple-400">•</span>
+                    <span>"Change response format to include timestamps"</span>
+                </div>
+                <div class="flex items-start space-x-2 text-slate-400">
+                    <span class="text-green-400">•</span>
+                    <span>"Remove the debug logging"</span>
+                </div>
+                <div class="flex items-start space-x-2 text-slate-400">
+                    <span class="text-amber-400">•</span>
+                    <span>"Add error handling for edge cases"</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    addMessage('assistant', message);
+    console.log('✅ Added modification welcome message');
+}
+
+/**
+ * Load API details into the preview panel
+ */
+function loadAPIDetailsInPreview(apiData) {
+    // Show the preview panel
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('apiPreviewPanel').classList.remove('hidden');
+    
+    // Populate basic info
+    const apiName = apiData.api_name || apiData.api_slug || 'Unknown API';
+    const endpoint = apiData.endpoint_url || 'Not available';
+    const description = extractDescriptionFromPrompt(apiData.prompt) || 'No description available';
+    
+    // Update endpoint display
+    document.getElementById('apiEndpoint').textContent = endpoint;
+    document.getElementById('apiDescription').textContent = description;
+    document.getElementById('apiMethod').textContent = 'POST';
+    
+    // Try to parse and display parameters from prompt or documentation
+    try {
+        if (apiData.prompt) {
+            extractAndDisplayParametersFromPrompt(apiData.prompt);
+        }
+    } catch (error) {
+        console.warn('Could not parse parameters:', error);
+        const parametersTable = document.getElementById('parametersTable');
+        if (parametersTable) {
+            parametersTable.innerHTML = '<div class="text-slate-400 text-sm text-center py-4">Parameters will be shown here once analyzed</div>';
+        }
+    }
+    
+    // Update example response section with better formatting
+    const exampleResponse = document.getElementById('exampleResponse');
+    if (exampleResponse) {
+        // Try to extract example from documentation or create a generic one
+        const exampleData = extractExampleFromPrompt(apiData.prompt) || {
+            success: true,
+            message: "API response will be shown here",
+            data: "..."
+        };
+        exampleResponse.textContent = JSON.stringify(exampleData, null, 2);
+    }
+    
+    // Hide test playground action buttons in modification mode
+    const actionButtons = document.getElementById('previewActionButtons');
+    if (actionButtons) {
+        actionButtons.classList.add('hidden');
+    }
+    
+    console.log('✅ Loaded API details in preview panel');
+}
+
+/**
+ * Exit modification mode and return to API details or profile
+ */
+function exitModificationMode() {
+    if (currentApiData && currentApiData.user_id && currentApiData.api_slug) {
+        // Return to API details page
+        window.location.href = `/api/${currentApiData.user_id}/${currentApiData.api_slug}/details`;
+    } else {
+        // Return to profile
+        window.location.href = '/profile';
+    }
+}
+
+/**
+ * Extract description from prompt (helper function if not already present)
+ */
+function extractDescriptionFromPrompt(promptText) {
+    if (!promptText || typeof promptText !== 'string') return 'No description available';
+    
+    // Try to extract description from structured prompt
+    const descMatch = promptText.match(/Description:\s*([^\n]+(?:\n(?!\s*(?:Functionality:|Endpoints:|Input Format:|Output Format:|API Name:))[^\n]*)*)/i);
+    if (descMatch && descMatch[1]) {
+        let description = descMatch[1].trim();
+        description = description.replace(/^\s*(API Name:|Name:|Functionality:).*$/gmi, '');
+        description = description.replace(/\n\s*(Functionality:|Endpoints:|Input Format:|Output Format:).*/i, '');
+        return description.trim();
+    }
+    
+    // If no structured format, return first reasonable line
+    const lines = promptText.split('\n').filter(l => l.trim().length > 10);
+    if (lines.length > 0) {
+        return lines[0].substring(0, 200);
+    }
+    
+    return promptText.substring(0, 200);
+}
+
+/**
+ * Extract and display parameters from prompt
+ */
+function extractAndDisplayParametersFromPrompt(prompt) {
+    const parametersTable = document.getElementById('parametersTable');
+    if (!parametersTable) return;
+    
+    // Try to extract input format or parameters from prompt
+    const inputMatch = prompt.match(/Input Format:?\s*(.+?)(?=\n\s*(?:Output|Functionality|Endpoints|$))/is);
+    
+    if (inputMatch && inputMatch[1]) {
+        const inputText = inputMatch[1].trim();
+        
+        // Try to parse JSON structure
+        const jsonMatch = inputText.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) {
+            try {
+                const inputStructure = JSON.parse(jsonMatch[0]);
+                const params = Object.entries(inputStructure).map(([key, value]) => ({
+                    name: key,
+                    type: typeof value,
+                    required: true,
+                    example: JSON.stringify(value)
+                }));
+                
+                displayParametersTable(params);
+                return;
+            } catch (e) {
+                console.warn('Could not parse JSON from prompt:', e);
+            }
+        }
+        
+        // Fallback: show the input format as text
+        parametersTable.innerHTML = `
+            <div class="text-slate-300 text-sm p-3 bg-slate-800/30 rounded">
+                <div class="font-medium mb-2">Input Format:</div>
+                <pre class="text-xs text-slate-400">${inputText}</pre>
+            </div>
+        `;
+    } else {
+        parametersTable.innerHTML = '<div class="text-slate-400 text-sm text-center py-4">No parameters defined in prompt</div>';
+    }
+}
+
+/**
+ * Display parameters in a table
+ */
+function displayParametersTable(params) {
+    const parametersTable = document.getElementById('parametersTable');
+    if (!parametersTable || !params || params.length === 0) return;
+    
+    const tableHTML = `
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-600/50">
+                    <th class="text-left py-2 text-slate-400 font-medium">Name</th>
+                    <th class="text-left py-2 text-slate-400 font-medium">Type</th>
+                    <th class="text-left py-2 text-slate-400 font-medium">Required</th>
+                    <th class="text-left py-2 text-slate-400 font-medium">Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${params.map(param => `
+                    <tr class="border-b border-slate-700/30">
+                        <td class="py-2 text-white font-mono">${param.name}</td>
+                        <td class="py-2 text-slate-300">${param.type}</td>
+                        <td class="py-2">
+                            <span class="px-2 py-0.5 rounded text-xs ${param.required ? 'bg-red-600/20 text-red-300' : 'bg-slate-600/20 text-slate-400'}">
+                                ${param.required ? 'Required' : 'Optional'}
+                            </span>
+                        </td>
+                        <td class="py-2 text-slate-400 font-mono text-xs">${param.example}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+    
+    parametersTable.innerHTML = tableHTML;
+}
+
+/**
+ * Extract example response from prompt
+ */
+function extractExampleFromPrompt(prompt) {
+    if (!prompt) return null;
+    
+    // Try to extract output format
+    const outputMatch = prompt.match(/Output Format:?\s*(.+?)(?=\n\s*(?:Input|Functionality|Endpoints|$))/is);
+    
+    if (outputMatch && outputMatch[1]) {
+        const outputText = outputMatch[1].trim();
+        const jsonMatch = outputText.match(/\{[\s\S]*?\}/);
+        
+        if (jsonMatch) {
+            try {
+                return JSON.parse(jsonMatch[0]);
+            } catch (e) {
+                console.warn('Could not parse example JSON:', e);
+            }
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Display parameters from documentation (legacy function)
+ */
+function displayParametersFromDocumentation(documentation) {
+    // This is a simple implementation - enhance as needed
+    const parametersTable = document.getElementById('parametersTable');
+    if (parametersTable) {
+        parametersTable.innerHTML = '<div class="text-slate-400 text-sm text-center py-4">View full documentation for parameter details</div>';
     }
 }

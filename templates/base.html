@@ -403,39 +403,46 @@
             const welcomeText = document.getElementById('welcomeText');
             const userInitials = document.getElementById('userInitials');
 
+            // Check if elements exist before accessing them
             if (currentUser) {
                 // User is authenticated (either via cookie or API key)
-                authButtons.classList.add('hidden');
-                userMenu.classList.remove('hidden');
-                welcomeText.textContent = currentUser.email;
+                if (authButtons) authButtons.classList.add('hidden');
+                if (userMenu) userMenu.classList.remove('hidden');
+                if (welcomeText) welcomeText.textContent = currentUser.email;
                 
                 // Set user initials
-                const initials = currentUser.email.substring(0, 2).toUpperCase();
-                userInitials.textContent = initials;
+                if (userInitials) {
+                    const initials = currentUser.email.substring(0, 2).toUpperCase();
+                    userInitials.textContent = initials;
+                }
             } else {
                 // User is not authenticated
-                authButtons.classList.remove('hidden');
-                userMenu.classList.add('hidden');
+                if (authButtons) authButtons.classList.remove('hidden');
+                if (userMenu) userMenu.classList.add('hidden');
             }
         }
 
         function toggleUserDropdown() {
             const dropdown = document.getElementById('userDropdown');
-            dropdown.classList.toggle('hidden');
+            if (dropdown) dropdown.classList.toggle('hidden');
         }
 
         function toggleMobileMenu() {
             const mobileMenu = document.getElementById('mobileMenu');
             const mobileMenuButton = document.getElementById('mobileMenuButton');
             
+            if (!mobileMenu || !mobileMenuButton) return;
+            
             mobileMenu.classList.toggle('hidden');
             
             // Toggle button icon
             const icon = mobileMenuButton.querySelector('svg path');
-            if (mobileMenu.classList.contains('hidden')) {
-                icon.setAttribute('d', 'M4 6h16M4 12h16M4 18h16');
-            } else {
-                icon.setAttribute('d', 'M6 18L18 6M6 6l12 12');
+            if (icon) {
+                if (mobileMenu.classList.contains('hidden')) {
+                    icon.setAttribute('d', 'M4 6h16M4 12h16M4 18h16');
+                } else {
+                    icon.setAttribute('d', 'M6 18L18 6M6 6l12 12');
+                }
             }
         }
 

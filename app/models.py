@@ -126,6 +126,14 @@ class HealthResponse(BaseModel):
     version: str = "1.0.0"
     mongodb_status: Optional[str] = None
 
+class APIVersion(BaseModel):
+    version: int
+    created_at: datetime
+    prompt: str
+    endpoint_url: str
+    commit_message: Optional[str] = None
+    code_path: Optional[str] = None  # Path relative to safe_base_path
+    
 class SavedAPI(BaseModel):
     api_slug: str
     user_id: str
@@ -140,6 +148,10 @@ class SavedAPI(BaseModel):
     created_at: datetime
     saved_at: datetime
     is_saved: bool = True
+    
+    # Versioning
+    current_version: int = 1
+    versions: List[APIVersion] = []
 
 class SaveAPIRequest(BaseModel):
     user_id: str

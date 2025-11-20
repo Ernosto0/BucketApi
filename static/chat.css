@@ -949,4 +949,43 @@
         font-size: 0.65rem;
         padding: 1px 6px;
     }
+}
+
+/* Mode Switcher Styles */
+#apiSelector {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CBD5E1'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1.25rem;
+    padding-right: 2rem;
+    max-width: 400px;
+}
+
+#apiSelector:hover {
+    background-color: rgba(51, 65, 85, 0.9);
+    border-color: rgba(148, 163, 184, 0.5);
+}
+
+#apiSelector option {
+    background-color: #1e293b;
+    color: #f1f5f9;
+    padding: 0.5rem;
+}
+
+#apiSelector option:checked {
+    background-color: #ea580c;
+    color: white;
+}
+
+/* Mode button hover effects */
+#generationModeBtn:hover,
+#modificationModeBtn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+#generationModeBtn:active,
+#modificationModeBtn:active {
+    transform: translateY(0);
 } 

@@ -14,21 +14,59 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userIdElement) userId = userIdElement.getAttribute('data-user-id');
     if (apiSlugElement) apiSlug = apiSlugElement.getAttribute('data-api-slug');
     
+    console.log('Initialized with userId:', userId, 'apiSlug:', apiSlug);
+    
+    if (!userId || !apiSlug) {
+        console.error('Missing userId or apiSlug');
+        showError('Missing API information. Please navigate to this page from your API list.');
+        return;
+    }
+    
     loadAPIDetails();
 });
 
 // Load API details
 async function loadAPIDetails() {
     try {
+        console.log(`Loading API details for: ${userId}/${apiSlug}`);
         const response = await fetch(`/api/${userId}/${apiSlug}/apidetails`);
-        const data = await response.json();
+        console.log('Response status:', response.status);
         
-        if (response.ok) {
-            apiData = data;
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            try {
+                const errorData = JSON.parse(errorText);
+                showError(errorData.detail || 'Failed to load API details');
+            } catch {
+                showError(`HTTP ${response.status}: ${errorText}`);
+            }
+            return;
+        }
+        
+        const text = await response.text();
+        console.log('Response text length:', text.length);
+        console.log('Response text preview:', text.substring(0, 200));
+        
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.error('Response text:', text);
+            showError('Invalid JSON response from server');
+            return;
+        }
+        
+        console.log('Parsed data:', data);
+        apiData = data;
+        
+        try {
             populateAPIDetails(data);
             showMainContent();
-        } else {
-            showError(data.detail || 'Failed to load API details');
+        } catch (populateError) {
+            console.error('Error populating API details:', populateError);
+            showError('Failed to display API details: ' + populateError.message);
         }
     } catch (error) {
         console.error('Error loading API details:', error);
@@ -151,6 +189,8 @@ function switchTab(tabName) {
     // Load usage data when switching to usage tab
     if (tabName === 'usage') {
         loadUsageData();
+    } else if (tabName === 'versions') {
+        loadVersions();
     }
 }
 
@@ -165,6 +205,15 @@ function testAPI() {
 
 function viewDocs() {
     window.open(`/api/${userId}/${apiSlug}/docs`, '_blank');
+}
+
+function modifyAPI() {
+    if (!apiSlug || !userId) {
+        showNotification('Unable to modify API - missing API identifier', 'error');
+        return;
+    }
+    // Navigate to the main chat page (/) with the modify parameter and user_id
+    window.location.href = `/?modify=${apiSlug}&user_id=${userId}`;
 }
 
 function quickPreview() {
@@ -887,3 +936,85 @@ function downloadBinaryResponseDetails(base64Data, contentType) {
     }
 }
 
+// Version management functions
+
+async function loadVersions() {
+    const versionsList = document.getElementById('versionsList');
+    
+    if (!versionsList) return;
+    
+    versionsList.innerHTML = '<div class="text-center py-8 text-slate-400">Loading versions...</div>';
+    
+    try {
+        const response = await fetch(`/api/${userId}/${apiSlug}/versions`);
+        const versions = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(versions.detail || 'Failed to load versions');
+        }
+        
+        if (versions.length === 0) {
+            versionsList.innerHTML = '<div class="text-center py-8 text-slate-400">No version history available</div>';
+            return;
+        }
+        
+        // Sort versions descending
+        versions.sort((a, b) => b.version - a.version);
+        
+        const html = versions.map(v => `
+            <div class="glass-card p-4 rounded-xl border border-slate-700/50 flex justify-between items-center hover:border-slate-600 transition-colors">
+                <div>
+                    <div class="flex items-center space-x-3 mb-1">
+                        <span class="text-lg font-semibold text-white">Version ${v.version}</span>
+                        <span class="text-xs text-slate-500">${new Date(v.created_at).toLocaleString()}</span>
+                    </div>
+                    <div class="text-slate-400 text-sm italic mb-2">
+                        "${v.commit_message || 'No description'}"
+                    </div>
+                    <div class="text-xs text-slate-500">
+                        Prompt: ${truncateText(v.prompt, 100)}
+                    </div>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="restoreVersion(${v.version})" class="action-btn-compact btn-secondary hover:bg-blue-600/20 hover:text-blue-300 transition-colors">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Restore
+                    </button>
+                </div>
+            </div>
+        `).join('');
+        
+        versionsList.innerHTML = html;
+        
+    } catch (error) {
+        versionsList.innerHTML = `<div class="text-center py-8 text-red-400">Error: ${error.message}</div>`;
+    }
+}
+
+async function restoreVersion(version) {
+    if (!confirm(`Are you sure you want to restore Version ${version}? Current changes will be overwritten.`)) {
+        return;
+    }
+    
+    try {
+        showNotification('Restoring version...', 'info');
+        const response = await fetch(`/api/${userId}/${apiSlug}/restore/${version}`, {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (response.ok) {
+            showNotification(`Restored Version ${version} successfully`);
+            // Reload details to update code view etc
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showNotification(result.detail || 'Failed to restore version', 'error');
+        }
+    } catch (error) {
+        showNotification('Error restoring version: ' + error.message, 'error');
+    }
+}
