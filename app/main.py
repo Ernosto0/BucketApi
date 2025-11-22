@@ -1954,6 +1954,54 @@ async def modify_api(
         if "bucketapi" in curl_example:
             curl_example = curl_example.replace("bucketapi", endpoint_url)
         
+        # Update API metadata in database with new documentation
+        try:
+            existing_api = mongodb.saved_apis.find_one({
+                "user_id": modification_request.user_id,
+                "api_slug": modification_request.api_slug
+            })
+            
+            if existing_api:
+                # Update existing metadata with new documentation
+                mongodb.saved_apis.update_one(
+                    {"user_id": modification_request.user_id, "api_slug": modification_request.api_slug},
+                    {"$set": {
+                        "documentation": documentation,
+                        "curl_example": curl_example,
+                        "openapi_spec": json.dumps(openapi_spec) if openapi_spec else existing_api.get("openapi_spec"),
+                        "prompt": modification_request.prompt,
+                        "endpoint_url": endpoint_url
+                    }}
+                )
+                logger.info(f"Updated API metadata in database for {modification_request.api_slug}")
+            else:
+                logger.warning(f"API metadata not found in database for {modification_request.api_slug}, skipping metadata update")
+        except Exception as e:
+            logger.warning(f"Failed to update API metadata in database: {e}")
+            # Continue without database update if service is unavailable
+        
+        # Re-analyze the modified code to detect execution model and calculate pricing
+        try:
+            logger.info(f"Re-analyzing modified code for {modification_request.api_slug} to detect execution model and calculate pricing")
+            
+            # Get the generation model used
+            generation_model = getattr(settings, 'CLAUDE_MODEL', 'claude-3-5-haiku-latest')
+            
+            # Analyze the modified code to detect LLM usage and calculate pricing
+            metadata = await api_pricing_service.analyze_and_price_api_code(
+                api_slug=modification_request.api_slug,
+                user_id=modification_request.user_id,
+                api_code=code,
+                original_prompt=modification_request.prompt,
+                generation_model_used=generation_model
+            )
+            
+            logger.info(f"API {modification_request.api_slug} re-analysis complete: execution_model={metadata.execution_model_used or metadata.ai_model_used}, generation_model={generation_model}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to re-analyze API code after modification: {e}")
+            # Continue without pricing analysis if service is unavailable
+        
         return APIModificationResponse(
             success=True,
             message="API modified successfully!",
