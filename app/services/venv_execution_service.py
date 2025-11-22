@@ -171,6 +171,9 @@ class VenvExecutionService:
         # Use repr to safely embed JSON string in Python code
         input_data_repr = repr(input_data_json)
         
+        # Safe representation of file_bytes_b64 for the script
+        file_bytes_b64_repr = f'"{file_bytes_b64}"' if file_bytes_b64 else "None"
+        
         wrapper_code = f'''
 import json
 import sys
@@ -184,9 +187,10 @@ input_data = json.loads(input_data_json_str) if input_data_json_str else None
 file_bytes = None
 
 # Decode file bytes if provided
-if "{file_bytes_b64}":
+file_bytes_b64 = {file_bytes_b64_repr}
+if file_bytes_b64:
     try:
-        file_bytes = base64.b64decode("{file_bytes_b64}")
+        file_bytes = base64.b64decode(file_bytes_b64)
     except Exception as e:
         print(json.dumps({{"error": f"Failed to decode file bytes: {{str(e)}}", "success": False}}))
         sys.exit(1)

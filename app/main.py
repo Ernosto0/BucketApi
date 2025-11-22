@@ -1772,15 +1772,14 @@ async def restore_api_version(
 
 
 # modify the existing api code based on the user prompt and create a new version
-@app.post("/modify-api", response_model=APIModificationResponse)
+@app.post("/modify-api")
 async def modify_api(
     modification_request: APIModificationRequest,
     request: Request,
     user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key_hybrid)
 ):
-
     """
-    Modify an existing API's code based on user prompt.
+    Modify an existing API's code based on user prompt with real-time streaming chat messages.
     
     This endpoint focuses on modifying the actual generated code of an existing API.
     For proposal-level modifications, use the /modify-proposal endpoint instead.
@@ -1788,13 +1787,14 @@ async def modify_api(
     The endpoint assumes the modification request has been validated and is ready
     to be applied to the existing code and creates a new version of the API.
     """
-
+    from fastapi.responses import StreamingResponse
+    
     # Extract user and API key info
     current_user, api_key_id = user_and_key
     if not current_user:
         raise HTTPException(status_code=401, detail="Authentication required")
     
-    logger.info(f"Modifying API {modification_request.api_slug} for user {modification_request.user_id} with prompt: {modification_request.prompt[:100]}...")
+    logger.info(f"Starting streaming API modification for user {current_user.id}")
     
     # Check usage limits before proceeding
     try:
@@ -1821,212 +1821,368 @@ async def modify_api(
             detail="Usage tracking service temporarily unavailable. Please try again later."
         )
     
-    try:
-        # Check if API exists
-        if not file_service.api_exists(modification_request.user_id, modification_request.api_slug):
-            raise HTTPException(
-                status_code=404,
-                detail=f"API not found: {modification_request.user_id}/{modification_request.api_slug}"
-            )
-        
-        # Load existing code
-        existing_code = file_service.load_api_code(modification_request.user_id, modification_request.api_slug)
-        
-        # Ensure we have a version history started before modifying
-        file_service.create_initial_version_if_needed(modification_request.user_id, modification_request.api_slug)
-        
-        # Analysis is now handled by the separate /modify-proposal endpoint
-        # This endpoint focuses on applying validated modifications to existing code
-        logger.info("Starting API code modification (analysis should be done via /modify-proposal)")
-        
-        # Initialize analysis_result for backward compatibility with debug info
-        analysis_result = "Analysis skipped - using dedicated proposal modification endpoint"
-        
-        # Validate Claude API key
-        if not settings.CLAUDE_API_KEY:
-            logger.error("Claude API key not configured")
-            raise HTTPException(
-                status_code=500, 
-                detail="Claude API key not configured"
-            )
-        
-        # Generate modified code using Claude
-        logger.info("Calling Claude service to modify existing code...")
-        raw_code = await claude_service.modify_api_code(
-            prompt=modification_request.prompt,
-            sample_input=modification_request.sample_input,
-            expected_output=modification_request.expected_output,
-            existing_code=existing_code,
-            user_id=modification_request.user_id,
-            api_key_id=api_key_id,
-            api_slug=modification_request.api_slug
-        )
-
-        logger.info("Code generation completed successfully")
-        logger.debug(f"Generated code preview: {raw_code[:300]}...")
-        
-        # Debug and fix the generated code
-        logger.info("Analyzing and fixing generated code...")
-        code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
-            raw_code, modification_request.prompt, modification_request.user_id, api_key_id
-        )
-        
-        if issues_found:
-            logger.info(f"Code debugger found {len(issues_found)} issues: {issues_found}")
-        if fixes_applied:
-            logger.info(f"Code debugger applied {len(fixes_applied)} fixes: {fixes_applied}")
-        
-        # Validate code for security
-        logger.info("Validating debugged code for security...")
-        is_safe, violations = security_service.validate_code(code)
-        logger.info(f"Security validation result: safe={is_safe}, violations={len(violations)}")
-        if violations:
-            logger.warning(f"Security violations found: {violations}")
-        if not is_safe:
-            logger.error(f"Code failed security validation: {violations}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Generated code failed security validation: {'; '.join(violations)}"
-            )
-        
-        # Save the new code
-        full_slug = f"{modification_request.user_id}_{modification_request.api_slug}"
-        await file_service.save_api_code(full_slug, code)
-        
-        # Save new version
-        endpoint_url = f"{settings.API_PREFIX}/{modification_request.user_id}/{modification_request.api_slug}"
+    async def modify_stream():
+        """Generator function for streaming API modification"""
         try:
-            file_service.save_version(
-                user_id=modification_request.user_id,
-                api_slug=modification_request.api_slug,
-                code=code,
+            # Send initial status message
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Starting API modification...",
+                    "is_ai": True,
+                    "message_type": "greeting"
+                }
+            }) + "\n\n"
+            
+            # Check if API exists
+            if not file_service.api_exists(modification_request.user_id, modification_request.api_slug):
+                yield "data: " + json.dumps({
+                    "type": "error",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "message": f"API not found: {modification_request.user_id}/{modification_request.api_slug}",
+                        "error_type": "NotFoundError"
+                    }
+                }) + "\n\n"
+                return
+            
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Loading existing API code...",
+                    "is_ai": True,
+                    "message_type": "loading"
+                }
+            }) + "\n\n"
+            
+            # Load existing code
+            existing_code = file_service.load_api_code(modification_request.user_id, modification_request.api_slug)
+            
+            # Ensure we have a version history started before modifying
+            file_service.create_initial_version_if_needed(modification_request.user_id, modification_request.api_slug)
+            
+            # Initialize analysis_result for backward compatibility with debug info
+            analysis_result = "Analysis skipped - using dedicated proposal modification endpoint"
+            issues_found = []
+            fixes_applied = []
+            
+            # Validate Claude API key
+            if not settings.CLAUDE_API_KEY:
+                yield "data: " + json.dumps({
+                    "type": "error",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "message": "Claude API key not configured",
+                        "error_type": "ConfigurationError"
+                    }
+                }) + "\n\n"
+                return
+            
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Generating modified code using AI...",
+                    "is_ai": True,
+                    "message_type": "code_generation"
+                }
+            }) + "\n\n"
+            
+            # Generate modified code using Claude
+            raw_code = await claude_service.modify_api_code(
                 prompt=modification_request.prompt,
-                endpoint_url=endpoint_url,
-                commit_message=f"Modification: {modification_request.prompt[:50]}..."
-            )
-        except Exception as e:
-            logger.error(f"Failed to save version history: {e}")
-        
-
-        # Modify the documentation of the existing API 
-
-        if settings.GENERATE_DOCS_SERVICE == "OPENAI_SERVICE":
-            doc_service = openai_service
-        else:
-            doc_service = claude_service
-
-        # Check if there is existing documentation; if not, create from scratch, else modify
-        existing_doc = await file_service.load_api_documentation(
-            user_id=modification_request.user_id,
-            api_slug=modification_request.api_slug
-        ) if hasattr(file_service, "load_api_documentation") else None
-
-        if not existing_doc or not existing_doc.get("documentation"):
-            documentation, openapi_spec, curl_example = await doc_service.generate_documentation(
-                code=code,
-                prompt=modification_request.prompt,
+                sample_input=modification_request.sample_input,
+                expected_output=modification_request.expected_output,
+                existing_code=existing_code,
                 user_id=modification_request.user_id,
                 api_key_id=api_key_id,
                 api_slug=modification_request.api_slug
             )
-        else:
-            # Get existing documentation content
-            existing_doc_content = existing_doc.get("documentation", "")
-            if existing_doc.get("openapi_spec"):
-                existing_doc_content += f"\n\n## OpenAPI Specification\n```yaml\n{existing_doc.get('openapi_spec')}\n```"
-            if existing_doc.get("curl_example"):
-                existing_doc_content += f"\n\n## Curl Example\n{existing_doc.get('curl_example')}"
-            
-            documentation, openapi_spec, curl_example = await doc_service.modify_api_documentation(
-                code=code,
-                prompt=modification_request.prompt,
-                user_id=modification_request.user_id,
-                api_key_id=api_key_id,
-                api_slug=modification_request.api_slug,
-                existing_documentation=existing_doc_content
-            )
 
-        logger.info(f"Documentation generated with {doc_service}")
-        # Build endpoint URL
-        endpoint_url = f"{settings.API_PREFIX}/{modification_request.user_id}/{modification_request.api_slug}"
-        
-        # Update curl example with actual endpoint
-        if "bucketapi" in curl_example:
-            curl_example = curl_example.replace("bucketapi", endpoint_url)
-        
-        # Update API metadata in database with new documentation
-        try:
-            existing_api = mongodb.saved_apis.find_one({
-                "user_id": modification_request.user_id,
-                "api_slug": modification_request.api_slug
-            })
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Code generation completed! Now analyzing and fixing any issues...",
+                    "is_ai": True,
+                    "message_type": "code_generation"
+                }
+            }) + "\n\n"
             
-            if existing_api:
-                # Update existing metadata with new documentation
-                mongodb.saved_apis.update_one(
-                    {"user_id": modification_request.user_id, "api_slug": modification_request.api_slug},
-                    {"$set": {
-                        "documentation": documentation,
-                        "curl_example": curl_example,
-                        "openapi_spec": json.dumps(openapi_spec) if openapi_spec else existing_api.get("openapi_spec"),
-                        "prompt": modification_request.prompt,
-                        "endpoint_url": endpoint_url
-                    }}
+            # Debug and fix the generated code
+            try:
+                code, issues_found, fixes_applied = await code_debugger.analyze_and_fix_code(
+                    raw_code, modification_request.prompt, modification_request.user_id, api_key_id
                 )
-                logger.info(f"Updated API metadata in database for {modification_request.api_slug}")
+            except Exception as debug_error:
+                logger.warning(f"Code debugger failed: {debug_error}. Using raw code.")
+                # Fallback to raw code if debugger fails
+                code = raw_code
+                issues_found = [f"Code debugger failed: {str(debug_error)}"]
+                fixes_applied = []
+                
+                yield "data: " + json.dumps({
+                    "type": "chat_message",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "message": f"Code debugging failed, proceeding with raw code: {str(debug_error)}",
+                        "is_ai": True,
+                        "message_type": "warning"
+                    }
+                }) + "\n\n"
+            
+            if issues_found:
+                yield "data: " + json.dumps({
+                    "type": "chat_message",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "message": f"Found and fixed {len(issues_found)} code issues: {', '.join(issues_found)}",
+                        "is_ai": True,
+                        "message_type": "code_fixing"
+                    }
+                }) + "\n\n"
+            
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Validating code for security...",
+                    "is_ai": True,
+                    "message_type": "security_check"
+                }
+            }) + "\n\n"
+            
+            # Validate code for security
+            is_safe, violations = security_service.validate_code(code)
+            if violations:
+                logger.warning(f"Security violations found: {violations}")
+            if not is_safe:
+                yield "data: " + json.dumps({
+                    "type": "error",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "message": f"Code failed security validation: {'; '.join(violations)}",
+                        "error_type": "SecurityValidationError"
+                    }
+                }) + "\n\n"
+                return
+            
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Code passed security validation! Saving your API...",
+                    "is_ai": True,
+                    "message_type": "security_check"
+                }
+            }) + "\n\n"
+            
+            # Save the new code
+            full_slug = f"{modification_request.user_id}_{modification_request.api_slug}"
+            try:
+                await file_service.save_api_code(full_slug, code)
+            except Exception as save_error:
+                logger.error(f"Failed to save API code: {save_error}")
+                yield "data: " + json.dumps({
+                    "type": "error",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "message": f"Failed to save API code: {str(save_error)}",
+                        "error_type": "FileSaveError",
+                        "details": "The modified code could not be saved. Please try again."
+                    }
+                }) + "\n\n"
+                return
+            
+            # Save new version
+            endpoint_url = f"{settings.API_PREFIX}/{modification_request.user_id}/{modification_request.api_slug}"
+            try:
+                file_service.save_version(
+                    user_id=modification_request.user_id,
+                    api_slug=modification_request.api_slug,
+                    code=code,
+                    prompt=modification_request.prompt,
+                    endpoint_url=endpoint_url,
+                    commit_message=f"Modification: {modification_request.prompt[:50]}..."
+                )
+            except Exception as e:
+                logger.error(f"Failed to save version history: {e}")
+            
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Updating documentation...",
+                    "is_ai": True,
+                    "message_type": "documentation"
+                }
+            }) + "\n\n"
+
+            # Modify the documentation of the existing API 
+            if settings.GENERATE_DOCS_SERVICE == "OPENAI_SERVICE":
+                doc_service = openai_service
             else:
-                logger.warning(f"API metadata not found in database for {modification_request.api_slug}, skipping metadata update")
-        except Exception as e:
-            logger.warning(f"Failed to update API metadata in database: {e}")
-            # Continue without database update if service is unavailable
-        
-        # Re-analyze the modified code to detect execution model and calculate pricing
-        try:
-            logger.info(f"Re-analyzing modified code for {modification_request.api_slug} to detect execution model and calculate pricing")
-            
-            # Get the generation model used
-            generation_model = getattr(settings, 'CLAUDE_MODEL', 'claude-3-5-haiku-latest')
-            
-            # Analyze the modified code to detect LLM usage and calculate pricing
-            metadata = await api_pricing_service.analyze_and_price_api_code(
-                api_slug=modification_request.api_slug,
+                doc_service = claude_service
+
+            # Check if there is existing documentation; if not, create from scratch, else modify
+            existing_doc = await file_service.load_api_documentation(
                 user_id=modification_request.user_id,
-                api_code=code,
-                original_prompt=modification_request.prompt,
-                generation_model_used=generation_model
-            )
+                api_slug=modification_request.api_slug
+            ) if hasattr(file_service, "load_api_documentation") else None
+
+            if not existing_doc or not existing_doc.get("documentation"):
+                documentation, openapi_spec, curl_example = await doc_service.generate_documentation(
+                    code=code,
+                    prompt=modification_request.prompt,
+                    user_id=modification_request.user_id,
+                    api_key_id=api_key_id,
+                    api_slug=modification_request.api_slug
+                )
+            else:
+                # Get existing documentation content
+                existing_doc_content = existing_doc.get("documentation", "")
+                if existing_doc.get("openapi_spec"):
+                    existing_doc_content += f"\n\n## OpenAPI Specification\n```yaml\n{existing_doc.get('openapi_spec')}\n```"
+                if existing_doc.get("curl_example"):
+                    existing_doc_content += f"\n\n## Curl Example\n{existing_doc.get('curl_example')}"
+                
+                documentation, openapi_spec, curl_example = await doc_service.modify_api_documentation(
+                    code=code,
+                    prompt=modification_request.prompt,
+                    user_id=modification_request.user_id,
+                    api_key_id=api_key_id,
+                    api_slug=modification_request.api_slug,
+                    existing_documentation=existing_doc_content
+                )
+
+            # Build endpoint URL
+            endpoint_url = f"{settings.API_PREFIX}/{modification_request.user_id}/{modification_request.api_slug}"
             
-            logger.info(f"API {modification_request.api_slug} re-analysis complete: execution_model={metadata.execution_model_used or metadata.ai_model_used}, generation_model={generation_model}")
+            # Update curl example with actual endpoint
+            if "bucketapi" in curl_example:
+                curl_example = curl_example.replace("bucketapi", endpoint_url)
             
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Updating API metadata...",
+                    "is_ai": True,
+                    "message_type": "metadata_update"
+                }
+            }) + "\n\n"
+            
+            # Update API metadata in database with new documentation
+            try:
+                existing_api = mongodb.saved_apis.find_one({
+                    "user_id": modification_request.user_id,
+                    "api_slug": modification_request.api_slug
+                })
+                
+                if existing_api:
+                    # Update existing metadata with new documentation
+                    mongodb.saved_apis.update_one(
+                        {"user_id": modification_request.user_id, "api_slug": modification_request.api_slug},
+                        {"$set": {
+                            "documentation": documentation,
+                            "curl_example": curl_example,
+                            "openapi_spec": json.dumps(openapi_spec) if openapi_spec else existing_api.get("openapi_spec"),
+                            "prompt": modification_request.prompt,
+                            "endpoint_url": endpoint_url
+                        }}
+                    )
+                    logger.info(f"Updated API metadata in database for {modification_request.api_slug}")
+                else:
+                    logger.warning(f"API metadata not found in database for {modification_request.api_slug}, skipping metadata update")
+            except Exception as e:
+                logger.warning(f"Failed to update API metadata in database: {e}")
+                # Continue without database update if service is unavailable
+            
+            yield "data: " + json.dumps({
+                "type": "chat_message",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": "Re-analyzing code for pricing...",
+                    "is_ai": True,
+                    "message_type": "pricing_analysis"
+                }
+            }) + "\n\n"
+            
+            # Re-analyze the modified code to detect execution model and calculate pricing
+            try:
+                # Get the generation model used
+                generation_model = getattr(settings, 'CLAUDE_MODEL', 'claude-3-5-haiku-latest')
+                
+                # Analyze the modified code to detect LLM usage and calculate pricing
+                metadata = await api_pricing_service.analyze_and_price_api_code(
+                    api_slug=modification_request.api_slug,
+                    user_id=modification_request.user_id,
+                    api_code=code,
+                    original_prompt=modification_request.prompt,
+                    generation_model_used=generation_model
+                )
+                
+                logger.info(f"API {modification_request.api_slug} re-analysis complete: execution_model={metadata.execution_model_used or metadata.ai_model_used}, generation_model={generation_model}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to re-analyze API code after modification: {e}")
+                # Continue without pricing analysis if service is unavailable
+            
+            # Send final success message with results
+            yield "data: " + json.dumps({
+                "type": "modification_complete",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "success": True,
+                    "message": "Your API has been modified successfully!",
+                    "endpoint_url": endpoint_url,
+                    "documentation": documentation,
+                    "curl_example": curl_example,
+                    "api_slug": modification_request.api_slug,
+                    "user_id": modification_request.user_id,
+                    "modified_at": datetime.now().isoformat(),
+                    "debug_info": {
+                        "issues_found": issues_found,
+                        "fixes_applied": fixes_applied,
+                        "code_quality": "high" if not issues_found else "improved",
+                        "chat_analysis": analysis_result
+                    }
+                }
+            }) + "\n\n"
+            
+        except HTTPException as e:
+            yield "data: " + json.dumps({
+                "type": "error",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": f"{e.detail}",
+                    "error_type": "HTTPException",
+                    "status_code": e.status_code
+                }
+            }) + "\n\n"
         except Exception as e:
-            logger.warning(f"Failed to re-analyze API code after modification: {e}")
-            # Continue without pricing analysis if service is unavailable
-        
-        return APIModificationResponse(
-            success=True,
-            message="API modified successfully!",
-            endpoint_url=endpoint_url,
-            documentation=documentation,
-            curl_example=curl_example,
-            api_slug=modification_request.api_slug,
-            user_id=modification_request.user_id,
-            modified_at=datetime.now(),
-            debug_info={
-                "issues_found": issues_found,
-                "fixes_applied": fixes_applied,
-                "code_quality": "high" if not issues_found else "improved",
-                "chat_analysis": analysis_result
-            }
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error in modify_api: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to modify API: {str(e)}"
-        )
+            logger.error(f"Unexpected error in modify_api: {str(e)}", exc_info=True)
+            yield "data: " + json.dumps({
+                "type": "error",
+                "timestamp": datetime.now().isoformat(),
+                "data": {
+                    "message": f"Failed to modify API: {str(e)}",
+                    "error_type": type(e).__name__
+                }
+            }) + "\n\n"
+    
+    return StreamingResponse(
+        modify_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 # Multi-Step Generation Endpoints
 
@@ -2812,7 +2968,6 @@ async def test_api(request: TestRequest):
                     generation_model = None
                     try:
                         # For now, we'll use the default generation model from config
-                        from app.config import settings
                         generation_model = getattr(settings, 'CLAUDE_MODEL', 'claude-3-5-haiku-latest')
                     except:
                         generation_model = 'claude-3-5-haiku-latest'  # Default fallback

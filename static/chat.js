@@ -2686,7 +2686,7 @@ async function modifyCurrentAPI() {
 async function processModificationRequest(modificationPrompt, userId) {
     try {
         // Show modification in progress
-        showTypingIndicator('Modifying your API...');
+        // showTypingIndicator('Modifying your API...'); 
         
         const response = await fetch('/modify-api', {
             method: 'POST',
@@ -2714,53 +2714,80 @@ async function processModificationRequest(modificationPrompt, userId) {
             return;
         }
 
-        const result = await response.json();
-        
         hideTypingIndicator();
 
-        if (result.success) {
-            // Update current API data with modified version
-            currentApiData = {...currentApiData, ...result};
+        // Handle the streaming response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
             
-            // Check if this is a final API or a modified proposal
-            if (result.endpoint_url) {
-                // This is a final modified API
-                addAPIResultMessage(result, true); // Pass true to indicate this is a modification
-                // Don't add duplicate system message - addAPIResultMessage already shows modification message
-                
-                // Keep modification mode active so user can make more changes or exit
-                const chatInput = document.getElementById('chatInput');
-                if (chatInput) {
-                    chatInput.placeholder = "Want to make more changes? Describe them here, or click 'Exit & Return' to go back.";
+            // Keep the last incomplete line in the buffer
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const eventData = JSON.parse(line.slice(6));
+                        await handleModificationEvent(eventData);
+                    } catch (e) {
+                        console.warn('Failed to parse SSE data:', line, e);
+                    }
                 }
-            } else {
-                // This might be a modified proposal
-                addMessage('system', '✅ Modification proposal generated! Review the changes in the Preview panel and click "Build It" to apply them.');
-                
-                const chatInput = document.getElementById('chatInput');
-                if (chatInput) {
-                    chatInput.placeholder = "Describe additional changes or click 'Build It' to apply the modifications.";
-                }
-            }
-        } else {
-            // Handle different types of responses
-            if (result.status === 'proposal_ready') {
-                // Show updated proposal
-                addProposalMessage(result, modificationPrompt, userId);
-            } else if (result.status === 'needs_clarification') {
-                addClarificationMessage(result);
-            } else if (result.status === 'modify_request') {
-                addModifyRequestMessage(result);
-            } else if (result.status === 'not_buildable') {
-                addRejectionMessage(result);
-            } else {
-                // Fallback for any other error
-                addMessage('assistant', `❌ Error: ${result.message || 'Failed to modify API'}`);
             }
         }
+
     } catch (error) {
         hideTypingIndicator();
         addMessage('assistant', `❌ Network error: ${error.message}`);
+    }
+}
+
+async function handleModificationEvent(event) {
+    const { type, data } = event;
+    
+    switch (type) {
+        case 'chat_message':
+            // Display chat messages from the backend
+            await addMessage('assistant', data.message);
+            break;
+            
+        case 'modification_complete':
+            handleModificationComplete(data);
+            break;
+            
+        case 'error':
+            addMessage('assistant', `❌ Error: ${data.message}`);
+            break;
+            
+        default:
+            console.log('Unknown modification event:', type);
+    }
+}
+
+function handleModificationComplete(result) {
+    if (result.success) {
+        // Update current API data with modified version
+        currentApiData = {...currentApiData, ...result};
+        
+        // This is a final modified API
+        addAPIResultMessage(result, true); 
+        
+        // Keep modification mode active
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+            chatInput.placeholder = "Want to make more changes? Describe them here, or click 'Exit & Return' to go back.";
+        }
+        
+        // addMessage('system', '✅ Modification complete! The API has been updated.');
+    } else {
+        addMessage('assistant', `❌ Modification failed: ${result.message}`);
     }
 }
 
@@ -4027,9 +4054,7 @@ async function runPreviewTest() {
     statusText.className = 'text-sm text-yellow-400';
     
     try {
-        // Add validation message
-        addStreamingMessage('🔍 Validating API endpoint and test data...', 'ai_processing');
-        await new Promise(resolve => setTimeout(resolve, 4800));
+        
         
         // Parse the endpoint URL to get user_id and api_slug
         const urlPath = currentAPISpec.endpoint_url;
@@ -4055,20 +4080,12 @@ async function runPreviewTest() {
             try {
                 const parsedData = JSON.parse(testInputValue);
                 testData.test_data = parsedData;
-                addStreamingMessage('✅ Test input validated successfully', 'step_complete');
             } catch (jsonError) {
                 throw new Error('Invalid JSON format in test input');
             }
         } else {
-            addStreamingMessage('📝 Using default test parameters', 'default');
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 2400));
-        
-        // Add message for API call
-        addStreamingMessage('🚀 Executing API test request...', 'step_start');
-        await new Promise(resolve => setTimeout(resolve, 2400));
-        
+               
         // Call the backend test endpoint
         const response = await fetch('/test-api', {
             method: 'POST',
@@ -4077,6 +4094,16 @@ async function runPreviewTest() {
             },
             body: JSON.stringify(testData)
         });
+
+
+        // Add validation message
+        addStreamingMessage('🔍 Validating API endpoint and test data...', 'ai_processing');
+        await new Promise(resolve => setTimeout(resolve, 1200));
+
+
+        // Add message for API call
+        addStreamingMessage('🚀 Executing API test request...', 'step_start');
+        await new Promise(resolve => setTimeout(resolve, 2400));
         
         addStreamingMessage('📊 Processing test results...', 'ai_processing');
         await new Promise(resolve => setTimeout(resolve, 2400));
