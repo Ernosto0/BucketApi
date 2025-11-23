@@ -253,7 +253,8 @@ class OpenAIService:
     #                 logger.error(f"Failed to record usage: {usage_error}")
     
     async def generate_documentation(self, code: str, prompt: str, user_id: Optional[str] = None,
-                                    api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Tuple[str, dict, str]:
+                                    api_key_id: Optional[str] = None, api_slug: Optional[str] = None,
+                                    api_name: Optional[str] = None) -> Tuple[str, dict, str]:
         """Generate comprehensive API documentation including OpenAPI spec.
         
         Returns:
@@ -291,6 +292,10 @@ class OpenAIService:
                 api_slug=api_slug
             )
             doc, openapi_spec, curl = self._parse_documentation_response(response)
+            
+            # Prepend API name as header if provided
+            if api_name:
+                doc = f"# {api_name}\n\n{doc}"
             
             success = True
             response_length = len(doc) + len(str(openapi_spec)) + len(curl)

@@ -170,6 +170,16 @@ class SaveAPIResponse(BaseModel):
     message: str
     api_slug: str
 
+class GenerateDocumentationRequest(BaseModel):
+    user_id: str
+    api_slug: str
+
+class GenerateDocumentationResponse(BaseModel):
+    success: bool
+    message: str
+    api_slug: str
+    documentation: Optional[str] = None
+
 class ListAPIsResponse(BaseModel):
     success: bool
     user_id: str

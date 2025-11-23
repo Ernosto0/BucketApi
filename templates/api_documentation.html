@@ -9,667 +9,13 @@
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
     <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
     <script src="https://unpkg.com/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
-    <link rel="stylesheet" href="/static/docs.css">
-    <style>
-        .docs-container {
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 0;
-            min-height: 100vh;
-        }
-        
-        .docs-sidebar {
-            background: rgba(15, 23, 42, 0.95);
-            border-right: 1px solid rgba(100, 116, 139, 0.2);
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            overflow-y: auto;
-            backdrop-filter: blur(12px);
-        }
-        
-        .docs-content {
-            background: rgba(2, 6, 23, 0.8);
-            overflow-y: auto;
-        }
-        
-        .nav-section {
-            padding: 1.5rem 1rem;
-            border-bottom: 1px solid rgba(100, 116, 139, 0.1);
-        }
-        
-        .nav-title {
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 0.75rem;
-        }
-        
-        .nav-item {
-            display: block;
-            padding: 0.5rem 0.75rem;
-            color: #cbd5e1;
-            text-decoration: none;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            transition: all 0.2s ease;
-            margin-bottom: 0.25rem;
-        }
-        
-        .nav-item:hover {
-            background: rgba(59, 130, 246, 0.1);
-            color: #93c5fd;
-        }
-        
-        .nav-item.active {
-            background: rgba(59, 130, 246, 0.2);
-            color: #60a5fa;
-            border-left: 3px solid #3b82f6;
-        }
-        
-        .content-section {
-            padding: 3rem 2rem;
-            max-width: 900px;
-        }
-        
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid rgba(59, 130, 246, 0.3);
-        }
-        
-        .section-icon {
-            width: 2rem;
-            height: 2rem;
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            border-radius: 0.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-        }
-        
-        .endpoint-card {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(100, 116, 139, 0.2);
-            border-radius: 1rem;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            backdrop-filter: blur(12px);
-        }
-        
-        .endpoint-header {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        
-        .method-badge {
-            padding: 0.375rem 0.75rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        
-        .method-post {
-            background: rgba(34, 197, 94, 0.2);
-            color: #22c55e;
-            border: 1px solid rgba(34, 197, 94, 0.3);
-        }
-        
-        .method-get {
-            background: rgba(59, 130, 246, 0.2);
-            color: #3b82f6;
-            border: 1px solid rgba(59, 130, 246, 0.3);
-        }
-        
-        .endpoint-url {
-            font-family: 'JetBrains Mono', 'Monaco', 'Menlo', monospace;
-            font-size: 1.125rem;
-            color: #e2e8f0;
-            background: rgba(30, 41, 59, 0.5);
-            padding: 0.75rem 1rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(100, 116, 139, 0.2);
-        }
-        
-        .code-block {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 0.75rem;
-            overflow: hidden;
-            margin: 1.5rem 0;
-        }
-        
-        .code-header {
-            background: #0f172a;
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid #334155;
-            display: flex;
-            align-items: center;
-            justify-content: between;
-        }
-        
-        .code-title {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #94a3b8;
-        }
-        
-        .copy-btn {
-            padding: 0.25rem 0.5rem;
-            background: rgba(59, 130, 246, 0.1);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            border-radius: 0.375rem;
-            color: #60a5fa;
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .copy-btn:hover {
-            background: rgba(59, 130, 246, 0.2);
-        }
-        
-        .code-content {
-            padding: 1.5rem;
-            overflow-x: auto;
-        }
-        
-        .code-content pre {
-            margin: 0;
-            font-family: 'JetBrains Mono', 'Monaco', 'Menlo', monospace;
-            font-size: 0.875rem;
-            line-height: 1.5;
-        }
-        
-        .tabs-container {
-            margin: 2rem 0;
-        }
-        
-        .tabs-nav {
-            display: flex;
-            border-bottom: 1px solid rgba(100, 116, 139, 0.2);
-            margin-bottom: 1.5rem;
-        }
-        
-        .tab-button {
-            padding: 0.75rem 1.5rem;
-            background: none;
-            border: none;
-            color: #94a3b8;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s ease;
-        }
-        
-        .tab-button:hover {
-            color: #cbd5e1;
-        }
-        
-        .tab-button.active {
-            color: #60a5fa;
-            border-bottom-color: #3b82f6;
-        }
-        
-        .tab-content {
-            display: none;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        .parameter-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-        }
-        
-        .parameter-table th,
-        .parameter-table td {
-            padding: 0.75rem;
-            text-align: left;
-            border-bottom: 1px solid rgba(100, 116, 139, 0.2);
-        }
-        
-        .parameter-table th {
-            background: rgba(30, 41, 59, 0.5);
-            color: #e2e8f0;
-            font-weight: 600;
-            font-size: 0.875rem;
-        }
-        
-        .parameter-table td {
-            color: #cbd5e1;
-            font-size: 0.875rem;
-        }
-        
-        .param-name {
-            font-family: 'JetBrains Mono', monospace;
-            color: #fbbf24;
-        }
-        
-        .param-type {
-            color: #10b981;
-            font-size: 0.75rem;
-            background: rgba(16, 185, 129, 0.1);
-            padding: 0.125rem 0.375rem;
-            border-radius: 0.25rem;
-        }
-        
-        .param-required {
-            color: #ef4444;
-            font-size: 0.75rem;
-            background: rgba(239, 68, 68, 0.1);
-            padding: 0.125rem 0.375rem;
-            border-radius: 0.25rem;
-        }
-        
-        .param-optional {
-            color: #6b7280;
-            font-size: 0.75rem;
-            background: rgba(107, 114, 128, 0.1);
-            padding: 0.125rem 0.375rem;
-            border-radius: 0.25rem;
-        }
-        
-        .response-example {
-            background: rgba(6, 78, 59, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.2);
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin: 1rem 0;
-        }
-        
-        .error-example {
-            background: rgba(127, 29, 29, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin: 1rem 0;
-        }
-        
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.375rem;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-        
-        .status-200 {
-            background: rgba(34, 197, 94, 0.2);
-            color: #22c55e;
-        }
-        
-        .status-400 {
-            background: rgba(251, 191, 36, 0.2);
-            color: #fbbf24;
-        }
-        
-        .status-500 {
-            background: rgba(239, 68, 68, 0.2);
-            color: #ef4444;
-        }
-        
-        .status-401 {
-            background: rgba(245, 158, 11, 0.2);
-            color: #f59e0b;
-        }
-        
-        .status-403 {
-            background: rgba(239, 68, 68, 0.2);
-            color: #ef4444;
-        }
-        
-        .status-429 {
-            background: rgba(168, 85, 247, 0.2);
-            color: #a855f7;
-        }
-        
-        .loading-placeholder {
-            color: #64748b;
-            font-style: italic;
-        }
-        
-        /* Swagger UI Styling Fixes */
-        #swagger-ui {
-            background: #1e293b !important;
-        }
-        
-        #swagger-ui .swagger-ui {
-            color: #e2e8f0 !important;
-        }
-        
-        #swagger-ui .opblock-summary-description {
-            color: #cbd5e1 !important;
-            font-size: 14px !important;
-            line-height: 1.5 !important;
-        }
-        
-        #swagger-ui .opblock-summary {
-            background: rgba(30, 41, 59, 0.8) !important;
-            border: 1px solid rgba(100, 116, 139, 0.3) !important;
-        }
-        
-        #swagger-ui .opblock .opblock-summary {
-            color: #f1f5f9 !important;
-        }
-        
-        #swagger-ui .opblock-tag {
-            color: #f1f5f9 !important;
-            background: rgba(15, 23, 42, 0.9) !important;
-            border-bottom: 1px solid rgba(100, 116, 139, 0.3) !important;
-        }
-        
-        #swagger-ui .opblock.opblock-post {
-            background: rgba(34, 197, 94, 0.1) !important;
-            border-color: rgba(34, 197, 94, 0.3) !important;
-        }
-        
-        #swagger-ui .opblock.opblock-get {
-            background: rgba(59, 130, 246, 0.1) !important;
-            border-color: rgba(59, 130, 246, 0.3) !important;
-        }
-        
-        #swagger-ui .opblock-body {
-            background: rgba(15, 23, 42, 0.8) !important;
-            color: #e2e8f0 !important;
-        }
-        
-        #swagger-ui .parameters-container {
-            background: rgba(30, 41, 59, 0.6) !important;
-        }
-        
-        #swagger-ui .parameter__name {
-            color: #fbbf24 !important;
-        }
-        
-        #swagger-ui .parameter__type {
-            color: #10b981 !important;
-        }
-        
-        #swagger-ui .response-col_description {
-            color: #cbd5e1 !important;
-        }
-        
-        #swagger-ui .model-box {
-            background: rgba(30, 41, 59, 0.8) !important;
-            border: 1px solid rgba(100, 116, 139, 0.3) !important;
-        }
-        
-        #swagger-ui .model .property {
-            color: #e2e8f0 !important;
-        }
-        
-        #swagger-ui .prop-type {
-            color: #10b981 !important;
-        }
-        
-        #swagger-ui .prop-format {
-            color: #94a3b8 !important;
-        }
-        
-        #swagger-ui table thead tr th {
-            color: #f1f5f9 !important;
-            background: rgba(30, 41, 59, 0.8) !important;
-            border-bottom: 1px solid rgba(100, 116, 139, 0.3) !important;
-        }
-        
-        #swagger-ui table tbody tr td {
-            color: #cbd5e1 !important;
-            border-bottom: 1px solid rgba(100, 116, 139, 0.2) !important;
-        }
-        
-        #swagger-ui .response-code {
-            color: #22c55e !important;
-        }
-        
-        #swagger-ui .response-code.response-code-400 {
-            color: #fbbf24 !important;
-        }
-        
-        #swagger-ui .response-code.response-code-500 {
-            color: #ef4444 !important;
-        }
-        
-        #swagger-ui .btn {
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
-            color: white !important;
-            border: none !important;
-            border-radius: 0.5rem !important;
-        }
-        
-        #swagger-ui .btn:hover {
-            background: linear-gradient(135deg, #2563eb, #1e40af) !important;
-        }
-        
-        #swagger-ui .btn.cancel {
-            background: #6b7280 !important;
-        }
-        
-        #swagger-ui .btn.execute {
-            background: linear-gradient(135deg, #059669, #047857) !important;
-        }
-        
-        #swagger-ui .scheme-container {
-            background: rgba(30, 41, 59, 0.8) !important;
-            border: 1px solid rgba(100, 116, 139, 0.3) !important;
-        }
-        
-        #swagger-ui .scheme-container .schemes {
-            color: #e2e8f0 !important;
-        }
-        
-        #swagger-ui select {
-            background: rgba(15, 23, 42, 0.8) !important;
-            color: #e2e8f0 !important;
-            border: 1px solid rgba(100, 116, 139, 0.3) !important;
-        }
-        
-        #swagger-ui input[type="text"], 
-        #swagger-ui textarea {
-            background: rgba(15, 23, 42, 0.8) !important;
-            color: #e2e8f0 !important;
-            border: 1px solid rgba(100, 116, 139, 0.3) !important;
-        }
-        
-        #swagger-ui .highlight-code {
-            background: rgba(30, 41, 59, 0.8) !important;
-        }
-        
-        #swagger-ui pre {
-            background: rgba(30, 41, 59, 0.8) !important;
-            color: #e2e8f0 !important;
-            border: 1px solid rgba(100, 116, 139, 0.3) !important;
-        }
-        
-        #swagger-ui .renderedMarkdown p {
-            color: #cbd5e1 !important;
-        }
-        
-        #swagger-ui .info {
-            color: #e2e8f0 !important;
-        }
-        
-        #swagger-ui .info .title {
-            color: #f1f5f9 !important;
-        }
-        
-        #swagger-ui .info .description {
-            color: #cbd5e1 !important;
-        }
-        
-        .interactive-test {
-            background: rgba(30, 41, 59, 0.5);
-            border: 1px solid rgba(100, 116, 139, 0.2);
-            border-radius: 1rem;
-            padding: 2rem;
-            margin: 2rem 0;
-        }
-        
-        .test-form {
-            display: grid;
-            gap: 1rem;
-        }
-        
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .form-label {
-            color: #e2e8f0;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-        
-        .form-input {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(100, 116, 139, 0.3);
-            border-radius: 0.5rem;
-            padding: 0.75rem;
-            color: #e2e8f0;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.875rem;
-        }
-        
-        .form-input:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        .test-button {
-            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .test-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
-        }
-        
-        .test-result {
-            margin-top: 1.5rem;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            border: 1px solid rgba(100, 116, 139, 0.2);
-            background: rgba(15, 23, 42, 0.8);
-        }
-        
-        .markdown-content {
-            color: #e2e8f0;
-        }
-        
-        .markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4 {
-            color: #f1f5f9;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-        }
-        
-        .markdown-content h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-        }
-        
-        .markdown-content h4 {
-            font-size: 1.125rem;
-            font-weight: 600;
-        }
-        
-        .markdown-content p {
-            margin-bottom: 1rem;
-            line-height: 1.6;
-        }
-        
-        .markdown-content ul, .markdown-content ol {
-            margin-bottom: 1rem;
-            padding-left: 1.5rem;
-        }
-        
-        .markdown-content li {
-            margin-bottom: 0.5rem;
-        }
-        
-        .markdown-content code {
-            background: rgba(30, 41, 59, 0.8);
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.25rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.875rem;
-        }
-        
-        .markdown-content pre {
-            background: rgba(30, 41, 59, 0.8);
-            padding: 1rem;
-            border-radius: 0.5rem;
-            overflow-x: auto;
-            margin: 1rem 0;
-        }
-        
-        .markdown-content blockquote {
-            border-left: 4px solid #3b82f6;
-            padding-left: 1rem;
-            margin: 1rem 0;
-            color: #94a3b8;
-        }
-        
-        .markdown-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-        }
-        
-        .markdown-content th, .markdown-content td {
-            border: 1px solid rgba(100, 116, 139, 0.3);
-            padding: 0.5rem;
-            text-align: left;
-        }
-        
-        .markdown-content th {
-            background: rgba(30, 41, 59, 0.8);
-            font-weight: 600;
-        }
-        
-        @media (max-width: 768px) {
-            .docs-container {
-                grid-template-columns: 1fr;
-            }
-            
-            .docs-sidebar {
-                position: relative;
-                height: auto;
-            }
-            
-            .content-section {
-                padding: 2rem 1rem;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/static/api_documentation.css">
+    <script src="/static/api_documentation.js"></script>
+    
 {% endblock %}
 
 {% block content %}
-<div class="docs-container">
+<div class="docs-container" data-user-id="{{ user_id }}" data-api-slug="{{ api_slug }}" data-base-url="{{ base_url }}">
     <!-- Sidebar Navigation -->
     <nav class="docs-sidebar">
         <div class="nav-section">
@@ -686,15 +32,14 @@
             <a href="#rate-limits" class="nav-item">Rate Limits</a>
         </div>
         
-        <div class="nav-section">
-            <div class="nav-title">API Reference</div>
-            <a href="#openapi-spec" class="nav-item">OpenAPI Spec</a>
-            <a href="#endpoints" class="nav-item">Endpoints</a>
-            <a href="#request-format" class="nav-item">Request Format</a>
-            <a href="#response-format" class="nav-item">Response Format</a>
-            <a href="#error-codes" class="nav-item">Error Codes</a>
-            <a href="#usage-notes" class="nav-item">Usage Notes</a>
-        </div>
+            <div class="nav-section">
+                <div class="nav-title">API Reference</div>
+                <a href="#openapi-spec" class="nav-item">OpenAPI Spec</a>
+                <a href="#endpoints" class="nav-item">Endpoints</a>
+                <a href="#response-format" class="nav-item">Response Format</a>
+                <a href="#error-codes" class="nav-item">Error Codes</a>
+                <a href="#usage-notes" class="nav-item">Usage Notes</a>
+            </div>
         
         <div class="nav-section">
             <div class="nav-title">Examples</div>
@@ -724,53 +69,6 @@
                         <p class="loading-placeholder">Loading API documentation...</p>
                     </div>
                 </div>
-                
-                <div class="endpoint-card">
-                    <h3 class="text-xl font-semibold text-white mb-4">Base URL</h3>
-                    <div class="endpoint-url">{{ base_url }}</div>
-                </div>
-                
-                <div class="grid md:grid-cols-2 gap-6 mt-8">
-                    <div class="endpoint-card">
-                        <h4 class="text-lg font-semibold text-white mb-3">✨ Features</h4>
-                        <ul class="space-y-2 text-slate-300">
-                            <li class="flex items-center gap-2">
-                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                </svg>
-                                RESTful API design
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                </svg>
-                                JSON request/response format
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                </svg>
-                                Comprehensive error handling
-                            </li>
-                            <li class="flex items-center gap-2">
-                                <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                </svg>
-                                Rate limiting protection
-                            </li>
-                        </ul>
-                    </div>
-                    
-                    <div class="endpoint-card">
-                        <h4 class="text-lg font-semibold text-white mb-3">🚀 Quick Start</h4>
-                        <ol class="space-y-2 text-slate-300 list-decimal list-inside">
-                            <li>Get your API endpoint URL</li>
-                            <li>Prepare your JSON request data</li>
-                            <li>Send a POST request</li>
-                            <li>Parse the JSON response</li>
-                        </ol>
-                    </div>
-                </div>
             </div>
         </section>
         
@@ -787,35 +85,15 @@
             
             <div class="prose prose-invert max-w-none">
                 <div class="documentation-content markdown-content" id="authentication-content">
-                    <p class="text-lg text-slate-300 mb-6">This API supports both public access for testing and API key authentication for production use.</p>
+                    <p class="text-lg text-slate-300 mb-6">
+                        This API uses API key authentication. Generate and manage your keys from the
+                        <span class="font-semibold">Profile → API Keys</span> section in the dashboard, then include the key in the
+                        <code>Authorization</code> header as shown below.
+                    </p>
                 </div>
                 
-                <!-- Authentication Methods -->
-                <div class="mt-6">
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <div class="endpoint-card">
-                            <h3 class="text-lg font-semibold text-white mb-4">🔓 Public Access</h3>
-                            <p class="text-slate-300 mb-4">For testing and development, the API can be accessed without authentication.</p>
-                            <ul class="space-y-2 text-slate-300">
-                                <li>• No API keys required</li>
-                                <li>• Rate limited to prevent abuse</li>
-                                <li>• Ideal for prototyping</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="endpoint-card">
-                            <h3 class="text-lg font-semibold text-white mb-4">🔒 API Key Authentication</h3>
-                            <p class="text-slate-300 mb-4">For production use, authenticate using your API key.</p>
-                            <ul class="space-y-2 text-slate-300">
-                                <li>• Higher rate limits</li>
-                                <li>• Usage tracking</li>
-                                <li>• Production reliability</li>
-                            </ul>
-                        </div>
-                    </div>
-                    
-                    <!-- API Key Usage -->
-                    <div class="mt-8">
+                <!-- API Key Usage -->
+                <div class="mt-8">
                         <h3 class="text-xl font-semibold text-white mb-6">Using API Keys</h3>
                         
                         <div class="endpoint-card mb-6">
@@ -833,40 +111,40 @@
                             </div>
                         </div>
                         
-                        <!-- Examples with Authentication -->
-                        <div class="endpoint-card">
-                            <h4 class="text-lg font-semibold text-white mb-4">Example with Authentication</h4>
+                    <!-- Examples with Authentication -->
+                    <div class="endpoint-card">
+                        <h4 class="text-lg font-semibold text-white mb-4">Example with Authentication</h4>
+                        
+                        <div class="tabs-container">
+                            <div class="tabs-nav">
+                                <button class="tab-button active" onclick="switchAuthTab('curl-auth')">cURL</button>
+                                <button class="tab-button" onclick="switchAuthTab('python-auth')">Python</button>
+                                <button class="tab-button" onclick="switchAuthTab('javascript-auth')">JavaScript</button>
+                            </div>
                             
-                            <div class="tabs-container">
-                                <div class="tabs-nav">
-                                    <button class="tab-button active" onclick="switchAuthTab('curl-auth')">cURL</button>
-                                    <button class="tab-button" onclick="switchAuthTab('python-auth')">Python</button>
-                                    <button class="tab-button" onclick="switchAuthTab('javascript-auth')">JavaScript</button>
-                                </div>
-                                
-                                <div id="curl-auth-tab" class="tab-content active">
-                                    <div class="code-block">
-                                        <div class="code-header">
-                                            <div class="code-title">cURL with API Key</div>
-                                            <button class="copy-btn" onclick="copyCode('curl-auth-example')">Copy</button>
-                                        </div>
-                                        <div class="code-content">
-                                            <pre><code id="curl-auth-example" class="language-bash">curl -X POST "{{ base_url }}" \
+                            <div id="curl-auth-tab" class="tab-content active">
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <div class="code-title">cURL with API Key</div>
+                                        <button class="copy-btn" onclick="copyCode('curl-auth-example')">Copy</button>
+                                    </div>
+                                    <div class="code-content">
+                                        <pre><code id="curl-auth-example" class="language-bash">curl -X POST "{{ base_url }}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your_api_key_here" \
   -d '{"example": "value", "key": "data"}'</code></pre>
-                                        </div>
                                     </div>
                                 </div>
-                                
-                                <div id="python-auth-tab" class="tab-content">
-                                    <div class="code-block">
-                                        <div class="code-header">
-                                            <div class="code-title">Python with API Key</div>
-                                            <button class="copy-btn" onclick="copyCode('python-auth-example')">Copy</button>
-                                        </div>
-                                        <div class="code-content">
-                                            <pre><code id="python-auth-example" class="language-python">import requests
+                            </div>
+                            
+                            <div id="python-auth-tab" class="tab-content">
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <div class="code-title">Python with API Key</div>
+                                        <button class="copy-btn" onclick="copyCode('python-auth-example')">Copy</button>
+                                    </div>
+                                    <div class="code-content">
+                                        <pre><code id="python-auth-example" class="language-python">import requests
 
 url = "{{ base_url }}"
 headers = {
@@ -877,18 +155,18 @@ data = {"example": "value", "key": "data"}
 
 response = requests.post(url, headers=headers, json=data)
 print(response.json())</code></pre>
-                                        </div>
                                     </div>
                                 </div>
-                                
-                                <div id="javascript-auth-tab" class="tab-content">
-                                    <div class="code-block">
-                                        <div class="code-header">
-                                            <div class="code-title">JavaScript with API Key</div>
-                                            <button class="copy-btn" onclick="copyCode('javascript-auth-example')">Copy</button>
-                                        </div>
-                                        <div class="code-content">
-                                            <pre><code id="javascript-auth-example" class="language-javascript">const response = await fetch('{{ base_url }}', {
+                            </div>
+                            
+                            <div id="javascript-auth-tab" class="tab-content">
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <div class="code-title">JavaScript with API Key</div>
+                                        <button class="copy-btn" onclick="copyCode('javascript-auth-example')">Copy</button>
+                                    </div>
+                                    <div class="code-content">
+                                        <pre><code id="javascript-auth-example" class="language-javascript">const response = await fetch('{{ base_url }}', {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',
@@ -902,11 +180,6 @@ print(response.json())</code></pre>
 
 const result = await response.json();
 console.log(result);</code></pre>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1023,6 +296,196 @@ console.log(result);</code></pre>
             
             <div id="endpoint-list">
                 <!-- Endpoints will be populated by JavaScript -->
+            </div>
+        </section>
+        
+        <!-- Response Format Section -->
+        <section id="response-format" class="content-section">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold text-white">Response Format</h2>
+            </div>
+            
+            <div class="prose prose-invert max-w-none">
+                <div class="documentation-content markdown-content" id="response-format-content">
+                    <!-- Response format content will be populated by JavaScript from parsed documentation -->
+                </div>
+                
+                <!-- Standard Response Examples -->
+                <div class="mt-8">
+                    <h3 class="text-xl font-semibold text-white mb-6">Standard Response Examples</h3>
+                    
+                    <!-- Success Response -->
+                    <div class="response-example mb-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="status-badge status-200">200</span>
+                            <span class="text-white font-medium">Success</span>
+                        </div>
+                        <p class="text-slate-300 mb-3">Successful API response with processed data.</p>
+                        <div class="code-block">
+                            <div class="code-header">
+                                <div class="code-title">Example Success Response</div>
+                                <button class="copy-btn" onclick="copyCode('success-response')">Copy</button>
+                            </div>
+                            <div class="code-content">
+                                <pre><code id="success-response" class="language-json">{
+  "success": true,
+  "data": {
+    "result": "API processing completed successfully",
+    "timestamp": "2024-01-01T00:00:00Z"
+  },
+  "metadata": {
+    "processing_time_ms": 250,
+    "api_version": "1.0"
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Bad Request Error -->
+                    <div class="error-example mb-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="status-badge status-400">400</span>
+                            <span class="text-white font-medium">Bad Request</span>
+                        </div>
+                        <p class="text-slate-300 mb-3">Invalid request data or malformed JSON.</p>
+                        <div class="code-block">
+                            <div class="code-header">
+                                <div class="code-title">Example Bad Request Response</div>
+                                <button class="copy-btn" onclick="copyCode('bad-request-response')">Copy</button>
+                            </div>
+                            <div class="code-content">
+                                <pre><code id="bad-request-response" class="language-json">{
+  "error": "Bad Request",
+  "message": "Invalid request format or missing required fields",
+  "details": {
+    "code": "INVALID_REQUEST",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "validation_errors": [
+      "Field 'data' is required",
+      "Invalid JSON format"
+    ]
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Authentication Error -->
+                    <div class="error-example mb-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="status-badge status-401">401</span>
+                            <span class="text-white font-medium">Unauthorized</span>
+                        </div>
+                        <p class="text-slate-300 mb-3">Invalid or missing API key.</p>
+                        <div class="code-block">
+                            <div class="code-header">
+                                <div class="code-title">Example Authentication Error</div>
+                                <button class="copy-btn" onclick="copyCode('auth-error-response')">Copy</button>
+                            </div>
+                            <div class="code-content">
+                                <pre><code id="auth-error-response" class="language-json">{
+  "error": "Unauthorized",
+  "message": "Invalid or missing API key",
+  "details": {
+    "code": "INVALID_API_KEY",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "help": "Please provide a valid API key in the Authorization header"
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Forbidden Error -->
+                    <div class="error-example mb-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="status-badge status-403">403</span>
+                            <span class="text-white font-medium">Forbidden</span>
+                        </div>
+                        <p class="text-slate-300 mb-3">Valid API key but insufficient permissions.</p>
+                        <div class="code-block">
+                            <div class="code-header">
+                                <div class="code-title">Example Forbidden Response</div>
+                                <button class="copy-btn" onclick="copyCode('forbidden-response')">Copy</button>
+                            </div>
+                            <div class="code-content">
+                                <pre><code id="forbidden-response" class="language-json">{
+  "error": "Forbidden",
+  "message": "Insufficient permissions to access this resource",
+  "details": {
+    "code": "INSUFFICIENT_PERMISSIONS",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "required_permission": "api:execute"
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Rate Limit Error -->
+                    <div class="error-example mb-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="status-badge status-429">429</span>
+                            <span class="text-white font-medium">Too Many Requests</span>
+                        </div>
+                        <p class="text-slate-300 mb-3">Rate limit exceeded.</p>
+                        <div class="code-block">
+                            <div class="code-header">
+                                <div class="code-title">Example Rate Limit Response</div>
+                                <button class="copy-btn" onclick="copyCode('rate-limit-response')">Copy</button>
+                            </div>
+                            <div class="code-content">
+                                <pre><code id="rate-limit-response" class="language-json">{
+  "error": "Too Many Requests",
+  "message": "Rate limit exceeded. Please try again later",
+  "details": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "retry_after": 60,
+    "limit": {
+      "requests_per_minute": 60,
+      "requests_remaining": 0,
+      "reset_time": "2024-01-01T00:01:00Z"
+    }
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Server Error -->
+                    <div class="error-example mb-6">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="status-badge status-500">500</span>
+                            <span class="text-white font-medium">Internal Server Error</span>
+                        </div>
+                        <p class="text-slate-300 mb-3">Unexpected server error during request processing.</p>
+                        <div class="code-block">
+                            <div class="code-header">
+                                <div class="code-title">Example Server Error Response</div>
+                                <button class="copy-btn" onclick="copyCode('server-error-response')">Copy</button>
+                            </div>
+                            <div class="code-content">
+                                <pre><code id="server-error-response" class="language-json">{
+  "error": "Internal Server Error",
+  "message": "An unexpected error occurred while processing your request",
+  "details": {
+    "code": "INTERNAL_ERROR",
+    "timestamp": "2024-01-01T00:00:00Z",
+    "request_id": "req_abc123def456",
+    "support": "Please contact support with this request ID if the issue persists"
+  }
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
         
@@ -1222,214 +685,6 @@ if ($httpCode == 200) {
             </div>
         </section>
         
-        <!-- Request Format Section -->
-        <section id="request-format" class="content-section">
-            <div class="section-header">
-                <div class="section-icon">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                </div>
-                <h2 class="text-3xl font-bold text-white">Request Format</h2>
-            </div>
-            
-            <div class="prose prose-invert max-w-none">
-                <div class="documentation-content markdown-content" id="request-format-content">
-                    <!-- Request format content will be populated by JavaScript from parsed documentation -->
-                </div>
-            </div>
-        </section>
-        
-        <!-- Response Format Section -->
-        <section id="response-format" class="content-section">
-            <div class="section-header">
-                <div class="section-icon">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
-                </div>
-                <h2 class="text-3xl font-bold text-white">Response Format</h2>
-            </div>
-            
-            <div class="prose prose-invert max-w-none">
-                <div class="documentation-content markdown-content" id="response-format-content">
-                    <!-- Response format content will be populated by JavaScript from parsed documentation -->
-                </div>
-                
-                <!-- Standard Response Examples -->
-                <div class="mt-8">
-                    <h3 class="text-xl font-semibold text-white mb-6">Standard Response Examples</h3>
-                    
-                    <!-- Success Response -->
-                    <div class="response-example mb-6">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="status-badge status-200">200</span>
-                            <span class="text-white font-medium">Success</span>
-                        </div>
-                        <p class="text-slate-300 mb-3">Successful API response with processed data.</p>
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-title">Example Success Response</div>
-                                <button class="copy-btn" onclick="copyCode('success-response')">Copy</button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code id="success-response" class="language-json">{
-  "success": true,
-  "data": {
-    "result": "API processing completed successfully",
-    "timestamp": "2024-01-01T00:00:00Z"
-  },
-  "metadata": {
-    "processing_time_ms": 250,
-    "api_version": "1.0"
-  }
-}</code></pre>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Bad Request Error -->
-                    <div class="error-example mb-6">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="status-badge status-400">400</span>
-                            <span class="text-white font-medium">Bad Request</span>
-                        </div>
-                        <p class="text-slate-300 mb-3">Invalid request data or malformed JSON.</p>
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-title">Example Bad Request Response</div>
-                                <button class="copy-btn" onclick="copyCode('bad-request-response')">Copy</button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code id="bad-request-response" class="language-json">{
-  "error": "Bad Request",
-  "message": "Invalid request format or missing required fields",
-  "details": {
-    "code": "INVALID_REQUEST",
-    "timestamp": "2024-01-01T00:00:00Z",
-    "validation_errors": [
-      "Field 'data' is required",
-      "Invalid JSON format"
-    ]
-  }
-}</code></pre>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Authentication Error -->
-                    <div class="error-example mb-6">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="status-badge status-401">401</span>
-                            <span class="text-white font-medium">Unauthorized</span>
-                        </div>
-                        <p class="text-slate-300 mb-3">Invalid or missing API key.</p>
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-title">Example Authentication Error</div>
-                                <button class="copy-btn" onclick="copyCode('auth-error-response')">Copy</button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code id="auth-error-response" class="language-json">{
-  "error": "Unauthorized",
-  "message": "Invalid or missing API key",
-  "details": {
-    "code": "INVALID_API_KEY",
-    "timestamp": "2024-01-01T00:00:00Z",
-    "help": "Please provide a valid API key in the Authorization header"
-  }
-}</code></pre>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Forbidden Error -->
-                    <div class="error-example mb-6">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="status-badge status-403">403</span>
-                            <span class="text-white font-medium">Forbidden</span>
-                        </div>
-                        <p class="text-slate-300 mb-3">Valid API key but insufficient permissions.</p>
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-title">Example Forbidden Response</div>
-                                <button class="copy-btn" onclick="copyCode('forbidden-response')">Copy</button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code id="forbidden-response" class="language-json">{
-  "error": "Forbidden",
-  "message": "Insufficient permissions to access this resource",
-  "details": {
-    "code": "INSUFFICIENT_PERMISSIONS",
-    "timestamp": "2024-01-01T00:00:00Z",
-    "required_permission": "api:execute"
-  }
-}</code></pre>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Rate Limit Error -->
-                    <div class="error-example mb-6">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="status-badge status-429">429</span>
-                            <span class="text-white font-medium">Too Many Requests</span>
-                        </div>
-                        <p class="text-slate-300 mb-3">Rate limit exceeded.</p>
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-title">Example Rate Limit Response</div>
-                                <button class="copy-btn" onclick="copyCode('rate-limit-response')">Copy</button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code id="rate-limit-response" class="language-json">{
-  "error": "Too Many Requests",
-  "message": "Rate limit exceeded. Please try again later",
-  "details": {
-    "code": "RATE_LIMIT_EXCEEDED",
-    "timestamp": "2024-01-01T00:00:00Z",
-    "retry_after": 60,
-    "limit": {
-      "requests_per_minute": 60,
-      "requests_remaining": 0,
-      "reset_time": "2024-01-01T00:01:00Z"
-    }
-  }
-}</code></pre>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Server Error -->
-                    <div class="error-example mb-6">
-                        <div class="flex items-center gap-2 mb-3">
-                            <span class="status-badge status-500">500</span>
-                            <span class="text-white font-medium">Internal Server Error</span>
-                        </div>
-                        <p class="text-slate-300 mb-3">Unexpected server error during request processing.</p>
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-title">Example Server Error Response</div>
-                                <button class="copy-btn" onclick="copyCode('server-error-response')">Copy</button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code id="server-error-response" class="language-json">{
-  "error": "Internal Server Error",
-  "message": "An unexpected error occurred while processing your request",
-  "details": {
-    "code": "INTERNAL_ERROR",
-    "timestamp": "2024-01-01T00:00:00Z",
-    "request_id": "req_abc123def456",
-    "support": "Please contact support with this request ID if the issue persists"
-  }
-}</code></pre>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-        
         <!-- Error Codes Section -->
         <section id="error-codes" class="content-section">
             <div class="section-header">
@@ -1444,112 +699,6 @@ if ($httpCode == 200) {
             <div class="prose prose-invert max-w-none">
                 <div class="documentation-content markdown-content" id="error-codes-content">
                     <!-- Error codes content will be populated by JavaScript from parsed documentation -->
-                </div>
-                
-                <!-- Standard Error Codes Table -->
-                <div class="mt-8">
-                    <h3 class="text-xl font-semibold text-white mb-6">HTTP Status Codes</h3>
-                    <p class="text-slate-300 mb-6">This API uses standard HTTP status codes to indicate the success or failure of requests. Here are the most common status codes you may encounter:</p>
-                    
-                    <div class="endpoint-card">
-                        <table class="parameter-table">
-                            <thead>
-                                <tr>
-                                    <th>Status Code</th>
-                                    <th>Status</th>
-                                    <th>Description</th>
-                                    <th>Common Causes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td><span class="status-badge status-200">200</span></td>
-                                    <td><strong>OK</strong></td>
-                                    <td>Request processed successfully</td>
-                                    <td>Valid request with proper data formatting</td>
-                                </tr>
-                                <tr>
-                                    <td><span class="status-badge status-400">400</span></td>
-                                    <td><strong>Bad Request</strong></td>
-                                    <td>Invalid request format or data</td>
-                                    <td>Malformed JSON, missing required fields, invalid data types</td>
-                                </tr>
-                                <tr>
-                                    <td><span class="status-badge status-401">401</span></td>
-                                    <td><strong>Unauthorized</strong></td>
-                                    <td>Authentication required or failed</td>
-                                    <td>Missing API key, invalid API key, expired token</td>
-                                </tr>
-                                <tr>
-                                    <td><span class="status-badge status-403">403</span></td>
-                                    <td><strong>Forbidden</strong></td>
-                                    <td>Valid credentials but insufficient permissions</td>
-                                    <td>API key lacks required permissions, resource access denied</td>
-                                </tr>
-                                <tr>
-                                    <td><span class="status-badge status-429">429</span></td>
-                                    <td><strong>Too Many Requests</strong></td>
-                                    <td>Rate limit exceeded</td>
-                                    <td>Too many requests in time window, need to wait before retry</td>
-                                </tr>
-                                <tr>
-                                    <td><span class="status-badge status-500">500</span></td>
-                                    <td><strong>Internal Server Error</strong></td>
-                                    <td>Unexpected server error occurred</td>
-                                    <td>Processing failure, database connection issues, service unavailable</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <!-- Error Response Format -->
-                    <div class="mt-8">
-                        <h4 class="text-lg font-semibold text-white mb-4">Error Response Format</h4>
-                        <p class="text-slate-300 mb-4">All error responses follow a consistent format with the following structure:</p>
-                        
-                        <div class="code-block">
-                            <div class="code-header">
-                                <div class="code-title">Standard Error Response Structure</div>
-                                <button class="copy-btn" onclick="copyCode('error-format')">Copy</button>
-                            </div>
-                            <div class="code-content">
-                                <pre><code id="error-format" class="language-json">{
-  "error": "Error Type",
-  "message": "Human-readable error description",
-  "details": {
-    "code": "ERROR_CODE",
-    "timestamp": "2024-01-01T00:00:00Z",
-    "request_id": "req_unique_identifier",
-    "additional_info": "Context-specific error details"
-  }
-}</code></pre>
-                            </div>
-                        </div>
-                        
-                        <div class="mt-4">
-                            <h5 class="text-md font-semibold text-white mb-3">Error Response Fields</h5>
-                            <ul class="space-y-2 text-slate-300">
-                                <li><strong>error:</strong> Brief error category (e.g., "Bad Request", "Unauthorized")</li>
-                                <li><strong>message:</strong> Human-readable description of what went wrong</li>
-                                <li><strong>details.code:</strong> Machine-readable error code for programmatic handling</li>
-                                <li><strong>details.timestamp:</strong> ISO 8601 timestamp when the error occurred</li>
-                                <li><strong>details.request_id:</strong> Unique identifier for troubleshooting (when applicable)</li>
-                            </ul>
-                        </div>
-                    </div>
-                    
-                    <!-- Retry Guidelines -->
-                    <div class="mt-8">
-                        <h4 class="text-lg font-semibold text-white mb-4">Retry Guidelines</h4>
-                        <div class="endpoint-card">
-                            <ul class="space-y-3 text-slate-300">
-                                <li><strong>4xx errors:</strong> Do not retry - fix the request first</li>
-                                <li><strong>429 errors:</strong> Wait for the time specified in <code>retry_after</code> field</li>
-                                <li><strong>5xx errors:</strong> Retry with exponential backoff (max 3 attempts)</li>
-                                <li><strong>Network errors:</strong> Retry with exponential backoff</li>
-                            </ul>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -1573,946 +722,4 @@ if ($httpCode == 200) {
         </section>
     </main>
 </div>
-{% endblock %}
-
-{% block extra_scripts %}
-<script>
-    // Global variables
-    const apiData = {
-        base_url: "{{ base_url }}",
-        user_id: "{{ user_id }}",
-        api_slug: "{{ api_slug }}"
-    };
-    
-    let openApiSpec = null;
-    let swaggerUI = null;
-
-    // Initialize page
-    document.addEventListener('DOMContentLoaded', function() {
-        loadAPIData();
-        parseAndDistributeDocumentation();
-        setupInteractiveTest();
-        setupSmoothScrolling();
-        loadOpenAPISpec();
-        processMarkdownContent();
-    });
-
-    // Parse and distribute documentation content to appropriate sections
-    async function parseAndDistributeDocumentation() {
-        try {
-            const response = await fetch(`/api/${apiData.user_id}/${apiData.api_slug}/apidetails`);
-            const data = await response.json();
-            
-            if (response.ok && data.documentation && data.documentation !== 'Documentation not available') {
-                const documentation = data.documentation;
-                console.log('Documentation content:', documentation.substring(0, 200) + '...');
-                
-                // Check if this is structured markdown documentation or API proposal data
-                if (documentation.includes('### Overview') || documentation.includes('## Documentation') || documentation.includes('### Endpoints')) {
-                    console.log('Detected structured markdown documentation');
-                    // This is structured AI-generated documentation
-                    const sections = parseDocumentationSections(documentation);
-                    populateDocumentationSections(sections);
-                } else {
-                    console.log('Detected proposal data, extracting clean information');
-                    // This might be API proposal data, extract relevant information
-                    const cleanedSections = extractFromProposalData(data);
-                    populateDocumentationSections(cleanedSections);
-                }
-            } else {
-                console.log('No documentation available, using basic overview');
-                // No documentation available, show basic info
-                const basicSections = createBasicOverview(data);
-                populateDocumentationSections(basicSections);
-            }
-        } catch (error) {
-            console.error('Failed to load and parse documentation:', error);
-            // Show fallback content
-            const fallbackSections = createFallbackOverview();
-            populateDocumentationSections(fallbackSections);
-        }
-    }
-
-    // Parse documentation into sections
-    function parseDocumentationSections(documentation) {
-        console.log('Parsing documentation sections from:', documentation.substring(0, 300) + '...');
-        
-        const sections = {
-            overview: '',
-            authentication: '',
-            endpoints: '',
-            requestFormat: '',
-            responseFormat: '',
-            errorCodes: '',
-            usageNotes: '',
-            codeExamples: ''
-        };
-        
-        // First try to split by ### sections (direct subsection format)
-        const subsections = documentation.split(/^###\s+/m);
-        
-        if (subsections.length > 1) {
-            console.log('Found ### subsections:', subsections.length);
-            
-            for (let subsection of subsections) {
-                subsection = subsection.trim();
-                if (!subsection) continue;
-                
-                console.log('Processing subsection:', subsection.substring(0, 50) + '...');
-                
-                if (subsection.startsWith('Overview')) {
-                    sections.overview = subsection.replace(/^Overview\s*/, '').trim();
-                    console.log('Found overview section');
-                } else if (subsection.startsWith('Endpoints')) {
-                    sections.endpoints = subsection.replace(/^Endpoints\s*/, '').trim();
-                    console.log('Found endpoints section:', sections.endpoints.substring(0, 100) + '...');
-                } else if (subsection.startsWith('Request Format')) {
-                    sections.requestFormat = subsection.replace(/^Request Format\s*/, '').trim();
-                    console.log('Found request format section');
-                } else if (subsection.startsWith('Response Format')) {
-                    sections.responseFormat = subsection.replace(/^Response Format\s*/, '').trim();
-                    console.log('Found response format section');
-                } else if (subsection.startsWith('Error Codes')) {
-                    sections.errorCodes = subsection.replace(/^Error Codes\s*/, '').trim();
-                    console.log('Found error codes section');
-                } else if (subsection.startsWith('Usage Notes')) {
-                    sections.usageNotes = subsection.replace(/^Usage Notes\s*/, '').trim();
-                    console.log('Found usage notes section');
-                } else if (subsection.startsWith('Code Examples')) {
-                    sections.codeExamples = subsection.replace(/^Code Examples\s*/, '').trim();
-                    console.log('Found code examples section');
-                }
-            }
-        } else {
-            // Fallback: try to split by ## sections (wrapped in Documentation)
-            const docSections = documentation.split(/^##\s+/m);
-            
-            for (let section of docSections) {
-                section = section.trim();
-                if (!section) continue;
-                
-                // Check if this is the Documentation section
-                if (section.startsWith('Documentation')) {
-                    const docContent = section.replace(/^Documentation\s*/, '');
-                    
-                    // Parse subsections within Documentation
-                    const innerSubsections = docContent.split(/^###\s+/m);
-                    
-                    for (let subsection of innerSubsections) {
-                        subsection = subsection.trim();
-                        if (!subsection) continue;
-                        
-                        if (subsection.startsWith('Overview')) {
-                            sections.overview = subsection.replace(/^Overview\s*/, '').trim();
-                        } else if (subsection.startsWith('Endpoints')) {
-                            sections.endpoints = subsection.replace(/^Endpoints\s*/, '').trim();
-                        } else if (subsection.startsWith('Request Format')) {
-                            sections.requestFormat = subsection.replace(/^Request Format\s*/, '').trim();
-                        } else if (subsection.startsWith('Response Format')) {
-                            sections.responseFormat = subsection.replace(/^Response Format\s*/, '').trim();
-                        } else if (subsection.startsWith('Error Codes')) {
-                            sections.errorCodes = subsection.replace(/^Error Codes\s*/, '').trim();
-                        } else if (subsection.startsWith('Usage Notes')) {
-                            sections.usageNotes = subsection.replace(/^Usage Notes\s*/, '').trim();
-                        } else if (subsection.startsWith('Code Examples')) {
-                            sections.codeExamples = subsection.replace(/^Code Examples\s*/, '').trim();
-                        }
-                    }
-                }
-            }
-        }
-        
-        console.log('Parsed sections:', Object.keys(sections).filter(key => sections[key]));
-        return sections;
-    }
-
-    // Populate documentation sections in the UI
-    function populateDocumentationSections(sections) {
-        console.log('Populating documentation sections:', sections);
-        
-        // Overview - always populate even if empty to clear loading placeholder
-        const overviewContent = document.getElementById('overview-content');
-        if (overviewContent) {
-            console.log('Setting overview content:', sections.overview);
-            if (sections.overview) {
-                overviewContent.innerHTML = parseMarkdown(sections.overview);
-            } else {
-                overviewContent.innerHTML = '<p class="text-slate-300">No overview available.</p>';
-            }
-        } else {
-            console.error('Overview content element not found');
-        }
-        
-        // Endpoints
-        if (sections.endpoints) {
-            const endpointsContent = document.getElementById('endpoints-content');
-            if (endpointsContent) {
-                // Hide raw endpoints markdown to avoid duplicating the styled endpoint card below
-                endpointsContent.innerHTML = '';
-                const proseContainer = endpointsContent.closest('.prose');
-                if (proseContainer) {
-                    proseContainer.style.display = 'none';
-                }
-            }
-        }
-        
-        // Request Format
-        if (sections.requestFormat) {
-            const requestFormatContent = document.getElementById('request-format-content');
-            if (requestFormatContent) {
-                requestFormatContent.innerHTML = parseMarkdown(sections.requestFormat);
-            }
-        }
-        
-        // Response Format
-        if (sections.responseFormat) {
-            const responseFormatContent = document.getElementById('response-format-content');
-            if (responseFormatContent) {
-                responseFormatContent.innerHTML = parseMarkdown(sections.responseFormat);
-            }
-        }
-        
-        // Error Codes
-        if (sections.errorCodes) {
-            const errorCodesContent = document.getElementById('error-codes-content');
-            if (errorCodesContent) {
-                errorCodesContent.innerHTML = parseMarkdown(sections.errorCodes);
-            }
-        }
-        
-        // Usage Notes
-        if (sections.usageNotes) {
-            const usageNotesContent = document.getElementById('usage-notes-content');
-            const usageNotesSection = document.getElementById('usage-notes');
-            if (usageNotesContent && usageNotesSection) {
-                usageNotesContent.innerHTML = parseMarkdown(sections.usageNotes);
-                usageNotesSection.style.display = 'block'; // Show the section
-            }
-        }
-    }
-
-    // Extract clean information from API proposal data
-    function extractFromProposalData(data) {
-        console.log('Extracting from proposal data:', data);
-        
-        const sections = {
-            overview: '',
-            authentication: '',
-            endpoints: '',
-            requestFormat: '',
-            responseFormat: '',
-            errorCodes: '',
-            usageNotes: '',
-            codeExamples: ''
-        };
-        
-        // Try to parse the documentation as potential proposal data
-        let proposalData = null;
-        try {
-            // Check if documentation contains structured data
-            if (data.documentation.includes('API Name:') || data.documentation.includes('Description:')) {
-                console.log('Found proposal-style documentation, parsing...');
-                proposalData = parseProposalText(data.documentation);
-                console.log('Parsed proposal data:', proposalData);
-            }
-        } catch (e) {
-            console.log('Could not parse as proposal data:', e);
-        }
-        
-        // Create clean overview
-        if (proposalData) {
-            console.log('Creating clean overview from proposal data');
-            sections.overview = createCleanOverview(proposalData, data);
-        } else {
-            console.log('Creating basic overview from raw data');
-            sections.overview = createBasicOverviewFromData(data);
-        }
-        
-        console.log('Generated overview:', sections.overview);
-        return sections;
-    }
-    
-    // Parse proposal text into structured data
-    function parseProposalText(text) {
-        const data = {};
-        
-        // Extract API Name
-        const nameMatch = text.match(/API Name:\s*([^\n]+)/);
-        if (nameMatch) data.apiName = nameMatch[1].trim();
-        
-        // Extract Description
-        const descMatch = text.match(/Description:\s*([^\n]+(?:\n(?!Functionality:|Input Format:|Output Format:|Endpoints:)[^\n]*)*)/);
-        if (descMatch) data.description = descMatch[1].trim();
-        
-        // Extract Functionality
-        const funcMatch = text.match(/Functionality:\s*((?:\n\s*-[^\n]*)*)/);
-        if (funcMatch) {
-            data.functionality = funcMatch[1]
-                .split('\n')
-                .map(line => line.trim())
-                .filter(line => line.startsWith('-'))
-                .map(line => line.substring(1).trim());
-        }
-        
-        return data;
-    }
-    
-    // Create a clean overview from parsed proposal data
-    function createCleanOverview(proposalData, apiData) {
-        let overview = '';
-        
-        if (proposalData.description) {
-            overview += `<p class="text-lg text-slate-300 leading-relaxed mb-4">${proposalData.description}</p>`;
-        }
-        
-        if (proposalData.functionality && proposalData.functionality.length > 0) {
-            overview += `
-                <div class="mt-6">
-                    <h4 class="text-lg font-semibold text-white mb-3">Key Features</h4>
-                    <ul class="space-y-2 text-slate-300">
-                        ${proposalData.functionality.map(item => 
-                            `<li class="flex items-start gap-2">
-                                <svg class="w-4 h-4 text-green-400 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                </svg>
-                                ${item}
-                            </li>`
-                        ).join('')}
-                    </ul>
-                </div>
-            `;
-        }
-        
-        overview += `
-            <div class="mt-6">
-                <h4 class="text-lg font-semibold text-white mb-3">Getting Started</h4>
-                <p class="text-slate-300">
-                    This API accepts JSON requests and returns structured JSON responses. 
-                    Use the interactive testing section below to try it out, or refer to the code examples for integration guidance.
-                </p>
-            </div>
-        `;
-        
-        return overview;
-    }
-    
-    // Create basic overview from API data
-    function createBasicOverviewFromData(data) {
-        return `
-            <p class="text-lg text-slate-300 leading-relaxed mb-4">
-                ${data.prompt || data.api_name || 'API endpoint for processing requests and returning structured data.'}
-            </p>
-            <div class="mt-6">
-                <h4 class="text-lg font-semibold text-white mb-3">About This API</h4>
-                <p class="text-slate-300">
-                    This API provides data processing capabilities through a RESTful interface. 
-                    Send JSON requests to receive structured responses for your application needs.
-                </p>
-            </div>
-        `;
-    }
-    
-    // Create basic overview when no data is available
-    function createBasicOverview(data) {
-        const sections = {
-            overview: createBasicOverviewFromData(data || {}),
-            authentication: '',
-            endpoints: '',
-            requestFormat: '',
-            responseFormat: '',
-            errorCodes: '',
-            usageNotes: '',
-            codeExamples: ''
-        };
-        return sections;
-    }
-    
-    // Create fallback overview
-    function createFallbackOverview() {
-        const sections = {
-            overview: `
-                <p class="text-lg text-slate-300 leading-relaxed mb-4">
-                    This API provides data processing capabilities through a simple REST interface.
-                </p>
-                <div class="mt-6">
-                    <h4 class="text-lg font-semibold text-white mb-3">Getting Started</h4>
-                    <p class="text-slate-300">
-                        Send POST requests with JSON data to receive structured responses. 
-                        Check the interactive testing section to try out the API.
-                    </p>
-                </div>
-            `,
-            authentication: '',
-            endpoints: '',
-            requestFormat: '',
-            responseFormat: '',
-            errorCodes: '',
-            usageNotes: '',
-            codeExamples: ''
-        };
-        return sections;
-    }
-
-    // Create clean description for endpoint from API data
-    function createCleanDescription(data) {
-        // Try to extract description from documentation if it contains proposal data
-        if (data.documentation && data.documentation.includes('Description:')) {
-            try {
-                const descMatch = data.documentation.match(/Description:\s*([^\n]+(?:\n(?!Functionality:|Input Format:|Output Format:|Endpoints:)[^\n]*)*)/);
-                if (descMatch) {
-                    return descMatch[1].trim();
-                }
-            } catch (e) {
-                console.log('Could not extract description from documentation:', e);
-            }
-        }
-        
-        // Try to extract from api_name or use fallback
-        if (data.api_name && data.api_name !== 'API undefined' && !data.api_name.startsWith('API ')) {
-            return `${data.api_name} - A specialized API endpoint for data processing and analysis.`;
-        }
-        
-        // Final fallback
-        return 'API endpoint for processing JSON requests and returning structured data responses.';
-    }
-
-    // Simple markdown parser
-    function parseMarkdown(content) {
-        if (!content) return '';
-        
-        return content
-            // Headers
-            .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
-            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-            // Bold
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            // Italic
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            // Code blocks
-            .replace(/```(\w+)?\n([\s\S]*?)```/g, '<div class="code-block"><div class="code-content"><pre><code class="language-$1">$2</code></pre></div></div>')
-            // Inline code
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
-            // Tables
-            .replace(/^\|(.+)\|\s*$/gm, function(match, row) {
-                const cells = row.split('|').map(cell => cell.trim()).filter(cell => cell);
-                return '<tr>' + cells.map(cell => `<td>${cell}</td>`).join('') + '</tr>';
-            })
-            // Wrap tables
-            .replace(/(<tr>.*<\/tr>)/s, '<table class="parameter-table">$1</table>')
-            // Lists
-            .replace(/^\- (.*$)/gim, '<li>$1</li>')
-            .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-            // Links
-            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-            // Line breaks
-            .replace(/\n\n/g, '</p><p>')
-            .replace(/\n/g, '<br>');
-    }
-
-    // Load API data and populate endpoints
-    async function loadAPIData() {
-        try {
-            const response = await fetch(`/api/${apiData.user_id}/${apiData.api_slug}/apidetails`);
-            const data = await response.json();
-            
-            if (response.ok) {
-                populateEndpoints(data);
-            }
-        } catch (error) {
-            console.error('Failed to load API data:', error);
-        }
-    }
-
-    // Populate endpoints section
-    function populateEndpoints(data) {
-        const endpointList = document.getElementById('endpoint-list');
-        
-        // Create clean description from data
-        const cleanDescription = createCleanDescription(data);
-        
-        // Extract parameters from OpenAPI spec or use defaults
-        const parameters = extractParametersFromData(data);
-        
-        // Extract example request from sample_input or use defaults
-        const exampleRequest = extractExampleRequest(data);
-        
-        // Extract example responses from expected_output or use defaults
-        const exampleResponses = extractExampleResponses(data);
-        
-        // Main endpoint
-        const endpointHtml = `
-            <div class="endpoint-card">
-                <div class="endpoint-header">
-                    <span class="method-badge method-post">POST</span>
-                    <div class="flex-1">
-                        <div class="endpoint-url">${data.endpoint_url || apiData.base_url}</div>
-                    </div>
-                </div>
-                
-                <div class="prose prose-invert max-w-none">
-                    <h4 class="text-lg font-semibold text-white mb-3">Description</h4>
-                    <p class="text-slate-300 mb-4">${cleanDescription}</p>
-                    
-                    <h4 class="text-lg font-semibold text-white mb-3">Request</h4>
-                    <div class="tabs-container">
-                        <div class="tabs-nav">
-                            <button class="tab-button active" onclick="switchEndpointTab('parameters')">Parameters</button>
-                            <button class="tab-button" onclick="switchEndpointTab('example-request')">Example</button>
-                        </div>
-                        
-                        <div id="parameters-tab" class="tab-content active">
-                            <table class="parameter-table">
-                                <thead>
-                                    <tr>
-                                        <th>Parameter</th>
-                                        <th>Type</th>
-                                        <th>Required</th>
-                                        <th>Description</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${parameters.map(param => `
-                                        <tr>
-                                            <td><span class="param-name">${param.name}</span></td>
-                                            <td><span class="param-type">${param.type}</span></td>
-                                            <td><span class="param-${param.required ? 'required' : 'optional'}">${param.required ? 'required' : 'optional'}</span></td>
-                                            <td>${param.description}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        <div id="example-request-tab" class="tab-content">
-                            <div class="code-block">
-                                <div class="code-header">
-                                    <div class="code-title">Example Request</div>
-                                    <button class="copy-btn" onclick="copyCode('example-request')">Copy</button>
-                                </div>
-                                <div class="code-content">
-                                    <pre><code id="example-request" class="language-json">${JSON.stringify(exampleRequest, null, 2)}</code></pre>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <h4 class="text-lg font-semibold text-white mb-3 mt-6">Responses</h4>
-                    
-                    ${exampleResponses.map(response => `
-                        <div class="response-example">
-                            <div class="flex items-center gap-2 mb-3">
-                                <span class="status-badge status-${response.status}">${response.status}</span>
-                                <span class="text-white font-medium">${response.title}</span>
-                            </div>
-                            <div class="code-block">
-                                <div class="code-content">
-                                    <pre><code class="language-json">${JSON.stringify(response.body, null, 2)}</code></pre>
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
-        
-        endpointList.innerHTML = endpointHtml;
-    }
-    
-    // Extract parameters from OpenAPI spec or API data
-    function extractParametersFromData(data) {
-        const parameters = [];
-        
-        // Try to extract from OpenAPI spec first
-        if (data.openapi_spec) {
-            try {
-                const spec = typeof data.openapi_spec === 'string' ? JSON.parse(data.openapi_spec) : data.openapi_spec;
-                const paths = spec.paths || {};
-                const pathKey = Object.keys(paths)[0];
-                if (pathKey && paths[pathKey].post && paths[pathKey].post.requestBody) {
-                    const schema = paths[pathKey].post.requestBody.content?.['application/json']?.schema;
-                    if (schema && schema.properties) {
-                        for (const [name, prop] of Object.entries(schema.properties)) {
-                            parameters.push({
-                                name: name,
-                                type: prop.type || 'string',
-                                required: schema.required?.includes(name) || false,
-                                description: prop.description || `Parameter: ${name}`
-                            });
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log('Failed to parse OpenAPI spec:', e);
-            }
-        }
-        
-        // If no parameters found from OpenAPI spec, return empty array
-        // No hardcoded fallbacks - only use real data
-        
-        return parameters;
-    }
-    
-    // Extract example request from sample_input only
-    function extractExampleRequest(data) {
-        if (data.sample_input) {
-            try {
-                return JSON.parse(data.sample_input);
-            } catch (e) {
-                console.log('Failed to parse sample_input:', e);
-            }
-        }
-        
-        // Return empty object if no sample_input available
-        return {};
-    }
-    
-    // Extract example responses from expected_output only
-    function extractExampleResponses(data) {
-        const responses = [];
-        
-        // Try to extract from expected_output
-        if (data.expected_output) {
-            try {
-                const output = JSON.parse(data.expected_output);
-                responses.push({
-                    status: '200',
-                    title: 'Success',
-                    body: output
-                });
-            } catch (e) {
-                console.log('Failed to parse expected_output:', e);
-            }
-        }
-        
-        // Return empty array if no expected_output available
-        return responses;
-    }
-
-    // Setup interactive testing
-    function setupInteractiveTest() {
-        const form = document.getElementById('api-test-form');
-        form.addEventListener('submit', handleTestSubmit);
-        
-        // Load example data
-        const testData = document.getElementById('test-data');
-        testData.value = JSON.stringify({
-            "example": "value",
-            "key": "data",
-            "timestamp": new Date().toISOString()
-        }, null, 2);
-    }
-
-    // Handle test form submission
-    async function handleTestSubmit(e) {
-        e.preventDefault();
-        
-        const testDataInput = document.getElementById('test-data');
-        const resultDiv = document.getElementById('test-result');
-        const responseBody = document.getElementById('response-body');
-        
-        try {
-            // Parse test data
-            let requestData = {};
-            if (testDataInput.value.trim()) {
-                requestData = JSON.parse(testDataInput.value);
-            }
-            
-            // Show loading state
-            resultDiv.style.display = 'block';
-            responseBody.textContent = 'Sending request...';
-            
-            // Make the API request
-            const response = await fetch('/test-api', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    user_id: apiData.user_id,
-                    api_slug: apiData.api_slug,
-                    test_data: requestData,
-                    test_type: 'documentation'
-                })
-            });
-            
-            const result = await response.json();
-            
-            // Display the result
-            if (result.success && result.response_data) {
-                responseBody.textContent = JSON.stringify(result.response_data, null, 2);
-            } else if (result.error) {
-                responseBody.textContent = JSON.stringify({ error: result.error }, null, 2);
-            } else {
-                responseBody.textContent = JSON.stringify(result, null, 2);
-            }
-            
-            // Highlight the code
-            Prism.highlightElement(responseBody);
-            
-        } catch (error) {
-            responseBody.textContent = JSON.stringify({ 
-                error: 'Test failed', 
-                message: error.message 
-            }, null, 2);
-            Prism.highlightElement(responseBody);
-        }
-    }
-
-    // Clear test data
-    function clearTestData() {
-        document.getElementById('test-data').value = '';
-        document.getElementById('test-result').style.display = 'none';
-    }
-
-    // Setup smooth scrolling for navigation
-    function setupSmoothScrolling() {
-        document.querySelectorAll('.nav-item').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                const targetId = this.getAttribute('href').substring(1);
-                const targetElement = document.getElementById(targetId);
-                
-                if (targetElement) {
-                    // Update active nav item
-                    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-                    this.classList.add('active');
-                    
-                    // Scroll to target
-                    targetElement.scrollIntoView({ behavior: 'smooth' });
-                }
-            });
-        });
-    }
-
-    // Tab switching functions
-    function switchCodeTab(tabName) {
-        // Hide all tabs
-        document.querySelectorAll('#code-examples .tab-content').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        // Remove active class from all buttons
-        document.querySelectorAll('#code-examples .tab-button').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        // Show selected tab
-        document.getElementById(tabName + '-tab').classList.add('active');
-        event.target.classList.add('active');
-    }
-
-    function switchEndpointTab(tabName) {
-        // Hide all tabs
-        document.querySelectorAll('.endpoint-card .tab-content').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        // Remove active class from all buttons
-        document.querySelectorAll('.endpoint-card .tab-button').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        // Show selected tab
-        document.getElementById(tabName + '-tab').classList.add('active');
-        event.target.classList.add('active');
-    }
-
-    function switchAuthTab(tabName) {
-        // Hide all auth tabs
-        document.querySelectorAll('#authentication .tab-content').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        // Remove active class from all auth tab buttons
-        document.querySelectorAll('#authentication .tab-button').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        // Show selected tab
-        document.getElementById(tabName + '-tab').classList.add('active');
-        event.target.classList.add('active');
-    }
-
-    // Load OpenAPI specification
-    async function loadOpenAPISpec() {
-        try {
-            const response = await fetch(`/api/${apiData.user_id}/${apiData.api_slug}/openapi`);
-            openApiSpec = await response.json();
-            
-            // Initialize Swagger UI
-            initializeSwaggerUI();
-            
-            // Show raw YAML
-            displayRawSpec();
-            
-        } catch (error) {
-            console.error('Failed to load OpenAPI spec:', error);
-            document.getElementById('swagger-ui').innerHTML = `
-                <div class="p-8 text-center text-red-400">
-                    <svg class="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                    </svg>
-                    <p>Failed to load OpenAPI specification</p>
-                </div>
-            `;
-        }
-    }
-
-    // Initialize Swagger UI
-    function initializeSwaggerUI() {
-        if (!openApiSpec) return;
-        
-        swaggerUI = SwaggerUIBundle({
-            dom_id: '#swagger-ui',
-            spec: openApiSpec,
-            deepLinking: true,
-            presets: [
-                SwaggerUIBundle.presets.apis,
-                SwaggerUIBundle.presets.standalone
-            ],
-            plugins: [
-                SwaggerUIBundle.plugins.DownloadUrl
-            ],
-            layout: "BaseLayout",
-            theme: "dark",
-            tryItOutEnabled: true,
-            requestInterceptor: (req) => {
-                // Add any custom headers or modifications here
-                return req;
-            }
-        });
-    }
-
-    // Display raw OpenAPI spec as YAML
-    function displayRawSpec() {
-        if (!openApiSpec) return;
-        
-        try {
-            const yamlString = jsyaml.dump(openApiSpec, {
-                indent: 2,
-                lineWidth: -1,
-                noRefs: true
-            });
-            
-            document.getElementById('openapi-yaml').textContent = yamlString;
-            Prism.highlightElement(document.getElementById('openapi-yaml'));
-        } catch (error) {
-            document.getElementById('openapi-yaml').textContent = 'Error converting to YAML: ' + error.message;
-        }
-    }
-
-    // Switch between OpenAPI spec tabs
-    function switchSpecTab(tabName) {
-        // Hide all tabs
-        document.querySelectorAll('#openapi-spec .tab-content').forEach(tab => {
-            tab.classList.remove('active');
-        });
-        
-        // Remove active class from all buttons
-        document.querySelectorAll('#openapi-spec .tab-button').forEach(btn => {
-            btn.classList.remove('active');
-        });
-        
-        // Show selected tab
-        document.getElementById(tabName + '-tab').classList.add('active');
-        event.target.classList.add('active');
-        
-        // Re-initialize Swagger UI if switching to viewer tab
-        if (tabName === 'viewer' && openApiSpec && !swaggerUI) {
-            setTimeout(initializeSwaggerUI, 100);
-        }
-    }
-
-    // Download OpenAPI spec as YAML
-    function downloadOpenAPISpec() {
-        if (!openApiSpec) return;
-        
-        try {
-            const yamlString = jsyaml.dump(openApiSpec, {
-                indent: 2,
-                lineWidth: -1,
-                noRefs: true
-            });
-            
-            const blob = new Blob([yamlString], { type: 'text/yaml' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${apiData.api_slug}-openapi.yaml`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error('Failed to download OpenAPI spec:', error);
-        }
-    }
-
-    // Open in external Swagger UI
-    function viewSwaggerUI() {
-        if (!openApiSpec) return;
-        
-        const specUrl = `/api/${apiData.user_id}/${apiData.api_slug}/openapi`;
-        const swaggerUrl = `https://petstore.swagger.io/?url=${encodeURIComponent(window.location.origin + specUrl)}`;
-        window.open(swaggerUrl, '_blank');
-    }
-
-    // Simple markdown processing for documentation
-    function processMarkdownContent() {
-        const markdownElements = document.querySelectorAll('.markdown-content pre');
-        markdownElements.forEach(element => {
-            let content = element.textContent;
-            
-            // Convert markdown to HTML
-            content = content
-                // Headers
-                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-                // Bold
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                // Italic
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                // Code blocks
-                .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
-                // Inline code
-                .replace(/`([^`]+)`/g, '<code>$1</code>')
-                // Lists
-                .replace(/^\- (.*$)/gim, '<li>$1</li>')
-                .replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>')
-                // Links
-                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
-                // Line breaks
-                .replace(/\n\n/g, '</p><p>')
-                .replace(/\n/g, '<br>');
-            
-            // Wrap in paragraphs if not already wrapped
-            if (!content.startsWith('<')) {
-                content = '<p>' + content + '</p>';
-            }
-            
-            element.innerHTML = content;
-            element.classList.remove('whitespace-pre-wrap');
-            element.classList.add('rendered-markdown');
-        });
-    }
-
-    // Copy code function
-    function copyCode(elementId) {
-        const element = document.getElementById(elementId);
-        const text = element.textContent;
-        
-        navigator.clipboard.writeText(text).then(() => {
-            // Show feedback
-            const button = event.target;
-            const originalText = button.textContent;
-            button.textContent = 'Copied!';
-            setTimeout(() => {
-                button.textContent = originalText;
-            }, 2000);
-        });
-    }
-</script>
 {% endblock %}
