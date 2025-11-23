@@ -127,6 +127,9 @@ class MongoDB:
         self._collections['subscriptions'] = self.db['subscriptions']
         self._collections['subscription_events'] = self.db['subscription_events']
         
+        # Report collections
+        self._collections['reports'] = self.db['reports']
+        
         logger.info(f"✅ Initialized {len(self._collections)} collections")
     
     def _create_indexes(self):
@@ -229,6 +232,16 @@ class MongoDB:
             self.subscription_events.create_index([("lemonsqueezy_event_id", ASCENDING)], unique=True)
             self.subscription_events.create_index([("created_at", DESCENDING)])
             
+            # Reports indexes
+            self.reports.create_index([("report_id", ASCENDING)], unique=True)
+            self.reports.create_index([("api_user_id", ASCENDING)])
+            self.reports.create_index([("api_slug", ASCENDING)])
+            self.reports.create_index([("reporter_user_id", ASCENDING)])
+            self.reports.create_index([("status", ASCENDING)])
+            self.reports.create_index([("category", ASCENDING)])
+            self.reports.create_index([("severity", ASCENDING)])
+            self.reports.create_index([("created_at", DESCENDING)])
+            
             logger.info("✅ Created all database indexes")
             
         except Exception as e:
@@ -310,6 +323,10 @@ class MongoDB:
     @property
     def subscription_events(self) -> Collection:
         return self._collections['subscription_events']
+    
+    @property
+    def reports(self) -> Collection:
+        return self._collections['reports']
     
     def close(self):
         """Close MongoDB connection"""

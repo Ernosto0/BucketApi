@@ -925,4 +925,63 @@ class SubscriptionTiersResponse(BaseModel):
     success: bool
     tiers: List[SubscriptionTier]
     current_tier: Optional[str] = None
+
+# Report Models
+class ReportCategory(str):
+    """Report category enumeration"""
+    BUG = "bug"
+    INAPPROPRIATE = "inappropriate"
+    SECURITY = "security"
+    DOCUMENTATION = "documentation"
+    PERFORMANCE = "performance"
+    OTHER = "other"
+
+class ReportSeverity(str):
+    """Report severity enumeration"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+class ReportStatus(str):
+    """Report status enumeration"""
+    PENDING = "pending"
+    REVIEWED = "reviewed"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
+
+class CreateReportRequest(BaseModel):
+    """Request model for creating a report"""
+    api_user_id: str = Field(..., description="User ID of the API owner")
+    api_slug: str = Field(..., description="API slug being reported")
+    category: str = Field(..., description="Report category: bug, inappropriate, security, documentation, performance, other")
+    severity: str = Field(..., description="Report severity: low, medium, high")
+    description: str = Field(..., min_length=10, max_length=2000, description="Detailed description of the issue")
+    endpoint_url: Optional[str] = Field(None, description="API endpoint URL")
+
+class Report(BaseModel):
+    """Report data model"""
+    report_id: str
+    api_user_id: str  # Owner of the API
+    api_slug: str
+    endpoint_url: Optional[str] = None
+    reporter_user_id: str  # User who reported
+    reporter_email: str
+    category: str
+    severity: str
+    description: str
+    status: str = "pending"
+    created_at: datetime
+    updated_at: datetime
+
+class CreateReportResponse(BaseModel):
+    """Response model for creating a report"""
+    success: bool
+    message: str
+    report_id: Optional[str] = None
+
+class ListReportsResponse(BaseModel):
+    """Response model for listing reports"""
+    success: bool
+    reports: List[Report]
+    total: int
    

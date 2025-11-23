@@ -1018,3 +1018,173 @@ async function restoreVersion(version) {
         showNotification('Error restoring version: ' + error.message, 'error');
     }
 }
+
+// ==================== Report Modal Functions ====================
+
+// Make functions globally accessible for inline onclick handlers
+window.openReportModal = function() {
+    const modal = document.getElementById('reportModal');
+    const reportApiName = document.getElementById('reportApiName');
+    const reportEndpoint = document.getElementById('reportEndpoint');
+    
+    if (!modal) {
+        console.error('Report modal not found in DOM');
+        return;
+    }
+    
+    // Populate API information
+    if (apiData) {
+        if (reportApiName) reportApiName.textContent = apiData.api_slug || 'Unknown';
+        if (reportEndpoint) reportEndpoint.textContent = apiData.endpoint_url || 'Unknown';
+    }
+    
+    // Reset form
+    const reportForm = document.getElementById('reportForm');
+    if (reportForm) {
+        reportForm.reset();
+    }
+    
+    const reportError = document.getElementById('reportError');
+    const reportSuccess = document.getElementById('reportSuccess');
+    const charCount = document.getElementById('charCount');
+    
+    if (reportError) reportError.classList.add('hidden');
+    if (reportSuccess) reportSuccess.classList.add('hidden');
+    if (charCount) charCount.textContent = '0 / 2000';
+    
+    // Show modal
+    modal.classList.add('show');
+};
+
+window.closeReportModal = function() {
+    const modal = document.getElementById('reportModal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+};
+
+// Character count for description
+document.addEventListener('DOMContentLoaded', function() {
+    const descriptionField = document.getElementById('reportDescription');
+    const charCount = document.getElementById('charCount');
+    
+    if (descriptionField && charCount) {
+        descriptionField.addEventListener('input', function() {
+            const length = this.value.length;
+            charCount.textContent = `${length} / 2000`;
+            
+            // Change color based on length
+            if (length < 10) {
+                charCount.classList.add('text-red-400');
+                charCount.classList.remove('text-slate-400', 'text-green-400');
+            } else if (length > 1900) {
+                charCount.classList.add('text-orange-400');
+                charCount.classList.remove('text-slate-400', 'text-green-400');
+            } else {
+                charCount.classList.add('text-green-400');
+                charCount.classList.remove('text-slate-400', 'text-red-400', 'text-orange-400');
+            }
+        });
+    }
+    
+    // Handle form submission
+    const reportForm = document.getElementById('reportForm');
+    if (reportForm) {
+        reportForm.addEventListener('submit', handleReportSubmit);
+    }
+    
+    // Close modal on outside click
+    const modal = document.getElementById('reportModal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeReportModal();
+            }
+        });
+    }
+});
+
+async function handleReportSubmit(e) {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('submitReportBtn');
+    const errorDiv = document.getElementById('reportError');
+    const errorText = document.getElementById('reportErrorText');
+    const successDiv = document.getElementById('reportSuccess');
+    
+    // Hide previous messages
+    errorDiv.classList.add('hidden');
+    successDiv.classList.add('hidden');
+    
+    // Get form values
+    const category = document.getElementById('reportCategory').value;
+    const severity = document.querySelector('input[name="severity"]:checked')?.value;
+    const description = document.getElementById('reportDescription').value;
+    
+    // Validate
+    if (!category || !severity || !description || description.length < 10) {
+        errorText.textContent = 'Please fill in all required fields correctly.';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    
+    // Disable submit button
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `
+        <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        Submitting...
+    `;
+    
+    try {
+        const response = await fetch('/api/reports', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                api_user_id: userId,
+                api_slug: apiSlug,
+                category: category,
+                severity: severity,
+                description: description,
+                endpoint_url: apiData?.endpoint_url || ''
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            // Show success message
+            successDiv.classList.remove('hidden');
+            
+            // Reset form
+            document.getElementById('reportForm').reset();
+            
+            // Show notification
+            showNotification('Report submitted successfully!', 'success');
+            
+            // Close modal after 2 seconds
+            setTimeout(() => {
+                closeReportModal();
+            }, 2000);
+        } else {
+            errorText.textContent = result.message || 'Failed to submit report. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error submitting report:', error);
+        errorText.textContent = 'Network error. Please check your connection and try again.';
+        errorDiv.classList.remove('hidden');
+    } finally {
+        // Re-enable submit button
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+            </svg>
+            Submit Report
+        `;
+    }
+}

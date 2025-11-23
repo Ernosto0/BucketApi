@@ -46,7 +46,9 @@ from .models import (
     LogStatisticsResponse,
     # Multi-step generation models
     MultiStepGenerationRequest, PipelineInfoResponse,
-    APIVersion
+    APIVersion,
+    # Report models
+    CreateReportRequest, CreateReportResponse, Report, ListReportsResponse
 )
 from .services.openai_service import openai_service
 from .services.claude_service import claude_service
@@ -4585,3 +4587,141 @@ async def sync_subscription(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 
+
+
+
+
+# Report endpoints
+
+@app.post("/api/reports", response_model=CreateReportResponse)
+async def create_report(
+    report_request: CreateReportRequest,
+    request: Request,
+    current_user: User = Depends(require_active_user)
+):
+    """
+    Create a new report for an API.
+    Requires authentication - only logged-in users can report APIs.
+    """
+    try:
+        logger.info(f"User {current_user.id} reporting API {report_request.api_user_id}/{report_request.api_slug}")
+        
+        # Validate category
+        valid_categories = ["bug", "inappropriate", "security", "documentation", "performance", "other"]
+        if report_request.category not in valid_categories:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid category. Must be one of: {', '.join(valid_categories)}"
+            )
+        
+        # Validate severity
+        valid_severities = ["low", "medium", "high"]
+        if report_request.severity not in valid_severities:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid severity. Must be one of: {', '.join(valid_severities)}"
+            )
+        
+        # Check if API exists
+        if not file_service.api_exists(report_request.api_user_id, report_request.api_slug):
+            raise HTTPException(
+                status_code=404,
+                detail=f"API not found: {report_request.api_user_id}/{report_request.api_slug}"
+            )
+        
+        # Generate unique report ID
+        import uuid
+        report_id = str(uuid.uuid4())
+        
+        # Create report document
+        report_doc = {
+            "report_id": report_id,
+            "api_user_id": report_request.api_user_id,
+            "api_slug": report_request.api_slug,
+            "endpoint_url": report_request.endpoint_url,
+            "reporter_user_id": current_user.id,
+            "reporter_email": current_user.email,
+            "category": report_request.category,
+            "severity": report_request.severity,
+            "description": report_request.description,
+            "status": "pending",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        # Save to database
+        mongodb.reports.insert_one(report_doc)
+        
+        logger.info(f"Report {report_id} created successfully for API {report_request.api_user_id}/{report_request.api_slug}")
+        
+        return CreateReportResponse(
+            success=True,
+            message="Report submitted successfully. Thank you for helping us maintain quality!",
+            report_id=report_id
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating report: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create report: {str(e)}"
+        )
+
+@app.get("/api/reports", response_model=ListReportsResponse)
+async def list_reports(
+    request: Request,
+    current_user: User = Depends(require_active_user),
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    limit: int = 50
+):
+    """
+    List reports. 
+    Regular users can only see reports they've submitted.
+    Admin users can see all reports (future enhancement).
+    """
+    try:
+        # Build query - regular users only see their own reports
+        query = {"reporter_user_id": current_user.id}
+        
+        if status:
+            query["status"] = status
+        if category:
+            query["category"] = category
+        
+        # Fetch reports from database
+        reports_cursor = mongodb.reports.find(query).sort("created_at", -1).limit(limit)
+        reports_list = list(reports_cursor)
+        
+        # Convert to Report models
+        reports = []
+        for report_doc in reports_list:
+            reports.append(Report(
+                report_id=report_doc["report_id"],
+                api_user_id=report_doc["api_user_id"],
+                api_slug=report_doc["api_slug"],
+                endpoint_url=report_doc.get("endpoint_url"),
+                reporter_user_id=report_doc["reporter_user_id"],
+                reporter_email=report_doc["reporter_email"],
+                category=report_doc["category"],
+                severity=report_doc["severity"],
+                description=report_doc["description"],
+                status=report_doc["status"],
+                created_at=report_doc["created_at"],
+                updated_at=report_doc["updated_at"]
+            ))
+        
+        return ListReportsResponse(
+            success=True,
+            reports=reports,
+            total=len(reports)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error listing reports: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to list reports: {str(e)}"
+        )
