@@ -341,7 +341,7 @@ async function runAPITestDetails() {
                     <div class="grid grid-cols-2 gap-4 text-xs">
                         <div>
                             <span class="text-gray-400">Cost per call:</span>
-                            <span class="text-green-300 font-mono ml-2">${costPerCall}¢</span>
+                            <span class="text-green-300 font-mono ml-2">${costPerCall}$</span>
                         </div>
                         <div>
                             <span class="text-gray-400">Tokens per call:</span>
@@ -744,9 +744,9 @@ function populateUsageData(data) {
             const totalCostCents = stats.total_cost_cents || 0;
             const maxCostCents = stats.max_cost_per_call_cents || 0;
             
-            document.getElementById('avgCost').textContent = avgCostCents > 0 ? `${avgCostCents.toFixed(4)}¢` : 'Free';
-            document.getElementById('totalCost').textContent = totalCostCents > 0 ? `${totalCostCents.toFixed(2)}¢` : 'Free';
-            document.getElementById('maxCost').textContent = maxCostCents > 0 ? `${maxCostCents.toFixed(4)}¢` : 'Free';
+            document.getElementById('avgCost').textContent = avgCostCents > 0 ? `${avgCostCents.toFixed(4)}$` : 'Free';
+            document.getElementById('totalCost').textContent = totalCostCents > 0 ? `${totalCostCents.toFixed(2)}$` : 'Free';
+            document.getElementById('maxCost').textContent = maxCostCents > 0 ? `${maxCostCents.toFixed(4)}$` : 'Free';
             document.getElementById('processingType').textContent = stats.primary_model_used && stats.primary_model_used !== 'none' ? 'AI-Powered' : 'Free';
         } else {
             // No usage data available

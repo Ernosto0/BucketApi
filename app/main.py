@@ -3095,7 +3095,7 @@ async def test_api(request: TestRequest):
                     }
                     
                     logger.info(f"Code analysis complete for {request.api_slug}: "
-                               f"model={api_cost.ai_model_used}, cost={api_cost.cost_per_call_cents}¢, "
+                               f"model={api_cost.ai_model_used}, cost={api_cost.cost_per_call_cents}$, "
                                f"tokens={api_cost.internal_tokens_per_call}")
                     
                 except Exception as analysis_error:
