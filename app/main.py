@@ -27,6 +27,7 @@ from .models import (
     ProposalRequest, ProposalResponse, ProposalModificationRequest, ProposalModificationResponse,
     APIGenerationRequest, APIGenerationResponse, APIModificationRequest, APIModificationResponse,
     APIExecutionRequest, APIExecutionResponse, SaveAPIRequest, SaveAPIResponse, ListAPIsResponse,
+    GenerateDocumentationRequest, GenerateDocumentationResponse,
     ChatAnalysisRequest, ChatAnalysisResponse, MessageIntentRequest, MessageIntentResponse, HealthResponse, ChatMessage,
     TestRequest, TestResponse,
     APIKey, CreateAPIKeyRequest, CreateAPIKeyResponse, ListAPIKeysResponse, 
@@ -1165,7 +1166,7 @@ async def generate_api_stream(
                 "type": "chat_message",
                 "timestamp": datetime.now().isoformat(),
                 "data": {
-                    "message": "🚀 Starting API generation...",
+                    "message": "Starting API generation...",
                     "is_ai": True,
                     "message_type": "greeting"
                 }
@@ -1307,7 +1308,8 @@ async def generate_api_stream(
                         prompt=api_request.prompt,
                         user_id=current_user.id,
                         api_key_id=api_key_id,
-                        api_slug=clean_slug
+                        api_slug=clean_slug,
+                        api_name=api_request.api_name
                     )
                     
                     # Build endpoint URL
@@ -1602,7 +1604,8 @@ async def generate_api(
             prompt=api_request.prompt,
             user_id=current_user.id,
             api_key_id=api_key_id,
-            api_slug=clean_slug
+            api_slug=clean_slug,
+            api_name=api_request.api_name
         )
         
         # Build endpoint URL
@@ -2031,6 +2034,13 @@ async def modify_api(
                 user_id=modification_request.user_id,
                 api_slug=modification_request.api_slug
             ) if hasattr(file_service, "load_api_documentation") else None
+            
+            # Get API name from metadata if available
+            api_metadata = file_service.get_api_metadata(
+                user_id=modification_request.user_id,
+                api_slug=modification_request.api_slug
+            )
+            api_name = api_metadata.api_name if api_metadata else None
 
             if not existing_doc or not existing_doc.get("documentation"):
                 documentation, openapi_spec, curl_example = await doc_service.generate_documentation(
@@ -2038,7 +2048,8 @@ async def modify_api(
                     prompt=modification_request.prompt,
                     user_id=modification_request.user_id,
                     api_key_id=api_key_id,
-                    api_slug=modification_request.api_slug
+                    api_slug=modification_request.api_slug,
+                    api_name=api_name
                 )
             else:
                 # Get existing documentation content
@@ -2718,6 +2729,93 @@ async def get_api_code(user_id: str, api_slug: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get API code: {str(e)}"
+        )
+
+@app.post("/generate-documentation", response_model=GenerateDocumentationResponse)
+async def generate_documentation(
+    doc_request: GenerateDocumentationRequest,
+    user_and_key: Tuple[Optional[User], Optional[str]] = Depends(get_current_user_and_api_key_hybrid)
+):
+    """
+    Generate documentation for an existing API.
+    This endpoint regenerates documentation for an API by loading its code and metadata.
+    """
+    try:
+        current_user, api_key_id = user_and_key
+        
+        # Verify user has access to this API
+        if current_user and current_user.id != doc_request.user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: You can only generate documentation for your own APIs"
+            )
+        
+        # Check if API exists
+        if not file_service.api_exists(doc_request.user_id, doc_request.api_slug):
+            raise HTTPException(
+                status_code=404,
+                detail=f"API not found: {doc_request.user_id}/{doc_request.api_slug}"
+            )
+        
+        # Get API metadata to retrieve prompt and other info
+        api_metadata = file_service.get_api_metadata(doc_request.user_id, doc_request.api_slug)
+        if not api_metadata:
+            raise HTTPException(
+                status_code=404,
+                detail=f"API metadata not found: {doc_request.user_id}/{doc_request.api_slug}"
+            )
+        
+        # Load API code
+        code = file_service.load_api_code(doc_request.user_id, doc_request.api_slug)
+        
+        # Generate documentation
+        documentation, openapi_spec, curl_example = await openai_service.generate_documentation(
+            code=code,
+            prompt=api_metadata.prompt,
+            user_id=doc_request.user_id,
+            api_key_id=api_key_id,
+            api_slug=doc_request.api_slug,
+            api_name=api_metadata.api_name
+        )
+        
+        # Build endpoint URL
+        endpoint_url = f"{settings.API_PREFIX}/{doc_request.user_id}/{doc_request.api_slug}"
+        
+        # Update curl example with actual endpoint
+        if "your-endpoint-url" in curl_example:
+            curl_example = curl_example.replace("your-endpoint-url", endpoint_url)
+        
+        # Update API documentation in database
+        try:
+            # Update existing metadata with new documentation
+            mongodb.saved_apis.update_one(
+                {"user_id": doc_request.user_id, "api_slug": doc_request.api_slug},
+                {"$set": {
+                    "documentation": documentation,
+                    "curl_example": curl_example,
+                    "openapi_spec": json.dumps(openapi_spec) if openapi_spec else api_metadata.openapi_spec,
+                    "endpoint_url": endpoint_url
+                }}
+            )
+            logger.info(f"API documentation updated in database for {doc_request.api_slug}")
+        except Exception as e:
+            logger.warning(f"Failed to update API documentation in database: {e}")
+            # Continue even if database update fails
+        
+        return GenerateDocumentationResponse(
+            success=True,
+            message=f"Documentation generated successfully for {doc_request.api_slug}",
+            api_slug=doc_request.api_slug,
+            documentation=documentation
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate documentation for {doc_request.api_slug}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate documentation: {str(e)}"
         )
 
 @app.post("/test-api", response_model=TestResponse)
