@@ -597,9 +597,7 @@ async function sendMessage() {
     }, 300);
 
     // Check if we're in modification mode
-    if (isModificationMode && currentApiData) {
-        console.log('Processing modification request for API:', currentApiData.api_slug);
-        
+    if (isModificationMode && currentApiData) {        
         // Get user ID from currentApiData or auth
         const userId = currentApiData.user_id || (currentUser ? currentUser.id : 'temp_' + Date.now());
         
@@ -1180,7 +1178,7 @@ function formatStreamingMessage(message) {
 function formatMessageType(messageType) {
     const typeMap = {
         greeting: '🤖 AI Assistant',
-        step_start: '🚀 Step Started',
+        step_start: ' Step Started',
         step_complete: '✅ Step Complete',
         step_error: '❌ Step Error',
         ai_processing: '🧠 AI Processing',
@@ -1251,13 +1249,8 @@ async function addMessage(type, content, options = {}) {
         
         messageDiv.className = 'message-animation assistant-message-entrance';
         messageDiv.innerHTML = `
-            <div class="flex items-start space-x-3 w-full">
-                <div class="w-8 h-8 bg-gradient-to-r from-emerald-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0 assistant-avatar">
-                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                    </svg>
-                </div>
-                <div class="glass-card rounded-2xl p-6 flex-1 min-w-0 assistant-message-content">
+            <div class="w-full">
+                <div class="glass-card rounded-2xl p-6 max-w-4xl assistant-message-content">
                     <div class="typing-content"></div>
                 </div>
             </div>
@@ -1326,13 +1319,8 @@ function showThinkingDots() {
     thinkingDiv.id = 'thinking-indicator';
     thinkingDiv.className = 'thinking-animation';
     thinkingDiv.innerHTML = `
-        <div class="flex items-start space-x-3 w-full">
-            <div class="w-8 h-8 bg-gradient-to-r from-emerald-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0">
-                <svg class="w-4 h-4 text-white animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-                </svg>
-            </div>
-            <div class="glass-card rounded-2xl p-4 flex-1 min-w-0">
+        <div class="w-full">
+            <div class="glass-card rounded-2xl p-4 max-w-4xl">
                 <div class="flex items-center space-x-2">
                     <div class="thinking-dots">
                         <div class="thinking-dot"></div>
@@ -1611,7 +1599,7 @@ function createLoadingAnimation() {
                 </div>
                 <div class="text-center">
                     <h4 class="font-semibold text-white mb-2 flex items-center space-x-2">
-                        <span class="text-green-400">🚀</span>
+                        <span class="text-green-400"></span>
                         <span>Building Your API...</span>
                     </h4>
                     <div class="flex items-center space-x-2">
@@ -1654,7 +1642,7 @@ function createFullSectionLoadingAnimation() {
                 <!-- Status Text -->
                 <div class="space-y-4">
                     <h3 class="text-2xl font-bold text-white flex items-center justify-center space-x-3">
-                        <span class="text-green-400">🚀</span>
+                        <span class="text-green-400"></span>
                         <span>Building Your API</span>
                     </h3>
                     
@@ -1769,7 +1757,7 @@ function startAPIBuild(originalPrompt, userId, buttonElement) {
 async function confirmBuildAPI(originalPrompt, userId) {
     try {
         // Add user confirmation message
-        addMessage('user', '🚀 Yes, build this API!');
+        addMessage('user', ' Yes, build this API!');
         
         // Hide the chat input container since user won't need to send more messages
         hideChatInput();
@@ -2455,7 +2443,7 @@ function deployCurrentAPI() {
     
     // Add deployment success message
     addMessage('system', `
-        🚀 API deployed successfully! Redirecting to API details page...
+        API deployed successfully! Redirecting to API details page...
         <div class="mt-4 p-4 bg-green-900/20 border border-green-500/30 rounded-xl">
             <div class="flex items-center space-x-3">
                 <div class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
@@ -2778,6 +2766,16 @@ function handleModificationComplete(result) {
         
         // This is a final modified API
         addAPIResultMessage(result, true); 
+        
+        // Explicitly update test input with new test data for the modified API
+        // This ensures test scenarios are regenerated based on the updated API
+        if (result.api_slug && result.user_id) {
+            updateTestInput({
+                api_slug: result.api_slug,
+                user_id: result.user_id,
+                ...result
+            });
+        }
         
         // Keep modification mode active
         const chatInput = document.getElementById('chatInput');
@@ -3759,10 +3757,6 @@ function extractSampleTestDataFromDocumentation(documentation) {
 async function updateTestInput(apiData) {
     const testInput = document.getElementById('previewTestInput');
     
-    // Debug logging
-    console.log('updateTestInput called with:', apiData);
-    console.log('API slug:', apiData.api_slug, 'User ID:', apiData.user_id);
-    
     // Try to generate smart test data using our AI endpoint
     if (apiData.api_slug && apiData.user_id) {
         try {
@@ -3785,7 +3779,6 @@ async function updateTestInput(apiData) {
             testInput.parentElement.insertBefore(loadingIndicator, testInput);
             
             // Call our AI test data generation endpoint
-            console.log(`Calling: /generate-test-data/${apiData.user_id}/${apiData.api_slug}`);
             const response = await fetch(`/generate-test-data/${apiData.user_id}/${apiData.api_slug}`);
             
             if (response.ok) {
@@ -4102,7 +4095,7 @@ async function runPreviewTest() {
 
 
         // Add message for API call
-        addStreamingMessage('🚀 Executing API test request...', 'step_start');
+        addStreamingMessage(' Executing API test request...', 'step_start');
         await new Promise(resolve => setTimeout(resolve, 2400));
         
         addStreamingMessage('📊 Processing test results...', 'ai_processing');
@@ -4439,7 +4432,7 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
             <div class="flex flex-wrap gap-3">
                 <button data-action="build" data-proposal-id="${proposalId}"
                         class="proposal-action-btn px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
-                    🚀 Build It!
+                     Build It!
                 </button>
                 <button data-action="modify" data-proposal-id="${proposalId}"
                         class="proposal-action-btn px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
@@ -4624,11 +4617,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const prompt = proposalData?.originalPrompt;
         const userId = proposalData?.userId;
         
-        console.log('🚀 [v2.0] Executing action:', action);
         
         switch(action) {
             case 'build':
-                console.log('🚀 [v2.0] Starting API build with prompt length:', prompt?.length);
                 startAPIBuild(prompt, userId, button);
                 break;
             case 'modify':
@@ -4804,8 +4795,30 @@ async function switchToModificationMode() {
         chatInput.disabled = true; // Disable until API is selected
     }
     
-    // Show modification mode welcome message
-    showModificationWelcomeMessage();
+    // Show a simple modification mode message
+    addMessage('assistant', `
+        <div class="flex items-start space-x-3">
+            <div class="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
+            </div>
+            <div class="flex-1">
+                <div class="mb-4">
+                    <div class="flex items-center space-x-2 mb-2">
+                        <span class="status-badge bg-orange-900/50 text-orange-400 border-orange-500/30">Modification Mode</span>
+                        <h3 class="font-semibold text-white">Modify Your Existing APIs</h3>
+                    </div>
+                    <p class="text-slate-300 mb-4">Select an API from the dropdown above to get started. Then describe the changes you'd like to make.</p>
+                </div>
+                <div class="bg-orange-900/20 border border-orange-500/30 rounded-lg p-4">
+                    <p class="text-orange-200 text-sm">
+                        <strong>💡 Tip:</strong> You can add features, change behavior, remove functionality, or fix issues. Just describe what you want in plain English!
+                    </p>
+                </div>
+            </div>
+        </div>
+    `, { skipDelay: true });
     
     console.log('✅ Switched to Modification Mode (awaiting API selection)');
 }
@@ -4997,7 +5010,7 @@ function showGenerationWelcomeMessage() {
                         <div class="flex items-start space-x-3">
                             <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                                 <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
                                 </svg>
                             </div>
                             <div>
