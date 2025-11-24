@@ -499,6 +499,184 @@
     color: #cbd5e1 !important;
 }
 
+/* Enhanced visibility for Swagger UI section headers and labels */
+#swagger-ui .opblock-tag {
+    color: #f1f5f9 !important;
+    font-weight: 600 !important;
+    font-size: 1.25rem !important;
+}
+
+#swagger-ui .opblock-tag-section {
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+}
+
+#swagger-ui .opblock-summary-path {
+    color: #e2e8f0 !important;
+    font-weight: 500 !important;
+}
+
+#swagger-ui .opblock-summary-method {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+}
+
+#swagger-ui .opblock-summary-description {
+    color: #cbd5e1 !important;
+    font-weight: 400 !important;
+}
+
+#swagger-ui .opblock-section-header {
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+    background: rgba(30, 41, 59, 0.8) !important;
+}
+
+#swagger-ui .opblock-section-header label {
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+}
+
+#swagger-ui .model-title {
+    color: #f1f5f9 !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+}
+
+#swagger-ui .model-box-control {
+    color: #cbd5e1 !important;
+    font-weight: 500 !important;
+}
+
+#swagger-ui .model-title__text {
+    color: #f1f5f9 !important;
+    font-weight: 600 !important;
+}
+
+#swagger-ui .opblock-description-wrapper {
+    color: #cbd5e1 !important;
+}
+
+#swagger-ui .opblock-description-wrapper p {
+    color: #cbd5e1 !important;
+}
+
+#swagger-ui .opblock-description-wrapper h4 {
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+}
+
+#swagger-ui .opblock-summary-control {
+    color: #e2e8f0 !important;
+}
+
+#swagger-ui .opblock-summary-operation-id {
+    color: #94a3b8 !important;
+    font-weight: 500 !important;
+}
+
+#swagger-ui .opblock-summary-path__deprecated {
+    color: #f87171 !important;
+    text-decoration: line-through !important;
+}
+
+#swagger-ui .opblock-summary-method__deprecated {
+    color: #f87171 !important;
+}
+
+#swagger-ui .opblock-summary-description__deprecated {
+    color: #f87171 !important;
+}
+
+#swagger-ui .opblock-summary-operation-id__deprecated {
+    color: #f87171 !important;
+}
+
+/* Make all text in Swagger UI more visible */
+#swagger-ui .opblock .opblock-summary {
+    color: #f1f5f9 !important;
+}
+
+#swagger-ui .opblock .opblock-summary:hover {
+    background: rgba(30, 41, 59, 0.9) !important;
+}
+
+#swagger-ui .opblock .opblock-summary:focus {
+    background: rgba(30, 41, 59, 0.9) !important;
+}
+
+#swagger-ui .opblock .opblock-summary:active {
+    background: rgba(30, 41, 59, 0.9) !important;
+}
+
+/* Schema section visibility */
+#swagger-ui .models-control {
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+}
+
+#swagger-ui .models h4 {
+    color: #f1f5f9 !important;
+    font-weight: 600 !important;
+    font-size: 1.25rem !important;
+}
+
+#swagger-ui .model-container {
+    background: rgba(30, 41, 59, 0.8) !important;
+    border: 1px solid rgba(100, 116, 139, 0.3) !important;
+}
+
+#swagger-ui .model-container:hover {
+    background: rgba(30, 41, 59, 0.9) !important;
+    border-color: rgba(100, 116, 139, 0.5) !important;
+}
+
+/* Options and other control labels */
+#swagger-ui label {
+    color: #e2e8f0 !important;
+    font-weight: 500 !important;
+}
+
+#swagger-ui .parameter__name.required {
+    color: #fbbf24 !important;
+    font-weight: 600 !important;
+}
+
+#swagger-ui .parameter__name.required::after {
+    color: #ef4444 !important;
+    font-weight: 700 !important;
+}
+
+/* Response section headers */
+#swagger-ui .response-col_status {
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+}
+
+#swagger-ui .response-col_links {
+    color: #e2e8f0 !important;
+    font-weight: 500 !important;
+}
+
+/* Tab and section navigation */
+#swagger-ui .tab li {
+    color: #cbd5e1 !important;
+}
+
+#swagger-ui .tab li.active {
+    color: #60a5fa !important;
+    font-weight: 600 !important;
+}
+
+#swagger-ui .tab li button {
+    color: #cbd5e1 !important;
+}
+
+#swagger-ui .tab li.active button {
+    color: #60a5fa !important;
+    font-weight: 600 !important;
+}
+
 .interactive-test {
     background: rgba(30, 41, 59, 0.5);
     border: 1px solid rgba(100, 116, 139, 0.2);

@@ -1127,18 +1127,39 @@
         return html;
     }
 
+    function extractAPINameFromPrompt(promptText, fallbackName) {
+        if (!promptText || typeof promptText !== 'string') return fallbackName;
+        
+        // Try to extract API name from structured prompt
+        // Pattern: "API Name: ..." or "Name: ..."
+        const nameMatch = promptText.match(/(?:API Name|Name):\s*([^\n]+)/i);
+        if (nameMatch && nameMatch[1]) {
+            return nameMatch[1].trim();
+        }
+        
+        // Try to extract from prompt that starts with name
+        const inlineMatch = promptText.match(/^([^\n:]+?)(?:\s+Description:)/i);
+        if (inlineMatch && inlineMatch[1]) {
+            return inlineMatch[1].trim();
+        }
+        
+        // Return the fallback name
+        return fallbackName;
+    }
+
     // Create Saved API Card
     function createSavedAPICard(api) {
         const card = document.createElement('div');
         card.className = 'glass-effect rounded-xl p-6 border border-slate-600/50 hover:border-green-500/30 transition-all duration-200';
         
         const endpointUrl = window.location.origin + api.endpoint_url;
+        const displayName = extractAPINameFromPrompt(api.prompt, api.api_name);
         
         card.innerHTML = `
             <div class="flex items-start justify-between mb-4">
                 <div class="flex-1">
                     <div class="flex items-center space-x-3 mb-2">
-                        <h3 class="text-lg font-semibold text-white">${api.api_name}</h3>
+                        <h3 class="text-lg font-semibold text-white">${displayName}</h3>
                         <span class="px-2 py-1 text-xs rounded-full text-green-400 bg-green-500/20">
                             Active
                         </span>
@@ -1159,7 +1180,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
                     </button>
-                    <button onclick="showDeleteAPIModal('${api.api_slug}', '${api.api_name}')" class="p-2 hover:bg-red-500/20 rounded-lg transition-colors" title="Delete API">
+                    <button onclick="showDeleteAPIModal('${api.api_slug}', '${displayName.replace(/'/g, "\\'")}')" class="p-2 hover:bg-red-500/20 rounded-lg transition-colors" title="Delete API">
                         <svg class="w-4 h-4 text-slate-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                         </svg>

@@ -40,6 +40,11 @@ async function parseAndDistributeDocumentation() {
         const response = await fetch(`/api/${apiData.user_id}/${apiData.api_slug}/apidetails`);
         const data = await response.json();
         
+        // Update API name from prompt
+        if (response.ok) {
+            updateAPIName(data);
+        }
+        
         if (response.ok && data.documentation && data.documentation !== 'Documentation not available') {
             const documentation = data.documentation;
             console.log('Documentation content:', documentation.substring(0, 200) + '...');
@@ -448,6 +453,27 @@ function parseMarkdown(content) {
         .replace(/\n/g, '<br>');
 }
 
+// Extract API name from prompt (same logic as profile.html)
+function extractAPINameFromPrompt(promptText, fallbackName) {
+    if (!promptText || typeof promptText !== 'string') return fallbackName;
+    
+    // Try to extract API name from structured prompt
+    // Pattern: "API Name: ..." or "Name: ..."
+    const nameMatch = promptText.match(/(?:API Name|Name):\s*([^\n]+)/i);
+    if (nameMatch && nameMatch[1]) {
+        return nameMatch[1].trim();
+    }
+    
+    // Try to extract from prompt that starts with name
+    const inlineMatch = promptText.match(/^([^\n:]+?)(?:\s+Description:)/i);
+    if (inlineMatch && inlineMatch[1]) {
+        return inlineMatch[1].trim();
+    }
+    
+    // Return the fallback name
+    return fallbackName;
+}
+
 // Load API data and populate endpoints
 async function loadAPIData() {
     try {
@@ -455,10 +481,21 @@ async function loadAPIData() {
         const data = await response.json();
         
         if (response.ok) {
+            // Update the API name in the sidebar header
+            updateAPIName(data);
             populateEndpoints(data);
         }
     } catch (error) {
         console.error('Failed to load API data:', error);
+    }
+}
+
+// Update API name in the sidebar header
+function updateAPIName(data) {
+    const apiNameElement = document.querySelector('.docs-sidebar h1');
+    if (apiNameElement && data.prompt) {
+        const displayName = extractAPINameFromPrompt(data.prompt, data.api_name || `API ${apiData.api_slug}`);
+        apiNameElement.textContent = displayName;
     }
 }
 
