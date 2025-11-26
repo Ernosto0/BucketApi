@@ -197,9 +197,19 @@ def is_admin_user(email: str) -> bool:
     """Check if a user is an admin based on their email."""
     admin_emails_str = os.getenv("ADMIN_EMAILS", "admin@localhost,admin@yourdomain.com")
     admin_emails = [e.strip() for e in admin_emails_str.split(',')]
-    logger.info(f"Checking if {email} is an admin user")
-    # Check if email is in admin list or contains 'admin'
-    return email.lower() in [e.lower() for e in admin_emails] or 'admin' in email.lower()
+    
+    # Check if email is in admin list
+    email_in_list = email.lower() in [e.lower() for e in admin_emails]
+    
+    # Check if email contains 'admin' (case-insensitive)
+    email_contains_admin = 'admin' in email.lower()
+    
+    is_admin = email_in_list or email_contains_admin
+    
+    logger.info(f"Admin check for {email}: in_list={email_in_list}, contains_admin={email_contains_admin}, result={is_admin}")
+    logger.debug(f"Admin emails from env: {admin_emails}")
+    
+    return is_admin
 
 def get_or_create_session_id(request: Request) -> str:
     """Get session ID from cookies or create a new one."""
@@ -293,8 +303,13 @@ async def admin_panel_page(request: Request):
         return RedirectResponse(url="/login", status_code=302)
     
     # Check if user is admin
-    if not is_admin_user(user.email):
-        return RedirectResponse(url="/dashboard", status_code=302)
+    is_admin = is_admin_user(user.email)
+    logger.info(f"Admin check for {user.email}: {is_admin}")
+    
+    if not is_admin:
+        logger.warning(f"Access denied to admin panel for user: {user.email}")
+        # Redirect with a message parameter that can be shown on dashboard
+        return RedirectResponse(url="/dashboard?admin_access_denied=true", status_code=302)
     
     return templates.TemplateResponse("admin_panel.html", {"request": request, "user": user})
 
@@ -3909,20 +3924,32 @@ async def get_log_statistics(
 async def check_admin_auth(request: Request):
     """Check if the current user has admin privileges."""
     try:
-        user = await require_admin_auth(request)
+        user = await get_current_user(request)
+        if not user:
+            return {"success": False, "is_admin": False, "message": "Authentication required"}
+        
+        is_admin = is_admin_user(user.email)
+        admin_emails_str = os.getenv("ADMIN_EMAILS", "admin@localhost,admin@yourdomain.com")
+        admin_emails = [e.strip() for e in admin_emails_str.split(',')]
+        
         return {
             "success": True,
-            "is_admin": True,
+            "is_admin": is_admin,
             "user": {
                 "email": user.email,
                 "id": user.id
+            },
+            "admin_emails_configured": admin_emails,
+            "email_contains_admin": 'admin' in user.email.lower(),
+            "setup_instructions": {
+                "method1": f"Set ADMIN_EMAILS environment variable to include: {user.email}",
+                "method2": "Use an email address that contains 'admin' (case-insensitive)",
+                "current_env": admin_emails_str
             }
         }
-    except HTTPException as e:
-        if e.status_code == 403:
-            return {"success": False, "is_admin": False, "message": "Admin access required"}
-        else:
-            raise HTTPException(status_code=401, detail="Authentication required")
+    except Exception as e:
+        logger.error(f"Error checking admin auth: {str(e)}")
+        return {"success": False, "is_admin": False, "message": f"Error: {str(e)}"}
 
 @app.get("/admin/system/status")
 async def get_system_status(request: Request, admin_user: User = Depends(require_admin_auth)):
@@ -4186,6 +4213,183 @@ async def list_all_users(
     except Exception as e:
         logger.error(f"Failed to list users: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to list users: {str(e)}")
+
+
+# Settings endpoints
+
+@app.get("/admin/settings")
+async def get_all_settings(
+    request: Request,
+    category: Optional[str] = None,
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Get all system settings (admin only)."""
+    try:
+        from .services.settings_service import settings_service
+        
+        if category:
+            settings_list = settings_service.get_settings_by_category(category)
+        else:
+            settings_list = settings_service.get_all_settings(include_sensitive=False)
+        
+        categories = settings_service.get_categories()
+        
+        return {
+            "success": True,
+            "settings": settings_list,
+            "categories": categories
+        }
+    except Exception as e:
+        logger.error(f"Failed to get settings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get settings: {str(e)}")
+
+@app.get("/admin/settings/{key}")
+async def get_setting(
+    request: Request,
+    key: str,
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Get a specific setting by key (admin only)."""
+    try:
+        from .services.settings_service import settings_service
+        
+        setting = settings_service.get_setting(key)
+        if not setting:
+            raise HTTPException(status_code=404, detail=f"Setting not found: {key}")
+        
+        return {
+            "success": True,
+            "setting": setting
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get setting {key}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get setting: {str(e)}")
+
+@app.put("/admin/settings/{key}")
+async def update_setting(
+    request: Request,
+    key: str,
+    update_data: dict = Body(...),
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Update a specific setting (admin only)."""
+    try:
+        from .services.settings_service import settings_service
+        
+        value = update_data.get("value")
+        if value is None:
+            raise HTTPException(status_code=400, detail="Value is required")
+        
+        result = settings_service.update_setting(key, value, admin_user.id)
+        
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["message"])
+        
+        return {
+            "success": True,
+            "message": result["message"],
+            "setting": result.get("setting"),
+            "requires_restart": result.get("requires_restart", True)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update setting {key}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update setting: {str(e)}")
+
+@app.post("/admin/settings/bulk-update")
+async def bulk_update_settings(
+    request: Request,
+    updates: dict = Body(...),
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Update multiple settings at once (admin only)."""
+    try:
+        from .services.settings_service import settings_service
+        
+        settings_to_update = updates.get("settings", [])
+        if not settings_to_update:
+            raise HTTPException(status_code=400, detail="No settings provided")
+        
+        results = []
+        any_requires_restart = False
+        
+        for setting_update in settings_to_update:
+            key = setting_update.get("key")
+            value = setting_update.get("value")
+            
+            if not key or value is None:
+                results.append({
+                    "key": key,
+                    "success": False,
+                    "message": "Key and value are required"
+                })
+                continue
+            
+            result = settings_service.update_setting(key, value, admin_user.id)
+            results.append({
+                "key": key,
+                "success": result["success"],
+                "message": result["message"]
+            })
+            
+            if result.get("requires_restart"):
+                any_requires_restart = True
+        
+        success_count = sum(1 for r in results if r["success"])
+        
+        return {
+            "success": True,
+            "message": f"Updated {success_count} of {len(settings_to_update)} settings",
+            "results": results,
+            "requires_restart": any_requires_restart
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to bulk update settings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to bulk update settings: {str(e)}")
+
+@app.post("/admin/settings/reset")
+async def reset_settings_to_defaults(
+    request: Request,
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Reset all settings to their default values (admin only)."""
+    try:
+        from .services.settings_service import settings_service
+        
+        result = settings_service.reset_to_defaults(admin_user.id)
+        
+        return {
+            "success": result["success"],
+            "message": result["message"],
+            "requires_restart": result.get("requires_restart", True)
+        }
+    except Exception as e:
+        logger.error(f"Failed to reset settings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to reset settings: {str(e)}")
+
+@app.get("/admin/settings/categories")
+async def get_setting_categories(
+    request: Request,
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Get all setting categories (admin only)."""
+    try:
+        from .services.settings_service import settings_service
+        
+        categories = settings_service.get_categories()
+        
+        return {
+            "success": True,
+            "categories": categories
+        }
+    except Exception as e:
+        logger.error(f"Failed to get categories: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get categories: {str(e)}")
 
 # ===================================
 # SUBSCRIPTION ENDPOINTS
@@ -4589,9 +4793,131 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000) 
 
 
-
-
 # Report endpoints
+
+@app.get("/admin/reports")
+async def list_all_reports(
+    request: Request,
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    severity: Optional[str] = None,
+    admin_user: User = Depends(require_admin_auth)
+):
+    """List all reports in the system (admin only)."""
+    try:
+        # Build MongoDB query
+        query = {}
+        if status:
+            query["status"] = status
+        if category:
+            query["category"] = category
+        if severity:
+            query["severity"] = severity
+        
+        # Get all reports with filtering
+        reports_cursor = mongodb.reports.find(query).sort("created_at", -1)
+        reports_list = list(reports_cursor)
+        
+        # Convert to Report models
+        reports = []
+        for report_doc in reports_list:
+            reports.append(Report(
+                report_id=report_doc["report_id"],
+                api_user_id=report_doc["api_user_id"],
+                api_slug=report_doc["api_slug"],
+                endpoint_url=report_doc.get("endpoint_url"),
+                reporter_user_id=report_doc["reporter_user_id"],
+                reporter_email=report_doc["reporter_email"],
+                category=report_doc["category"],
+                severity=report_doc["severity"],
+                description=report_doc["description"],
+                status=report_doc["status"],
+                created_at=report_doc["created_at"],
+                updated_at=report_doc["updated_at"]
+            ))
+        
+        return {
+            "success": True,
+            "reports": reports,
+            "total": len(reports)
+        }
+    except Exception as e:
+        logger.error(f"Failed to list all reports: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to list reports: {str(e)}")
+
+@app.put("/admin/reports/{report_id}/status")
+async def update_report_status(
+    request: Request,
+    report_id: str,
+    status_data: dict = Body(...),
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Update report status (admin only)."""
+    try:
+        new_status = status_data.get("status")
+        if not new_status:
+            raise HTTPException(status_code=400, detail="Status is required")
+        
+        valid_statuses = ["pending", "reviewed", "resolved", "dismissed"]
+        if new_status not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            )
+        
+        result = mongodb.reports.update_one(
+            {"report_id": report_id},
+            {
+                "$set": {
+                    "status": new_status,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        logger.info(f"Admin {admin_user.email} updated report {report_id} status to {new_status}")
+        
+        return {
+            "success": True,
+            "message": f"Report status updated to {new_status}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update report status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to update report status: {str(e)}")
+
+@app.delete("/admin/reports/{report_id}")
+async def delete_report(
+    request: Request,
+    report_id: str,
+    admin_user: User = Depends(require_admin_auth)
+):
+    """Delete a report (admin only)."""
+    try:
+        result = mongodb.reports.delete_one({"report_id": report_id})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        logger.info(f"Admin {admin_user.email} deleted report {report_id}")
+        
+        return {
+            "success": True,
+            "message": "Report deleted successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete report: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete report: {str(e)}")
+
+# ===================================
+# PUBLIC REPORT ENDPOINTS
+# ===================================
 
 @app.post("/api/reports", response_model=CreateReportResponse)
 async def create_report(

@@ -984,4 +984,39 @@ class ListReportsResponse(BaseModel):
     success: bool
     reports: List[Report]
     total: int
+
+# Settings Management Models
+class SettingValue(BaseModel):
+    """Individual setting value"""
+    key: str
+    value: Any
+    value_type: str  # 'string', 'int', 'float', 'bool', 'list', 'dict'
+    category: str  # 'ai', 'security', 'application', 'authentication', 'features'
+    description: Optional[str] = None
+    is_sensitive: bool = False  # If true, value is masked in responses
+    requires_restart: bool = True  # If true, requires service restart
+    last_updated: Optional[datetime] = None
+    updated_by: Optional[str] = None  # Admin user ID
+
+class UpdateSettingRequest(BaseModel):
+    """Request to update a setting"""
+    key: str
+    value: Any
+    
+class UpdateSettingsRequest(BaseModel):
+    """Request to update multiple settings"""
+    settings: List[UpdateSettingRequest]
+
+class SettingsResponse(BaseModel):
+    """Response with all settings"""
+    success: bool
+    settings: List[SettingValue]
+    categories: List[str]
+
+class UpdateSettingResponse(BaseModel):
+    """Response after updating a setting"""
+    success: bool
+    message: str
+    setting: Optional[SettingValue] = None
+    requires_restart: bool = False
    

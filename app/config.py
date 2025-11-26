@@ -1,13 +1,58 @@
 import os
-from typing import Set, List
+import time
+from typing import Set, List, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class Settings:
-
-    # Some Settings
-    ENABLE_TEST_VALIDATION_DEBUGGING: bool = "true"
+    """
+    Application settings with support for dynamic configuration.
+    Settings can be overridden from the database via the settings service.
+    """
+    
+    _settings_cache: Optional[dict] = None
+    _cache_timestamp: Optional[float] = None
+    _cache_ttl: int = 60  # Cache settings for 60 seconds
+    
+    def _get_db_setting(self, key: str, default):
+        """
+        Get a setting from the database with caching.
+        Falls back to default if database is unavailable or setting not found.
+        """
+        try:
+            # Check if cache is valid
+            current_time = time.time()
+            if (self._settings_cache is not None and 
+                self._cache_timestamp is not None and 
+                current_time - self._cache_timestamp < self._cache_ttl):
+                return self._settings_cache.get(key, default)
+            
+            # Try to load from database
+            try:
+                from .services.mongodb import mongodb
+                if mongodb and hasattr(mongodb, 'system_settings'):
+                    setting_doc = mongodb.system_settings.find_one({"key": key})
+                    if setting_doc:
+                        # Update cache
+                        if self._settings_cache is None:
+                            self._settings_cache = {}
+                        self._settings_cache[key] = setting_doc.get("value", default)
+                        self._cache_timestamp = current_time
+                        return setting_doc.get("value", default)
+            except Exception:
+                # Database not available yet (during startup), use default
+                pass
+                
+            return default
+        except Exception:
+            # Any error, return default
+            return default
+    
+    def clear_cache(self):
+        """Clear the settings cache to force reload from database."""
+        self._settings_cache = None
+        self._cache_timestamp = None
 
     # MongoDB Configuration 
     MONGODB_URL: str = os.getenv("MONGODB_URL")
@@ -15,10 +60,19 @@ class Settings:
 
     # OpenAI Configuration for api generation
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5-mini")
     
-    MAX_TOKENS_OPENAI: int = 10000
-    TEMPERATURE_OPENAI: float = 0.3
+    @property
+    def OPENAI_MODEL(self) -> str:
+        return self._get_db_setting("OPENAI_MODEL", os.getenv("OPENAI_MODEL", "gpt-4-turbo"))
+    
+    @property
+    def MAX_TOKENS_OPENAI(self) -> int:
+        return self._get_db_setting("MAX_TOKENS_OPENAI", 10000)
+    
+    @property
+    def TEMPERATURE_OPENAI(self) -> float:
+        return self._get_db_setting("TEMPERATURE_OPENAI", 0.3)
+    
     TOP_P_OPENAI: float = 1.0
     FREQUENCY_PENALTY_OPENAI: float = 0.0
     PRESENCE_PENALTY_OPENAI: float = 0.0
@@ -30,10 +84,19 @@ class Settings:
     
     # Claude Configuration for api generation
     CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
-    CLAUDE_MODEL: str = "claude-3-5-haiku-latest"
     
-    MAX_TOKENS_CLAUDE: int = 10000
-    TEMPERATURE_CLAUDE: float = 0.3
+    @property
+    def CLAUDE_MODEL(self) -> str:
+        return self._get_db_setting("CLAUDE_MODEL", "claude-3-5-haiku-latest")
+    
+    @property
+    def MAX_TOKENS_CLAUDE(self) -> int:
+        return self._get_db_setting("MAX_TOKENS_CLAUDE", 10000)
+    
+    @property
+    def TEMPERATURE_CLAUDE(self) -> float:
+        return self._get_db_setting("TEMPERATURE_CLAUDE", 0.3)
+    
     TOP_P_CLAUDE: float = 1.0
     FREQUENCY_PENALTY_CLAUDE: float = 0.0
     PRESENCE_PENALTY_CLAUDE: float = 0.0
@@ -43,15 +106,30 @@ class Settings:
     STOP_TOKEN_CLAUDE: List[str] = []
     STOP_TOKEN_IDS_CLAUDE: List[int] = []
     
-    GENERATE_DOCS_SERVICE: str = "OPENAI_SERVICE"
+    @property
+    def GENERATE_DOCS_SERVICE(self) -> str:
+        return self._get_db_setting("GENERATE_DOCS_SERVICE", "OPENAI_SERVICE")
 
-    RETRY_MAX_ATTEMPTS: int = 3
-    RETRY_MAX_DELAY_SECONDS: int = 10
-    RETRY_MIN_DELAY_SECONDS: int = 2
+    @property
+    def RETRY_MAX_ATTEMPTS(self) -> int:
+        return self._get_db_setting("RETRY_MAX_ATTEMPTS", 3)
+    
+    @property
+    def RETRY_MAX_DELAY_SECONDS(self) -> int:
+        return self._get_db_setting("RETRY_MAX_DELAY_SECONDS", 10)
+    
+    @property
+    def RETRY_MIN_DELAY_SECONDS(self) -> int:
+        return self._get_db_setting("RETRY_MIN_DELAY_SECONDS", 2)
 
     # Application Configuration
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
-    MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
+    @property
+    def ENVIRONMENT(self) -> str:
+        return self._get_db_setting("ENVIRONMENT", os.getenv("ENVIRONMENT", "development"))
+    
+    @property
+    def MAX_FILE_SIZE(self) -> int:
+        return self._get_db_setting("MAX_FILE_SIZE", 10 * 1024 * 1024)
     
     # Cookie Security Configuration
     @property
@@ -97,7 +175,10 @@ class Settings:
     
     # Authentication Configuration
     SECRET_KEY: str = os.getenv("SECRET_KEY")
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 4320  # 3 days
+    
+    @property
+    def ACCESS_TOKEN_EXPIRE_MINUTES(self) -> int:
+        return self._get_db_setting("ACCESS_TOKEN_EXPIRE_MINUTES", 4320)
     
     # OAuth Configuration
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
@@ -110,13 +191,26 @@ class Settings:
     GITHUB_REDIRECT_URI: str = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:8001/auth/github/callback")
     
     # Feature Flags
-    ENABLE_CUSTOM_AUTH: bool = os.getenv("ENABLE_CUSTOM_AUTH", "false").lower() == "true"  # Disabled by default
-    ENABLE_GOOGLE_AUTH: bool = os.getenv("ENABLE_GOOGLE_AUTH", "true").lower() == "true"  # Enabled by default
-    ENABLE_GITHUB_AUTH: bool = os.getenv("ENABLE_GITHUB_AUTH", "true").lower() == "true"  # Enabled by default
+    @property
+    def ENABLE_CUSTOM_AUTH(self) -> bool:
+        return self._get_db_setting("ENABLE_CUSTOM_AUTH", os.getenv("ENABLE_CUSTOM_AUTH", "false").lower() == "true")
+    
+    @property
+    def ENABLE_GOOGLE_AUTH(self) -> bool:
+        return self._get_db_setting("ENABLE_GOOGLE_AUTH", os.getenv("ENABLE_GOOGLE_AUTH", "true").lower() == "true")
+    
+    @property
+    def ENABLE_GITHUB_AUTH(self) -> bool:
+        return self._get_db_setting("ENABLE_GITHUB_AUTH", os.getenv("ENABLE_GITHUB_AUTH", "true").lower() == "true")
+    
+    @property
+    def ENABLE_TEST_VALIDATION_DEBUGGING(self) -> bool:
+        return self._get_db_setting("ENABLE_TEST_VALIDATION_DEBUGGING", True)
     
     # Security Configuration
-    SECURITY_SERVICE_ENABLED: bool = os.getenv("SECURITY_SERVICE_ENABLED", "true").lower() == "true"
-    print("security service enabled", SECURITY_SERVICE_ENABLED)
+    @property
+    def SECURITY_SERVICE_ENABLED(self) -> bool:
+        return self._get_db_setting("SECURITY_SERVICE_ENABLED", os.getenv("SECURITY_SERVICE_ENABLED", "true").lower() == "true")
     FORBIDDEN_KEYWORDS: Set[str] = {
         "subprocess", "eval", "exec", "requests", "urllib", 
         "socket", "import", "__import__", "open", "file", "input",
@@ -134,7 +228,12 @@ class Settings:
     REDOC_URL: str = "/redoc"
 
     # Add port configuration
-    PORT: int = int(os.getenv('PORT', 8001))  # Default to 8001 instead of 8000
-    HOST: str = os.getenv('HOST', '127.0.0.1')  # Use localhost instead of 0.0.0.0
+    @property
+    def PORT(self) -> int:
+        return self._get_db_setting("PORT", int(os.getenv('PORT', 8001)))
+    
+    @property
+    def HOST(self) -> str:
+        return self._get_db_setting("HOST", os.getenv('HOST', '127.0.0.1'))
 
 settings = Settings()  

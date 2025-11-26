@@ -130,6 +130,9 @@ class MongoDB:
         # Report collections
         self._collections['reports'] = self.db['reports']
         
+        # Settings management collection
+        self._collections['system_settings'] = self.db['system_settings']
+        
         logger.info(f"✅ Initialized {len(self._collections)} collections")
     
     def _create_indexes(self):
@@ -242,6 +245,11 @@ class MongoDB:
             self.reports.create_index([("severity", ASCENDING)])
             self.reports.create_index([("created_at", DESCENDING)])
             
+            # System Settings indexes
+            self.system_settings.create_index([("key", ASCENDING)], unique=True)
+            self.system_settings.create_index([("category", ASCENDING)])
+            self.system_settings.create_index([("last_updated", DESCENDING)])
+            
             logger.info("✅ Created all database indexes")
             
         except Exception as e:
@@ -327,6 +335,10 @@ class MongoDB:
     @property
     def reports(self) -> Collection:
         return self._collections['reports']
+    
+    @property
+    def system_settings(self) -> Collection:
+        return self._collections['system_settings']
     
     def close(self):
         """Close MongoDB connection"""
