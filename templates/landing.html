@@ -20,7 +20,7 @@
             <div class="absolute bottom-1/4 left-1/3 w-3 h-3 bg-cyan-400 rounded-full animate-bounce opacity-30"></div>
         </div>
         
-        <div class="relative container mx-auto px-4 py-24 lg:py-40">
+        <div class="relative container mx-auto px-4 pt-24 pb-4 lg:pt-40 lg:pb-8">
             <div class="text-center max-w-6xl mx-auto">
                
                 <!-- Hero Title -->
@@ -33,8 +33,16 @@
                     </span>
                 </h1>
 
+                <!-- Hero Subtitle -->
+                <p class="text-xl md:text-2xl lg:text-3xl mb-12 max-w-4xl mx-auto leading-relaxed" style="color: #E2E8F0;">
+                    The fastest way from idea to working API. Describe what you need in 
+                    <span class="font-semibold text-blue-400">plain English</span>, 
+                    get a <span class="font-semibold text-indigo-400">hosted, production-ready API</span> 
+                    in under 30 seconds.
+                </p>
+
                 <!-- Compact Chat Input Bar -->
-                <div class="max-w-3xl mx-auto mb-8">
+                <div class="max-w-3xl mx-auto mb-2">
                     <div class="relative">
                         <div class="flex items-center bg-slate-800/80 backdrop-blur-xl rounded-full p-2 border border-slate-600/50 shadow-2xl hover:border-blue-500/50 transition-all duration-300">
                             <!-- Input Field -->
@@ -77,28 +85,6 @@
                     </div>
                 </div>
 
-                <!-- Hero Subtitle -->
-                <p class="text-xl md:text-2xl lg:text-3xl mb-6 max-w-5xl mx-auto leading-relaxed" style="color: #F9FAFB;">
-                    The fastest way from idea to working API. Describe what you need in 
-                    <span class="font-semibold" style="color: #3B82F6;">plain English</span>, 
-                    get a <span class="font-semibold" style="color: #6366F1;">hosted, production-ready API</span> 
-                    in under 30 seconds.
-                </p>
-                
-                <!-- Concrete Example -->
-                <div class="rounded-xl p-6 mb-8 max-w-4xl mx-auto border" style="background-color: rgba(13, 17, 23, 0.8); border-color: rgba(59, 130, 246, 0.3);">
-                    <div class="text-sm mb-3" style="color: #9CA3AF;">Example:</div>
-                    <div class="mb-3 italic" style="color: #F9FAFB;">
-                        "Create an API that converts CSV files to JSON and validates email addresses"
-                    </div>
-                    <div class="flex items-center space-x-2 text-sm" style="color: #10B981;">
-                        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                        </svg>
-                        <span>→ Live API in 15 seconds: POST /api/your-username/csv-validator</span>
-                    </div>
-                </div>
-                
                 <!-- Value Proposition Points -->
                 <div class="flex flex-wrap justify-center gap-6 mb-12 text-sm" style="color: #F9FAFB;">
                     <div class="flex items-center space-x-2">
@@ -174,39 +160,18 @@
                 </div>
                 
                 <!-- Trust Indicators -->
-                <div class="text-center text-sm mb-8 text-slate-400">
+                <div class="text-center text-sm mb-2 text-slate-400">
                     <span class="px-3 py-1 rounded-full bg-blue-900/20 text-blue-400">Free to start</span>
                     <span class="mx-3">•</span>
                     <span class="px-3 py-1 rounded-full bg-blue-900/20 text-blue-400">No credit card required</span>
                     <span class="mx-3">•</span>
                     <span class="px-3 py-1 rounded-full bg-blue-900/20 text-blue-400">Deploy in 60 seconds</span>
                 </div>
-
-                <!-- Key Stats -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center mb-8">
-                <div class="glass-effect rounded-xl p-4">
-                    <div class="text-2xl font-bold mb-1 text-blue-400">&lt;30s</div>
-                    <div class="text-xs text-slate-400">Build Time</div>
-                </div>
-                <div class="glass-effect rounded-xl p-4">
-                    <div class="text-2xl font-bold mb-1 text-blue-400">GPT-5 and Claude 4</div>
-                    <div class="text-xs text-slate-400">AI Powered</div>
-                </div>
-                <div class="glass-effect rounded-xl p-4">
-                    <div class="text-2xl font-bold mb-1 text-blue-400">50+</div>
-                    <div class="text-xs text-slate-400">File Formats</div>
-                </div>
-                <div class="glass-effect rounded-xl p-4">
-                    <div class="text-2xl font-bold mb-1 text-blue-400">99.9%</div>
-                    <div class="text-xs text-slate-400">Uptime</div>
-                </div>
-            </div>
             </div>
         </div>
-    </section>
 
     <!-- Scrolling API Prompts Section -->
-    <section class="py-16 overflow-hidden relative" style="background: linear-gradient(135deg, rgba(13, 17, 23, 0.6), rgba(30, 30, 47, 0.6));">
+    <div class="py-4 overflow-hidden relative w-full">
         <div class="absolute inset-0 overflow-hidden pointer-events-none">
             <div class="absolute top-0 left-0 w-full h-full" style="background: linear-gradient(90deg, rgba(13, 17, 23, 0.8) 0%, transparent 10%, transparent 90%, rgba(13, 17, 23, 0.8) 100%);"></div>
         </div>
@@ -218,250 +183,239 @@
                     <!-- First set of prompts -->
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
-                            <div class="api-prompt-icon">📄</div>
-                            <div class="api-prompt-title">PDF to Text Converter</div>
+                            <div class="api-prompt-icon">🤖</div>
+                            <div class="api-prompt-title">AI Content Moderator</div>
                         </div>
-                        <div class="api-prompt-description">Extract text from PDF files with OCR support</div>
-                        <div class="api-prompt-feature">• Multi-page support • Formatting preserved</div>
+                        <div class="api-prompt-description">Detect toxic, offensive, or inappropriate content using AI</div>
+                        <div class="api-prompt-feature">• Multi-language • Context-aware • Confidence scoring</div>
                     </div>
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🌤️</div>
-                            <div class="api-prompt-title">Weather Forecast API</div>
+                            <div class="api-prompt-icon">✍️</div>
+                            <div class="api-prompt-title">Smart Text Rewriter</div>
                         </div>
-                        <div class="api-prompt-description">Get real-time weather data and forecasts</div>
-                        <div class="api-prompt-feature">• 7-day forecast • Hourly updates • Global coverage</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🖼️</div>
-                            <div class="api-prompt-title">Image Resizer & Optimizer</div>
-                        </div>
-                        <div class="api-prompt-description">Resize, compress, and optimize images on the fly</div>
-                        <div class="api-prompt-feature">• Multiple formats • Quality control • Batch processing</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🔗</div>
-                            <div class="api-prompt-title">URL Shortener Service</div>
-                        </div>
-                        <div class="api-prompt-description">Create short, trackable links with analytics</div>
-                        <div class="api-prompt-feature">• Custom slugs • Click tracking • Expiration dates</div>
+                        <div class="api-prompt-description">AI-powered text paraphrasing and style transformation</div>
+                        <div class="api-prompt-feature">• Tone adjustment • Plagiarism-free • Multiple styles</div>
                     </div>
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
                             <div class="api-prompt-icon">📧</div>
-                            <div class="api-prompt-title">Email Validator API</div>
+                            <div class="api-prompt-title">Email Response Generator</div>
                         </div>
-                        <div class="api-prompt-description">Validate email addresses and check deliverability</div>
-                        <div class="api-prompt-feature">• Syntax check • Domain validation • MX record lookup</div>
+                        <div class="api-prompt-description">Generate professional email responses from context</div>
+                        <div class="api-prompt-feature">• Context-aware • Custom tone • Multi-language</div>
                     </div>
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
-                            <div class="api-prompt-icon">💳</div>
-                            <div class="api-prompt-title">Credit Card Validator</div>
+                            <div class="api-prompt-icon">🎯</div>
+                            <div class="api-prompt-title">Product Description Writer</div>
                         </div>
-                        <div class="api-prompt-description">Validate card numbers and detect card types</div>
-                        <div class="api-prompt-feature">• Luhn algorithm • Card type detection • Secure validation</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🔐</div>
-                            <div class="api-prompt-title">Password Generator</div>
-                        </div>
-                        <div class="api-prompt-description">Generate secure passwords with customizable rules</div>
-                        <div class="api-prompt-feature">• Length control • Character sets • Strength scoring</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">📊</div>
-                            <div class="api-prompt-title">CSV to JSON Converter</div>
-                        </div>
-                        <div class="api-prompt-description">Convert CSV files to structured JSON format</div>
-                        <div class="api-prompt-feature">• Auto-detection • Custom delimiters • Type inference</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🌐</div>
-                            <div class="api-prompt-title">IP Geolocation API</div>
-                        </div>
-                        <div class="api-prompt-description">Get location data from IP addresses</div>
-                        <div class="api-prompt-feature">• Country & city • ISP info • Timezone data</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">📝</div>
-                            <div class="api-prompt-title">Text Summarizer</div>
-                        </div>
-                        <div class="api-prompt-description">AI-powered text summarization and extraction</div>
-                        <div class="api-prompt-feature">• Multiple lengths • Key points • Language support</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🎨</div>
-                            <div class="api-prompt-title">QR Code Generator</div>
-                        </div>
-                        <div class="api-prompt-description">Generate QR codes for URLs, text, and data</div>
-                        <div class="api-prompt-feature">• Custom sizes • Error correction • Logo embedding</div>
+                        <div class="api-prompt-description">Create compelling product descriptions from features</div>
+                        <div class="api-prompt-feature">• SEO optimized • Multiple formats • Brand voice</div>
                     </div>
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
                             <div class="api-prompt-icon">🔍</div>
-                            <div class="api-prompt-title">Text Sentiment Analyzer</div>
+                            <div class="api-prompt-title">Resume Parser & Analyzer</div>
                         </div>
-                        <div class="api-prompt-description">Analyze sentiment and emotions in text</div>
-                        <div class="api-prompt-feature">• Positive/negative • Emotion detection • Confidence scores</div>
+                        <div class="api-prompt-description">Extract and analyze resume data with AI insights</div>
+                        <div class="api-prompt-feature">• Skill extraction • Experience scoring • Format agnostic</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">💬</div>
+                            <div class="api-prompt-title">Chatbot Intent Classifier</div>
+                        </div>
+                        <div class="api-prompt-description">Classify user intents for intelligent routing</div>
+                        <div class="api-prompt-feature">• Custom intents • Confidence scores • Multi-turn support</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">📝</div>
+                            <div class="api-prompt-title">Meeting Notes Summarizer</div>
+                        </div>
+                        <div class="api-prompt-description">Transform meeting transcripts into actionable summaries</div>
+                        <div class="api-prompt-feature">• Action items • Key decisions • Participant tracking</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">🎨</div>
+                            <div class="api-prompt-title">Social Media Caption Generator</div>
+                        </div>
+                        <div class="api-prompt-description">Create engaging captions for social media posts</div>
+                        <div class="api-prompt-feature">• Platform-specific • Hashtag suggestions • Emoji support</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">🌐</div>
+                            <div class="api-prompt-title">Language Translator API</div>
+                        </div>
+                        <div class="api-prompt-description">Translate text between languages with context awareness</div>
+                        <div class="api-prompt-feature">• 50+ languages • Context preservation • Idiom handling</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">📊</div>
+                            <div class="api-prompt-title">Data Insights Extractor</div>
+                        </div>
+                        <div class="api-prompt-description">Extract insights and trends from structured data</div>
+                        <div class="api-prompt-feature">• Pattern detection • Anomaly alerts • Natural language output</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">🎓</div>
+                            <div class="api-prompt-title">Quiz Generator from Text</div>
+                        </div>
+                        <div class="api-prompt-description">Generate educational quizzes from any content</div>
+                        <div class="api-prompt-feature">• Multiple question types • Difficulty levels • Answer keys</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">🔐</div>
+                            <div class="api-prompt-title">Code Documentation Generator</div>
+                        </div>
+                        <div class="api-prompt-description">Auto-generate documentation from source code</div>
+                        <div class="api-prompt-feature">• Multiple languages • API docs • Usage examples</div>
                     </div>
                     
                     <!-- Duplicate set for seamless loop -->
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
-                            <div class="api-prompt-icon">📄</div>
-                            <div class="api-prompt-title">PDF to Text Converter</div>
+                            <div class="api-prompt-icon">🤖</div>
+                            <div class="api-prompt-title">AI Content Moderator</div>
                         </div>
-                        <div class="api-prompt-description">Extract text from PDF files with OCR support</div>
-                        <div class="api-prompt-feature">• Multi-page support • Formatting preserved</div>
+                        <div class="api-prompt-description">Detect toxic, offensive, or inappropriate content using AI</div>
+                        <div class="api-prompt-feature">• Multi-language • Context-aware • Confidence scoring</div>
                     </div>
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🌤️</div>
-                            <div class="api-prompt-title">Weather Forecast API</div>
+                            <div class="api-prompt-icon">✍️</div>
+                            <div class="api-prompt-title">Smart Text Rewriter</div>
                         </div>
-                        <div class="api-prompt-description">Get real-time weather data and forecasts</div>
-                        <div class="api-prompt-feature">• 7-day forecast • Hourly updates • Global coverage</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🖼️</div>
-                            <div class="api-prompt-title">Image Resizer & Optimizer</div>
-                        </div>
-                        <div class="api-prompt-description">Resize, compress, and optimize images on the fly</div>
-                        <div class="api-prompt-feature">• Multiple formats • Quality control • Batch processing</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🔗</div>
-                            <div class="api-prompt-title">URL Shortener Service</div>
-                        </div>
-                        <div class="api-prompt-description">Create short, trackable links with analytics</div>
-                        <div class="api-prompt-feature">• Custom slugs • Click tracking • Expiration dates</div>
+                        <div class="api-prompt-description">AI-powered text paraphrasing and style transformation</div>
+                        <div class="api-prompt-feature">• Tone adjustment • Plagiarism-free • Multiple styles</div>
                     </div>
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
                             <div class="api-prompt-icon">📧</div>
-                            <div class="api-prompt-title">Email Validator API</div>
+                            <div class="api-prompt-title">Email Response Generator</div>
                         </div>
-                        <div class="api-prompt-description">Validate email addresses and check deliverability</div>
-                        <div class="api-prompt-feature">• Syntax check • Domain validation • MX record lookup</div>
+                        <div class="api-prompt-description">Generate professional email responses from context</div>
+                        <div class="api-prompt-feature">• Context-aware • Custom tone • Multi-language</div>
                     </div>
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
-                            <div class="api-prompt-icon">💳</div>
-                            <div class="api-prompt-title">Credit Card Validator</div>
+                            <div class="api-prompt-icon">🎯</div>
+                            <div class="api-prompt-title">Product Description Writer</div>
                         </div>
-                        <div class="api-prompt-description">Validate card numbers and detect card types</div>
-                        <div class="api-prompt-feature">• Luhn algorithm • Card type detection • Secure validation</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🔐</div>
-                            <div class="api-prompt-title">Password Generator</div>
-                        </div>
-                        <div class="api-prompt-description">Generate secure passwords with customizable rules</div>
-                        <div class="api-prompt-feature">• Length control • Character sets • Strength scoring</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">📊</div>
-                            <div class="api-prompt-title">CSV to JSON Converter</div>
-                        </div>
-                        <div class="api-prompt-description">Convert CSV files to structured JSON format</div>
-                        <div class="api-prompt-feature">• Auto-detection • Custom delimiters • Type inference</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🌐</div>
-                            <div class="api-prompt-title">IP Geolocation API</div>
-                        </div>
-                        <div class="api-prompt-description">Get location data from IP addresses</div>
-                        <div class="api-prompt-feature">• Country & city • ISP info • Timezone data</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">📝</div>
-                            <div class="api-prompt-title">Text Summarizer</div>
-                        </div>
-                        <div class="api-prompt-description">AI-powered text summarization and extraction</div>
-                        <div class="api-prompt-feature">• Multiple lengths • Key points • Language support</div>
-                    </div>
-                    <div class="api-prompt-box">
-                        <div class="api-prompt-header">
-                            <div class="api-prompt-icon">🎨</div>
-                            <div class="api-prompt-title">QR Code Generator</div>
-                        </div>
-                        <div class="api-prompt-description">Generate QR codes for URLs, text, and data</div>
-                        <div class="api-prompt-feature">• Custom sizes • Error correction • Logo embedding</div>
+                        <div class="api-prompt-description">Create compelling product descriptions from features</div>
+                        <div class="api-prompt-feature">• SEO optimized • Multiple formats • Brand voice</div>
                     </div>
                     <div class="api-prompt-box">
                         <div class="api-prompt-header">
                             <div class="api-prompt-icon">🔍</div>
-                            <div class="api-prompt-title">Text Sentiment Analyzer</div>
+                            <div class="api-prompt-title">Resume Parser & Analyzer</div>
                         </div>
-                        <div class="api-prompt-description">Analyze sentiment and emotions in text</div>
-                        <div class="api-prompt-feature">• Positive/negative • Emotion detection • Confidence scores</div>
+                        <div class="api-prompt-description">Extract and analyze resume data with AI insights</div>
+                        <div class="api-prompt-feature">• Skill extraction • Experience scoring • Format agnostic</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">💬</div>
+                            <div class="api-prompt-title">Chatbot Intent Classifier</div>
+                        </div>
+                        <div class="api-prompt-description">Classify user intents for intelligent routing</div>
+                        <div class="api-prompt-feature">• Custom intents • Confidence scores • Multi-turn support</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">📝</div>
+                            <div class="api-prompt-title">Meeting Notes Summarizer</div>
+                        </div>
+                        <div class="api-prompt-description">Transform meeting transcripts into actionable summaries</div>
+                        <div class="api-prompt-feature">• Action items • Key decisions • Participant tracking</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">🎨</div>
+                            <div class="api-prompt-title">Social Media Caption Generator</div>
+                        </div>
+                        <div class="api-prompt-description">Create engaging captions for social media posts</div>
+                        <div class="api-prompt-feature">• Platform-specific • Hashtag suggestions • Emoji support</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">🌐</div>
+                            <div class="api-prompt-title">Language Translator API</div>
+                        </div>
+                        <div class="api-prompt-description">Translate text between languages with context awareness</div>
+                        <div class="api-prompt-feature">• 50+ languages • Context preservation • Idiom handling</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">📊</div>
+                            <div class="api-prompt-title">Data Insights Extractor</div>
+                        </div>
+                        <div class="api-prompt-description">Extract insights and trends from structured data</div>
+                        <div class="api-prompt-feature">• Pattern detection • Anomaly alerts • Natural language output</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">🎓</div>
+                            <div class="api-prompt-title">Quiz Generator from Text</div>
+                        </div>
+                        <div class="api-prompt-description">Generate educational quizzes from any content</div>
+                        <div class="api-prompt-feature">• Multiple question types • Difficulty levels • Answer keys</div>
+                    </div>
+                    <div class="api-prompt-box">
+                        <div class="api-prompt-header">
+                            <div class="api-prompt-icon">🔐</div>
+                            <div class="api-prompt-title">Code Documentation Generator</div>
+                        </div>
+                        <div class="api-prompt-description">Auto-generate documentation from source code</div>
+                        <div class="api-prompt-feature">• Multiple languages • API docs • Usage examples</div>
                     </div>
                 </div>
             </div>
         </div>
-    </section>
+    </div>
+</section>
 
-    <!-- Social Proof Section -->
-    <section class="py-16" style="background: linear-gradient(135deg, rgba(13, 17, 23, 0.4), rgba(30, 30, 47, 0.4));">
+    <!-- Trusted By Section -->
+    <section class="py-10 border-b border-slate-800/50" style="background: rgba(13, 17, 23, 0.3);">
         <div class="container mx-auto px-4">
-            <!-- Testimonials -->
-            <div class="text-center mb-12">
-                <h2 class="text-3xl md:text-4xl font-bold mb-4" style="color: #F9FAFB;">
-                    Trusted by Developers
-                </h2>
-                <p class="text-lg max-w-2xl mx-auto" style="color: #9CA3AF;">
-                    Join the growing community building APIs faster with AI
-                </p>
-            </div>
-            
-            <!-- Early User Feedback -->
-            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                <!-- User Feedback 1 -->
-                <div class="glass-effect rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
-                    <div class="flex items-center space-x-3 mb-4">
-                        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                            U
-                        </div>
-                        <div>
-                            <div class="font-semibold text-white">Beta User</div>
-                            <div class="text-sm text-slate-400">Full Stack Developer</div>
-                        </div>
-                        <div class="ml-auto text-blue-400">★★★★★</div>
-                    </div>
-                    <p class="leading-relaxed text-white">
-                        "Finally, a tool that actually understands what I'm trying to build. The generated APIs work exactly as described - no debugging needed."
-                    </p>
+            <p class="text-center text-sm font-medium text-slate-500 mb-8 uppercase tracking-wider">Powered by industry-leading technology</p>
+            <div class="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-70 grayscale hover:grayscale-0 transition-all duration-500">
+                <!-- OpenAI -->
+                <div class="flex items-center space-x-2 group cursor-pointer hover:scale-105 transition-transform">
+                    <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1195 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l3.1028-1.7995 3.1028 1.7995v3.591l-3.1028 1.8043-3.1028-1.8043z"/>
+                    </svg>
+                    <span class="text-xl font-bold text-slate-300 group-hover:text-white transition-colors">OpenAI</span>
                 </div>
                 
-                <!-- User Feedback 2 -->
-                <div class="glass-effect rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
-                    <div class="flex items-center space-x-3 mb-4">
-                        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                            A
-                        </div>
-                        <div>
-                            <div class="font-semibold text-white">Early Adopter</div>
-                            <div class="text-sm text-slate-400">Startup Founder</div>
-                        </div>
-                        <div class="ml-auto text-blue-400">★★★★★</div>
-                    </div>
-                    <p class="leading-relaxed text-white">
-                        "Perfect for rapid prototyping. I can test business ideas with real APIs in minutes instead of weeks. This is the future of development."
-                    </p>
+                <!-- Anthropic -->
+                <div class="flex items-center space-x-2 group cursor-pointer hover:scale-105 transition-transform">
+                    <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                         <path d="M17.43 19.37H14.46L12.97 15.56H6.94L5.45 19.37H2.48L10.32 0H12.51L20.36 19.37H17.43ZM7.96 12.93H11.95L9.95 7.76L7.96 12.93Z" />
+                    </svg>
+                    <span class="text-xl font-bold text-slate-300 group-hover:text-white transition-colors">Anthropic</span>
+                </div>
+
+                <!-- FastAPI -->
+                <div class="flex items-center space-x-2 group cursor-pointer hover:scale-105 transition-transform">
+                    <svg class="w-8 h-8 text-teal-500 group-hover:text-teal-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm-1.5 19.5v-6H6l7.5-10.5v6h4.5l-7.5 10.5z"/>
+                    </svg>
+                    <span class="text-xl font-bold text-slate-300 group-hover:text-white transition-colors">FastAPI</span>
+                </div>
+
+                <!-- Python -->
+                <div class="flex items-center space-x-2 group cursor-pointer hover:scale-105 transition-transform">
+                    <svg class="w-8 h-8 text-blue-500 group-hover:text-blue-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                         <path d="M14.25.18l.9.2.73.26.59.3.45.32.34.34.25.34.16.33.1.3.04.26.02.2-.01.13V8.5l-.05.63-.13.55-.21.46-.26.4-.3.31-.33.25-.35.19-.35.14-.33.1-.3.07-.26.04-.21.02H8.77l-.69.05-.59.14-.5.22-.41.27-.33.32-.27.35-.2.36-.15.37-.1.35-.07.32-.04.27-.02.21v3.06H3.17l-.21-.03-.28-.07-.32-.12-.35-.18-.36-.26-.36-.36-.35-.46-.32-.59-.28-.73-.21-.88-.14-1.05-.05-1.23.06-1.22.16-1.04.24-.87.32-.71.36-.57.4-.44.42-.33.42-.24.4-.16.36-.1.32-.05.24-.01h.16l.06.01h8.16v-2.36l-.01-.28-.04-.26-.05-.23-.08-.21-.08-.18-.1-.16-.1-.13-.13-.13-.12-.09-.15-.09-.15-.05-.15-.04-.16-.01-.14.01-.27.04-.27.1-.24.16-.23.22-.19.27-.17.33-.12.37-.08.42-.04.46-.01.48v.35l-.01.36-.03.34-.06.33-.08.3-.11.29-.14.26-.16.24-.18.21-.21.19-.22.16-.25.13-.25.09-.28.06-.27.02-.28-.01-.28-.05-.27-.08-.25-.11-.23-.15-.21-.17-.19-.21-.16-.23-.13-.26-.1-.28-.07-.31-.04-.33-.02-.34v-.54l.02-.28.05-.26.07-.24.1-.21.13-.18.15-.16.17-.12.2-.09.21-.05.23-.01.23.01.23.06.21.09.2.12.19.17.16.19.14.22.12.26.09.29.06.31.03.34.01.35v2.21h-2.6l-.36.01-.32.04-.29.08-.25.11-.22.16-.18.19-.15.24-.11.27-.08.31-.05.34-.02.36v.56l.02.28.05.26.07.24.1.21.13.18.15.16.17.12.2.09.21.05.23.01.24-.01.23-.06.22-.09.2-.12.18-.17.17-.19.14-.22.11-.26.09-.29.06-.31.03-.34.01-.35V8.72h10.9v1.74l-.01.28-.04.26-.05.23-.08.21-.08.18-.1.16-.1.13-.13.13-.12.09-.15.09-.15.05-.15.04-.16.01h-.13l-.27-.04-.27-.1-.24-.16-.23-.22-.19-.27-.17-.33-.12-.37-.08-.42-.04-.46-.01-.48v-.35l.02-.36.04-.34.07-.33.09-.3.12-.29.14-.26.17-.24.19-.21.21-.19.23-.16.25-.13.26-.09.28-.06.27-.02.28.01.28.05.27.08.25.11.23.15.21.17.19.21.16.23.13.26.1.28.07.31.04.33.02.34v.54l-.02.28-.05.26-.07.24-.1.21-.13.18-.15.16-.17.12-.2.09-.21.05-.23.01-.23-.01-.23-.06-.21-.09-.2-.12-.19-.17-.16-.19-.14-.22-.12-.26-.09-.29-.06-.31-.03-.34-.01-.35V5.25h2.62l.36-.01.32-.04.29-.08.25-.11.22-.16.18-.19.15-.24.11-.27.08-.31.05-.34.02-.36v-.56l-.02-.28-.05-.26-.07-.24-.1-.21-.13-.18-.15-.16-.17-.12-.2-.09-.21-.05-.23-.01-.24.01-.23.06-.22.09-.2.12-.18.17-.17.19-.14.22-.11.26-.09.29-.06.31-.03.34-.01.35z"/>
+                    </svg>
+                    <span class="text-xl font-bold text-slate-300 group-hover:text-white transition-colors">Python</span>
                 </div>
             </div>
         </div>
@@ -690,7 +644,7 @@
                             </li>
                         </ul>
                         
-                        <a href="#contact" class="block w-full px-4 py-3 border-2 border-yellow-600 hover:border-yellow-500 text-yellow-300 hover:text-white font-semibold rounded-xl transition-all duration-300 hover:bg-yellow-500/10 text-center text-sm">
+                        <a href="mailto:support@ai-api-generator.com" class="block w-full px-4 py-3 border-2 border-yellow-600 hover:border-yellow-500 text-yellow-300 hover:text-white font-semibold rounded-xl transition-all duration-300 hover:bg-yellow-500/10 text-center text-sm">
                             Contact Sales
                         </a>
                     </div>
@@ -816,6 +770,59 @@
 
 
 
+
+
+    <!-- Social Proof Section -->
+    <section class="py-20 lg:py-24" style="background: linear-gradient(135deg, rgba(13, 17, 23, 0.4), rgba(30, 30, 47, 0.4));">
+        <div class="container mx-auto px-4">
+            <!-- Testimonials -->
+            <div class="text-center mb-12">
+                <h2 class="text-3xl md:text-4xl font-bold mb-4" style="color: #F9FAFB;">
+                    Trusted by Developers
+                </h2>
+                <p class="text-lg max-w-2xl mx-auto" style="color: #9CA3AF;">
+                    Join the growing community building APIs faster with AI
+                </p>
+            </div>
+            
+            <!-- Early User Feedback -->
+            <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <!-- User Feedback 1 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                            U
+                        </div>
+                        <div>
+                            <div class="font-semibold text-white">Beta User</div>
+                            <div class="text-sm text-slate-400">Full Stack Developer</div>
+                        </div>
+                        <div class="ml-auto text-blue-400">★★★★★</div>
+                    </div>
+                    <p class="leading-relaxed text-white">
+                        "Finally, a tool that actually understands what I'm trying to build. The generated APIs work exactly as described - no debugging needed."
+                    </p>
+                </div>
+                
+                <!-- User Feedback 2 -->
+                <div class="glass-effect rounded-2xl p-6 hover:border-blue-500/50 transition-all duration-300">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                            A
+                        </div>
+                        <div>
+                            <div class="font-semibold text-white">Early Adopter</div>
+                            <div class="text-sm text-slate-400">Startup Founder</div>
+                        </div>
+                        <div class="ml-auto text-blue-400">★★★★★</div>
+                    </div>
+                    <p class="leading-relaxed text-white">
+                        "Perfect for rapid prototyping. I can test business ideas with real APIs in minutes instead of weeks. This is the future of development."
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- FAQ Section -->
     <section class="py-20 lg:py-32">
@@ -943,6 +950,49 @@
             </div>
         </div>
     </section>
+</div>
+
+<!-- Generation Progress Modal -->
+<div id="generation-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl transform scale-95 transition-transform duration-300" id="generation-modal-content">
+        <div class="text-center">
+            <div class="mb-6 relative">
+                <div class="w-20 h-20 mx-auto bg-slate-800 rounded-full flex items-center justify-center">
+                    <svg id="modal-icon-spinner" class="w-10 h-10 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <svg id="modal-icon-check" class="w-10 h-10 text-green-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                </div>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-2" id="modal-title">Initializing AI...</h3>
+            <p class="text-slate-400 mb-6" id="modal-subtitle">Analyzing your requirements</p>
+            
+            <!-- Progress Steps -->
+            <div class="space-y-4 text-left mb-8 pl-4">
+                <div class="flex items-center text-slate-500 transition-colors duration-300" id="step-1">
+                    <div class="w-5 h-5 rounded-full border border-slate-600 mr-3 flex items-center justify-center overflow-hidden bg-slate-800">
+                        <div class="w-full h-full bg-blue-500 hidden step-active"></div>
+                    </div>
+                    <span class="text-sm">Parsing natural language model...</span>
+                </div>
+                <div class="flex items-center text-slate-500 transition-colors duration-300" id="step-2">
+                     <div class="w-5 h-5 rounded-full border border-slate-600 mr-3 flex items-center justify-center overflow-hidden bg-slate-800">
+                        <div class="w-full h-full bg-blue-500 hidden step-active"></div>
+                    </div>
+                    <span class="text-sm">Designing API schema & endpoints...</span>
+                </div>
+                <div class="flex items-center text-slate-500 transition-colors duration-300" id="step-3">
+                     <div class="w-5 h-5 rounded-full border border-slate-600 mr-3 flex items-center justify-center overflow-hidden bg-slate-800">
+                        <div class="w-full h-full bg-blue-500 hidden step-active"></div>
+                    </div>
+                    <span class="text-sm">Optimizing Python code structure...</span>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Floating Action Button (hidden on landing; preserved for future use)
@@ -1468,7 +1518,6 @@ pre code {
 
     function handleGenerateClick() {
         const chatInput = document.getElementById('demo-chat-input');
-        const generateBtn = document.getElementById('demo-generate-btn');
         const inputText = chatInput.value.trim();
 
         if (!inputText) {
@@ -1481,33 +1530,80 @@ pre code {
             return;
         }
 
-        // Store the API idea in localStorage for the dashboard
+        // Check if user is already authenticated
+        {% if user %}
+        // User is logged in, redirect to dashboard immediately
+        localStorage.setItem('pendingApiIdea', inputText);
+        window.location.href = '/dashboard';
+        return;
+        {% endif %}
+
+        // Store the API idea in localStorage
         localStorage.setItem('pendingApiIdea', inputText);
 
-        // Show loading state
-        const originalText = generateBtn.innerHTML;
-        generateBtn.innerHTML = `
-            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
-            <span>Generating...</span>
-        `;
-        generateBtn.disabled = true;
+        // Show Modal
+        const modal = document.getElementById('generation-modal');
+        const modalContent = document.getElementById('generation-modal-content');
+        const modalTitle = document.getElementById('modal-title');
+        const modalSubtitle = document.getElementById('modal-subtitle');
+        
+        modal.classList.remove('hidden');
+        // Trigger reflow
+        void modal.offsetWidth;
+        modal.classList.remove('opacity-0');
+        modalContent.classList.remove('scale-95');
+        modalContent.classList.add('scale-100');
 
-        // Check if user is authenticated
-        {% if user %}
-        // User is logged in, redirect to dashboard
+        function activateStep(stepId) {
+            const stepEl = document.getElementById(stepId);
+            if(stepEl) {
+                stepEl.classList.remove('text-slate-500');
+                stepEl.classList.add('text-white', 'font-medium');
+                const indicator = stepEl.querySelector('.step-active');
+                if(indicator) indicator.classList.remove('hidden');
+                
+                const circle = stepEl.querySelector('.rounded-full');
+                if(circle) {
+                    circle.classList.remove('border-slate-600');
+                    circle.classList.add('border-blue-500');
+                }
+            }
+        }
+
+        // Step 1
         setTimeout(() => {
-            window.location.href = '/dashboard';
-        }, 1000);
-        {% else %}
-        // User is not logged in, redirect to login page
+            activateStep('step-1');
+            modalTitle.innerText = "Analyzing...";
+            modalSubtitle.innerText = "Parsing natural language model";
+        }, 800);
+
+        // Step 2
         setTimeout(() => {
-            // Store the API idea for after login
-            localStorage.setItem('pendingApiIdea', inputText);
-            window.location.href = '/login';
-        }, 1000);
-        {% endif %}
+            activateStep('step-2');
+            modalTitle.innerText = "Designing API...";
+            modalSubtitle.innerText = "Creating endpoints and schema";
+        }, 2200);
+
+        // Step 3
+        setTimeout(() => {
+            activateStep('step-3');
+            modalTitle.innerText = "Optimizing...";
+            modalSubtitle.innerText = "Preparing production environment";
+        }, 3600);
+
+        // Success & Redirect
+        setTimeout(() => {
+            // Show success state
+            document.getElementById('modal-icon-spinner').classList.add('hidden');
+            document.getElementById('modal-icon-check').classList.remove('hidden');
+            modalTitle.innerText = "API Ready!";
+            modalSubtitle.innerText = "Redirecting to your dashboard...";
+            modalTitle.classList.add('text-green-400');
+            
+            setTimeout(() => {
+                window.location.href = '/login?signup=true';
+            }, 1000);
+        }, 4800);
     }
 
     async function loadSubscriptionTiers() {
