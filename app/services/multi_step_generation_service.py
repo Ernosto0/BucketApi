@@ -18,6 +18,7 @@ from enum import Enum
 from ..code_generation_config.multi_step_config import MultiStepConfig, GenerationMode, StepType
 from ..prompts.claude.prompt_loader import load_claude_prompt, format_claude_prompt
 from .claude_service import claude_service
+from ..models import DatabaseConfig
 from .usage_service import usage_service
 from .logging_service import logging_service, LogLevel, LogCategory
 from .exceptions import (
@@ -154,7 +155,8 @@ class MultiStepGenerationService:
         expected_output: Optional[str] = None,
         api_key_id: Optional[str] = None,
         pipeline_name: str = "full_pipeline",
-        mode: GenerationMode = GenerationMode.NORMAL
+        mode: GenerationMode = GenerationMode.NORMAL,
+        database_config: Optional[DatabaseConfig] = None
     ) -> str:
         """Start a new multi-step generation session"""
         
@@ -236,6 +238,7 @@ class MultiStepGenerationService:
                 session.sample_input = sample_input
                 session.expected_output = expected_output
                 session.api_key_id = api_key_id
+                session.database_config = database_config
                 session._total_steps = len(steps_config)
                 
                 self.active_sessions[session_id] = session
@@ -1092,6 +1095,12 @@ class MultiStepGenerationService:
                     details={"step_config": step_config}
                 )
             
+            # Override prompt template for database-enabled generation
+            if hasattr(session, 'database_config') and session.database_config and session.database_config.enabled:
+                if prompt_template_name == "implement_code":
+                    prompt_template_name = "implement_code_with_database"
+                    logger.info(f"Using database-enabled prompt template for step {step_id}")
+            
             # Skip template loading message - too verbose
             
             # Load prompt template
@@ -1132,6 +1141,45 @@ class MultiStepGenerationService:
                     "sample_input_section": f"\nSample Input: {session.sample_input}" if session.sample_input else "",
                     "expected_output_section": f"\nExpected Output: {session.expected_output}" if session.expected_output else "",
                 }
+                
+                # Add database configuration to template variables if enabled
+                if hasattr(session, 'database_config') and session.database_config and session.database_config.enabled:
+                    db_config = session.database_config
+                    db_type = db_config.db_type.value if db_config.db_type else "unknown"
+                    template_vars["database_type"] = db_type
+                    template_vars["database_host"] = db_config.host or "localhost"
+                    template_vars["database_port"] = str(db_config.port) if db_config.port else ""
+                    template_vars["database_name"] = db_config.database_name or ""
+                    template_vars["database_enabled"] = "true"
+                    
+                    # Build connection string for the prompt (without actual password)
+                    if db_type == "postgresql":
+                        template_vars["database_connection_info"] = f"PostgreSQL database at {db_config.host}:{db_config.port}/{db_config.database_name}"
+                    elif db_type == "mongodb":
+                        template_vars["database_connection_info"] = f"MongoDB database at {db_config.host}:{db_config.port}/{db_config.database_name}"
+                    else:
+                        template_vars["database_connection_info"] = f"Database at {db_config.host}:{db_config.port}/{db_config.database_name}"
+                    
+                    # Try to get database schema
+                    try:
+                        from ..services.database_connection_service import database_connection_service
+                        schema_info = await database_connection_service.get_database_schema(db_config)
+                        
+                        if schema_info and "error" not in schema_info:
+                            # Format schema for prompt
+                            schema_text = self._format_schema_for_prompt(schema_info)
+                            template_vars["database_schema_section"] = f"DATABASE SCHEMA:\n{schema_text}\n"
+                            logger.info(f"Included database schema in prompt: {len(schema_info.get('tables', schema_info.get('collections', {})))} tables/collections")
+                        else:
+                            template_vars["database_schema_section"] = ""
+                            logger.warning(f"Could not retrieve database schema: {schema_info.get('error', 'unknown error')}")
+                    except Exception as e:
+                        logger.warning(f"Failed to get database schema: {e}")
+                        template_vars["database_schema_section"] = ""
+                else:
+                    template_vars["database_enabled"] = "false"
+                    template_vars["database_connection_info"] = ""
+                    template_vars["database_schema_section"] = ""
                 
                 # Add previous step outputs
                 for output_id, output_content in previous_outputs.items():
@@ -1834,12 +1882,47 @@ class MultiStepGenerationService:
         }
         return self._format_sse_event(StreamEvent.STEP_PHASE, phase_data)
     
+    def _format_schema_for_prompt(self, schema_info: Dict[str, Any]) -> str:
+        """Format database schema information for inclusion in prompt."""
+        lines = []
+        
+        db_type = schema_info.get("database_type", "unknown")
+        db_name = schema_info.get("database_name", "")
+        
+        lines.append(f"Database: {db_name} ({db_type.upper()})")
+        lines.append("")
+        
+        if db_type == "postgresql":
+            tables = schema_info.get("tables", {})
+            for table_name, table_info in tables.items():
+                lines.append(f"Table: {table_name}")
+                columns = table_info.get("columns", [])
+                for col in columns:
+                    pk_marker = " [PRIMARY KEY]" if col.get("is_primary_key") else ""
+                    nullable = "NULL" if col.get("nullable") else "NOT NULL"
+                    col_type = col.get("type", "unknown")
+                    max_len = f"({col.get('max_length')})" if col.get("max_length") else ""
+                    lines.append(f"  - {col['name']}: {col_type}{max_len} {nullable}{pk_marker}")
+                lines.append("")
+        
+        elif db_type == "mongodb":
+            collections = schema_info.get("collections", {})
+            for coll_name, coll_info in collections.items():
+                lines.append(f"Collection: {coll_name}")
+                fields = coll_info.get("fields", [])
+                for field in fields:
+                    id_marker = " [ID]" if field.get("is_id") else ""
+                    lines.append(f"  - {field['name']}: {field.get('type', 'unknown')}{id_marker}")
+                lines.append("")
+        
+        return "\n".join(lines)
+    
     def _get_step_chat_messages(self, step_id: str, step_name: str) -> Dict[str, str]:
         """Get chat messages for different phases of step execution"""
         
         # Default messages that work for any step
         default_messages = {
-            "starting": f"🚀 Starting {step_name}...",
+            "starting": f" Starting {step_name}...",
             "loading_template": "📝 Loading prompt template and configuration...",
             "preparing_prompts": "🔧 Preparing AI prompts with your requirements...",
             "calling_ai": "Sending request to AI model...",

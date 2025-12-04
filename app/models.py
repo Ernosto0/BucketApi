@@ -1,10 +1,44 @@
 from pydantic import BaseModel, Field, EmailStr, model_validator
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+from enum import Enum
 
 # Authentication Models (moved to models_auth.py for new system)
 # Import new auth models
 from .models_auth import User, UserLogin, LoginResponse, UserProfile, AuthResponse
+
+# Database Connection Models
+class DatabaseType(str, Enum):
+    """Supported database types for API generation"""
+    POSTGRESQL = "postgresql"
+    MONGODB = "mongodb"
+
+class DatabaseConfig(BaseModel):
+    """Configuration for database connection in generated APIs"""
+    enabled: bool = Field(default=False, description="Whether database integration is enabled")
+    db_type: Optional[DatabaseType] = Field(None, description="Type of database (postgresql or mongodb)")
+    host: Optional[str] = Field(None, description="Database host address")
+    port: Optional[int] = Field(None, description="Database port number")
+    database_name: Optional[str] = Field(None, description="Name of the database")
+    username: Optional[str] = Field(None, description="Database username")
+    password: Optional[str] = Field(None, description="Database password (base64 encoded when stored)")
+    connection_string: Optional[str] = Field(None, description="Full connection URL (alternative to individual fields)")
+
+class TestDatabaseConnectionRequest(BaseModel):
+    """Request model for testing database connection"""
+    db_type: DatabaseType = Field(..., description="Type of database to connect to")
+    host: str = Field(..., description="Database host address")
+    port: int = Field(..., description="Database port number")
+    database_name: str = Field(..., description="Name of the database")
+    username: str = Field(..., description="Database username")
+    password: str = Field(..., description="Database password")
+
+class TestDatabaseConnectionResponse(BaseModel):
+    """Response model for database connection test"""
+    success: bool = Field(..., description="Whether the connection was successful")
+    message: str = Field(..., description="Connection test result message")
+    db_type: DatabaseType = Field(..., description="Type of database tested")
+    connection_time_ms: Optional[float] = Field(None, description="Connection time in milliseconds")
 
 # API Generation Models
 class ProposalRequest(BaseModel):
@@ -12,6 +46,7 @@ class ProposalRequest(BaseModel):
     user_id: str = Field(..., description="Unique user identifier")
     sample_input: Optional[str] = Field(None, description="Example input data for the API")
     expected_output: Optional[str] = Field(None, description="Expected output format")
+    database_config: Optional[DatabaseConfig] = Field(None, description="Optional database configuration for database-aware proposals")
 
 class ProposalResponse(BaseModel):
     success: bool
@@ -69,6 +104,7 @@ class APIGenerationRequest(BaseModel):
     use_multi_step: Optional[bool] = Field(True, description="Use multi-step generation process (default: True, returns final code)")
     pipeline_name: Optional[str] = Field("full_pipeline", description="Pipeline to use for multi-step generation")
     proposal_id: Optional[str] = Field(None, description="Proposal ID from which this generation request originates")
+    database_config: Optional[DatabaseConfig] = Field(None, description="Database connection configuration for APIs with database integration")
 
 class APIGenerationResponse(BaseModel):
     success: bool
@@ -145,6 +181,7 @@ class SavedAPI(BaseModel):
     openapi_spec: Optional[str] = None  # JSON string of OpenAPI spec
     sample_input: Optional[str] = None
     expected_output: Optional[str] = None
+    database_config: Optional[DatabaseConfig] = None  # Database connection configuration
     created_at: datetime
     saved_at: datetime
     is_saved: bool = True
@@ -164,6 +201,7 @@ class SaveAPIRequest(BaseModel):
     openapi_spec: Optional[str] = None  # JSON string of OpenAPI spec
     sample_input: Optional[str] = None
     expected_output: Optional[str] = None
+    database_config: Optional[DatabaseConfig] = None  # Database connection configuration
 
 class SaveAPIResponse(BaseModel):
     success: bool

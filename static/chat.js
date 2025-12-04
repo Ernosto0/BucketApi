@@ -9,6 +9,11 @@ let conversationState = null; // "proposal", "code_generated", null
 let currentProposalId = null; // Unique identifier for current proposal session
 let currentProposal = null; // Store current proposal data
 
+// Database configuration
+let databaseConfig = null;
+let selectedDatabaseType = null;
+let connectionMethod = 'fields'; // 'fields' or 'string'
+
 // Message queue for staggered status updates
 let messageQueue = [];
 let isProcessingQueue = false;
@@ -653,6 +658,16 @@ async function sendMessage() {
         addStreamingMessage('🧠 Analyzing your requirements and determining feasibility...', 'ai_processing');
         await new Promise(resolve => setTimeout(resolve, 4000)); // Small delay for natural flow
         
+        // Get database config for the request
+        const dbConfig = getDatabaseConfigForRequest();
+        if (dbConfig) {
+            console.log('📊 Database configuration detected for proposal:', { 
+                db_type: dbConfig.db_type, 
+                host: dbConfig.host,
+                database_name: dbConfig.database_name 
+            });
+        }
+        
         // First, generate a proposal for the prompt
         const proposalResponse = await fetch('/generate-proposal', {
             method: 'POST',
@@ -663,7 +678,9 @@ async function sendMessage() {
             credentials: 'include', // Include cookies for authentication
             body: JSON.stringify({
                 prompt: message,
-                user_id: userId
+                user_id: userId,
+                // Include database configuration if enabled
+                database_config: dbConfig
             })
         });
 
@@ -873,7 +890,9 @@ async function generateAPIStream(message, userId, skipAnalysis = true) {
                 // Extract sample input/output from proposal if available
                 sample_input: currentProposal?.proposal?.input_format?.example || null,
                 expected_output: currentProposal?.proposal?.output_format?.example || null,
-                api_name: `api-${Date.now()}` // Generate a unique name
+                api_name: `api-${Date.now()}`, // Generate a unique name
+                // Include database configuration if enabled
+                database_config: getDatabaseConfigForRequest()
             })
         });
 
@@ -5344,4 +5363,496 @@ function displayParametersFromDocumentation(documentation) {
     if (parametersTable) {
         parametersTable.innerHTML = '<div class="text-slate-400 text-sm text-center py-4">View full documentation for parameter details</div>';
     }
+}
+
+// ============================================
+// Database Configuration Functions
+// ============================================
+
+/**
+ * Open the database configuration modal
+ */
+function openDatabaseModal() {
+    const modal = document.getElementById('databaseModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // If we have existing config, populate the fields
+        if (databaseConfig) {
+            populateDatabaseFields(databaseConfig);
+            if (databaseConfig.db_type) {
+                selectDatabaseType(databaseConfig.db_type);
+            }
+        }
+    }
+}
+
+/**
+ * Close the database configuration modal
+ */
+function closeDatabaseModal() {
+    const modal = document.getElementById('databaseModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        // Clear test result
+        const testResult = document.getElementById('dbTestResult');
+        if (testResult) {
+            testResult.classList.add('hidden');
+        }
+    }
+}
+
+/**
+ * Select database type (PostgreSQL or MongoDB)
+ */
+function selectDatabaseType(type) {
+    selectedDatabaseType = type;
+    
+    const postgresBtn = document.getElementById('dbTypePostgres');
+    const mongoBtn = document.getElementById('dbTypeMongo');
+    const portInput = document.getElementById('dbPort');
+    
+    // Reset both buttons
+    postgresBtn.classList.remove('border-blue-500', 'bg-blue-500/20');
+    postgresBtn.classList.add('border-slate-600');
+    mongoBtn.classList.remove('border-green-500', 'bg-green-500/20');
+    mongoBtn.classList.add('border-slate-600');
+    
+    // Highlight selected button and set default port
+    if (type === 'postgresql') {
+        postgresBtn.classList.remove('border-slate-600');
+        postgresBtn.classList.add('border-blue-500', 'bg-blue-500/20');
+        if (!portInput.value) {
+            portInput.placeholder = '5432';
+        }
+    } else if (type === 'mongodb') {
+        mongoBtn.classList.remove('border-slate-600');
+        mongoBtn.classList.add('border-green-500', 'bg-green-500/20');
+        if (!portInput.value) {
+            portInput.placeholder = '27017';
+        }
+    }
+}
+
+/**
+ * Toggle password visibility
+ */
+function togglePasswordVisibility() {
+    const passwordInput = document.getElementById('dbPassword');
+    const eyeIcon = document.getElementById('passwordEyeIcon');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.innerHTML = `
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+        `;
+    } else {
+        passwordInput.type = 'password';
+        eyeIcon.innerHTML = `
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+        `;
+    }
+}
+
+/**
+ * Test the database connection
+ */
+async function testDatabaseConnection() {
+    const testBtn = document.getElementById('testConnectionBtn');
+    const testResult = document.getElementById('dbTestResult');
+    const testResultContent = document.getElementById('dbTestResultContent');
+    
+    let host, port, dbName, username, password;
+    
+    // Get values based on connection method
+    if (connectionMethod === 'string') {
+        const connectionString = document.getElementById('dbConnectionString').value.trim();
+        
+        if (!connectionString) {
+            showTestResult(false, 'Please enter a connection string');
+            return;
+        }
+        
+        const parsed = parseConnectionString(connectionString);
+        
+        if (parsed.error) {
+            showTestResult(false, parsed.error);
+            return;
+        }
+        
+        // Use parsed values
+        if (!selectedDatabaseType && parsed.db_type) {
+            selectDatabaseType(parsed.db_type);
+        }
+        
+        host = parsed.host;
+        port = parsed.port;
+        dbName = parsed.database_name;
+        username = parsed.username;
+        password = parsed.password;
+    } else {
+        // Get from individual fields
+        if (!selectedDatabaseType) {
+            showTestResult(false, 'Please select a database type');
+            return;
+        }
+        
+        host = document.getElementById('dbHost').value.trim();
+        port = document.getElementById('dbPort').value.trim();
+        dbName = document.getElementById('dbName').value.trim();
+        username = document.getElementById('dbUsername').value.trim();
+        password = document.getElementById('dbPassword').value;
+        
+        if (!host || !port || !dbName || !username) {
+            showTestResult(false, 'Please fill in all required fields');
+            return;
+        }
+    }
+    
+    // Show loading state
+    testBtn.disabled = true;
+    testBtn.innerHTML = `
+        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Testing...</span>
+    `;
+    
+    try {
+        const response = await fetch('/test-database-connection', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+            },
+            body: JSON.stringify({
+                db_type: selectedDatabaseType,
+                host: host,
+                port: parseInt(port),
+                database_name: dbName,
+                username: username,
+                password: password
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const timeMsg = result.connection_time_ms ? ` (${result.connection_time_ms.toFixed(0)}ms)` : '';
+            showTestResult(true, result.message + timeMsg);
+        } else {
+            showTestResult(false, result.message);
+        }
+    } catch (error) {
+        console.error('Database connection test error:', error);
+        showTestResult(false, 'Connection test failed: ' + error.message);
+    } finally {
+        // Reset button
+        testBtn.disabled = false;
+        testBtn.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+            <span>Test Connection</span>
+        `;
+    }
+}
+
+/**
+ * Show test connection result
+ */
+function showTestResult(success, message) {
+    const testResult = document.getElementById('dbTestResult');
+    const testResultContent = document.getElementById('dbTestResultContent');
+    
+    testResult.classList.remove('hidden');
+    
+    if (success) {
+        testResultContent.className = 'p-3 rounded-lg text-sm bg-emerald-500/20 border border-emerald-500/30 text-emerald-300';
+        testResultContent.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span>${message}</span>
+            </div>
+        `;
+    } else {
+        testResultContent.className = 'p-3 rounded-lg text-sm bg-red-500/20 border border-red-500/30 text-red-300';
+        testResultContent.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                <span>${message}</span>
+            </div>
+        `;
+    }
+}
+
+/**
+ * Save the database configuration
+ */
+function saveDatabaseConfig() {
+    let host, port, dbName, username, password, connectionString;
+    
+    // Get values based on connection method
+    if (connectionMethod === 'string') {
+        connectionString = document.getElementById('dbConnectionString').value.trim();
+        
+        if (!connectionString) {
+            showTestResult(false, 'Please enter a connection string');
+            return;
+        }
+        
+        const parsed = parseConnectionString(connectionString);
+        
+        if (parsed.error) {
+            showTestResult(false, parsed.error);
+            return;
+        }
+        
+        // Use parsed values
+        if (!selectedDatabaseType && parsed.db_type) {
+            selectDatabaseType(parsed.db_type);
+        }
+        
+        host = parsed.host;
+        port = parsed.port;
+        dbName = parsed.database_name;
+        username = parsed.username;
+        password = parsed.password;
+    } else {
+        // Get from individual fields
+        if (!selectedDatabaseType) {
+            showTestResult(false, 'Please select a database type');
+            return;
+        }
+        
+        host = document.getElementById('dbHost').value.trim();
+        port = document.getElementById('dbPort').value.trim();
+        dbName = document.getElementById('dbName').value.trim();
+        username = document.getElementById('dbUsername').value.trim();
+        password = document.getElementById('dbPassword').value;
+        
+        if (!host || !port || !dbName || !username) {
+            showTestResult(false, 'Please fill in all required fields');
+            return;
+        }
+    }
+    
+    // Save configuration
+    databaseConfig = {
+        enabled: true,
+        db_type: selectedDatabaseType,
+        host: host,
+        port: parseInt(port),
+        database_name: dbName,
+        username: username,
+        password: password,
+        connection_string: connectionString || null
+    };
+    
+    // Update toggle button appearance
+    updateDatabaseToggleButton(true);
+    
+    // Close modal
+    closeDatabaseModal();
+    
+    console.log('Database configuration saved:', { ...databaseConfig, password: '***' });
+}
+
+/**
+ * Clear the database configuration
+ */
+function clearDatabaseConfig() {
+    databaseConfig = null;
+    selectedDatabaseType = null;
+    
+    // Clear form fields
+    document.getElementById('dbHost').value = '';
+    document.getElementById('dbPort').value = '';
+    document.getElementById('dbName').value = '';
+    document.getElementById('dbUsername').value = '';
+    document.getElementById('dbPassword').value = '';
+    document.getElementById('dbConnectionString').value = '';
+    
+    // Reset button selections
+    const postgresBtn = document.getElementById('dbTypePostgres');
+    const mongoBtn = document.getElementById('dbTypeMongo');
+    postgresBtn.classList.remove('border-blue-500', 'bg-blue-500/20');
+    postgresBtn.classList.add('border-slate-600');
+    mongoBtn.classList.remove('border-green-500', 'bg-green-500/20');
+    mongoBtn.classList.add('border-slate-600');
+    
+    // Update toggle button appearance
+    updateDatabaseToggleButton(false);
+    
+    // Hide test result
+    const testResult = document.getElementById('dbTestResult');
+    if (testResult) {
+        testResult.classList.add('hidden');
+    }
+    
+    console.log('Database configuration cleared');
+}
+
+/**
+ * Update the database toggle button appearance
+ */
+function updateDatabaseToggleButton(isEnabled) {
+    const toggleBtn = document.getElementById('databaseToggleBtn');
+    const toggleText = document.getElementById('databaseToggleText');
+    
+    if (isEnabled && databaseConfig) {
+        toggleBtn.classList.remove('border-slate-600', 'text-slate-400');
+        toggleBtn.classList.add('border-emerald-500', 'text-emerald-400', 'bg-emerald-500/10');
+        const dbType = databaseConfig.db_type === 'postgresql' ? 'PostgreSQL' : 'MongoDB';
+        toggleText.textContent = dbType + ' Connected';
+    } else {
+        toggleBtn.classList.remove('border-emerald-500', 'text-emerald-400', 'bg-emerald-500/10');
+        toggleBtn.classList.add('border-slate-600', 'text-slate-400');
+        toggleText.textContent = 'Add Database';
+    }
+}
+
+/**
+ * Populate database fields from existing config
+ */
+function populateDatabaseFields(config) {
+    if (config.host) document.getElementById('dbHost').value = config.host;
+    if (config.port) document.getElementById('dbPort').value = config.port;
+    if (config.database_name) document.getElementById('dbName').value = config.database_name;
+    if (config.username) document.getElementById('dbUsername').value = config.username;
+    if (config.password) document.getElementById('dbPassword').value = config.password;
+}
+
+/**
+ * Get the current database configuration for API requests
+ */
+function getDatabaseConfigForRequest() {
+    if (!databaseConfig || !databaseConfig.enabled) {
+        return null;
+    }
+    return databaseConfig;
+}
+
+/**
+ * Toggle between connection string and individual fields
+ */
+function toggleConnectionMethod(method) {
+    connectionMethod = method;
+    
+    const fieldsBtn = document.getElementById('useFieldsBtn');
+    const stringBtn = document.getElementById('useConnectionStringBtn');
+    const fieldsSection = document.getElementById('connectionFieldsSection');
+    const stringSection = document.getElementById('connectionStringSection');
+    
+    if (method === 'fields') {
+        // Show fields, hide string
+        fieldsBtn.classList.add('bg-slate-600', 'text-white');
+        fieldsBtn.classList.remove('text-slate-400');
+        stringBtn.classList.remove('bg-slate-600', 'text-white');
+        stringBtn.classList.add('text-slate-400');
+        
+        fieldsSection.classList.remove('hidden');
+        stringSection.classList.add('hidden');
+    } else {
+        // Show string, hide fields
+        stringBtn.classList.add('bg-slate-600', 'text-white');
+        stringBtn.classList.remove('text-slate-400');
+        fieldsBtn.classList.remove('bg-slate-600', 'text-white');
+        fieldsBtn.classList.add('text-slate-400');
+        
+        fieldsSection.classList.add('hidden');
+        stringSection.classList.remove('hidden');
+    }
+}
+
+/**
+ * Parse connection string to extract database details
+ */
+function parseConnectionString(connectionString) {
+    try {
+        // Remove whitespace
+        connectionString = connectionString.trim();
+        
+        // Detect database type from protocol
+        let dbType = null;
+        if (connectionString.startsWith('postgresql://') || connectionString.startsWith('postgres://')) {
+            dbType = 'postgresql';
+        } else if (connectionString.startsWith('mongodb://') || connectionString.startsWith('mongodb+srv://')) {
+            dbType = 'mongodb';
+        } else {
+            return { error: 'Invalid connection string. Must start with postgresql:// or mongodb://' };
+        }
+        
+        // Parse the URL
+        let url;
+        try {
+            url = new URL(connectionString);
+        } catch (e) {
+            return { error: 'Invalid connection string format' };
+        }
+        
+        // Extract components
+        const host = url.hostname;
+        const port = url.port || (dbType === 'postgresql' ? '5432' : '27017');
+        const username = decodeURIComponent(url.username);
+        const password = decodeURIComponent(url.password);
+        const database = url.pathname.substring(1).split('?')[0]; // Remove leading slash and query params
+        
+        if (!host || !database) {
+            return { error: 'Connection string must include host and database name' };
+        }
+        
+        return {
+            db_type: dbType,
+            host: host,
+            port: parseInt(port),
+            database_name: database,
+            username: username || '',
+            password: password || '',
+            connection_string: connectionString
+        };
+    } catch (error) {
+        console.error('Error parsing connection string:', error);
+        return { error: 'Failed to parse connection string: ' + error.message };
+    }
+}
+
+/**
+ * Auto-detect and parse connection string when user pastes
+ */
+function handleConnectionStringInput() {
+    const connectionString = document.getElementById('dbConnectionString').value.trim();
+    
+    if (!connectionString) return;
+    
+    const parsed = parseConnectionString(connectionString);
+    
+    if (parsed.error) {
+        showTestResult(false, parsed.error);
+        return;
+    }
+    
+    // Auto-select database type
+    if (parsed.db_type) {
+        selectDatabaseType(parsed.db_type);
+    }
+    
+    // Show success hint
+    const testResult = document.getElementById('dbTestResult');
+    const testResultContent = document.getElementById('dbTestResultContent');
+    testResult.classList.remove('hidden');
+    testResultContent.className = 'p-3 rounded-lg text-sm bg-blue-500/20 border border-blue-500/30 text-blue-300';
+    testResultContent.innerHTML = `
+        <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>Connection string parsed successfully! Click "Test Connection" to verify.</span>
+        </div>
+    `;
 }

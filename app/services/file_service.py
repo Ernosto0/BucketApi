@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional, Any, Dict, List
 from datetime import datetime
 from ..config import settings
-from ..models import SavedAPI, SaveAPIRequest, User, APIVersion
+from ..models import SavedAPI, SaveAPIRequest, User, APIVersion, DatabaseConfig
 from ..services.auth_service import auth_service
 from .mongodb import mongodb
 import logging
@@ -273,7 +273,8 @@ class FileService:
             "expected_output": request.expected_output,
             "created_at": created_at,
             "saved_at": datetime.utcnow(),
-            "is_saved": True
+            "is_saved": True,
+            "database_config": request.database_config.model_dump() if request.database_config else None
         }
         
         mongodb.saved_apis.insert_one(db_api)
@@ -307,6 +308,7 @@ class FileService:
             openapi_spec=db_api["openapi_spec"],
             sample_input=db_api["sample_input"],
             expected_output=db_api["expected_output"],
+            database_config=DatabaseConfig(**db_api["database_config"]) if db_api.get("database_config") else None,
             created_at=db_api["created_at"],
             saved_at=db_api["saved_at"],
             is_saved=db_api["is_saved"],
@@ -334,6 +336,14 @@ class FileService:
                     logger.warning(f"Failed to parse version: {e}")
                     continue
         
+        # Handle database_config field
+        database_config = None
+        if db_api.get("database_config"):
+            try:
+                database_config = DatabaseConfig(**db_api["database_config"])
+            except Exception as e:
+                logger.warning(f"Failed to parse database_config: {e}")
+        
         return SavedAPI(
             api_slug=db_api["api_slug"],
             user_id=db_api["user_id"],
@@ -345,6 +355,7 @@ class FileService:
             openapi_spec=db_api.get("openapi_spec"),
             sample_input=db_api.get("sample_input"),
             expected_output=db_api.get("expected_output"),
+            database_config=database_config,
             created_at=db_api["created_at"],
             saved_at=db_api["saved_at"],
             is_saved=db_api.get("is_saved", True),
@@ -585,12 +596,39 @@ class FileService:
             with open(file_path, 'r', encoding='utf-8') as f:
                 code = f.read()
             
+            # Get database configuration if available
+            database_url = None
+            try:
+                api_metadata = self.get_api_metadata(user_id, api_slug)
+                if api_metadata:
+                    db_api = mongodb.saved_apis.find_one({
+                        "user_id": user_id,
+                        "api_slug": api_slug
+                    })
+                    if db_api and db_api.get("database_config"):
+                        from ..models import DatabaseConfig, DatabaseType
+                        from ..services.database_connection_service import database_connection_service
+                        
+                        db_config_dict = db_api["database_config"]
+                        db_config = DatabaseConfig(**db_config_dict)
+                        
+                        # Decode credentials if needed
+                        db_config = database_connection_service.decode_credentials(db_config)
+                        
+                        # Build connection string
+                        database_url = database_connection_service.build_connection_string(db_config)
+                        logger.info(f"Database connection configured for API {api_slug}")
+            except Exception as e:
+                logger.warning(f"Failed to load database configuration for {api_slug}: {e}")
+                # Continue without database config
+            
             # Execute in sandbox with default timeout and memory limits
             result, execution_time, success, error = await api_execution_usage_service.execute_api_with_limits(
                 code=code,
                 input_data=input_data or {},
                 file_bytes=file_bytes,
-                is_test_execution=is_test_execution
+                is_test_execution=is_test_execution,
+                database_url=database_url
             )
             
             if not success:

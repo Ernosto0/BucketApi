@@ -48,7 +48,9 @@ from .models import (
     MultiStepGenerationRequest, PipelineInfoResponse,
     APIVersion,
     # Report models
-    CreateReportRequest, CreateReportResponse, Report, ListReportsResponse
+    CreateReportRequest, CreateReportResponse, Report, ListReportsResponse,
+    # Database connection models
+    DatabaseType, DatabaseConfig, TestDatabaseConnectionRequest, TestDatabaseConnectionResponse
 )
 from .services.openai_service import openai_service
 from .services.claude_service import claude_service
@@ -67,6 +69,7 @@ from .services.mongodb import init_database, mongodb
 from .routes.auth_routes import router as auth_router, get_current_user, get_current_user_required, require_auth, require_active_user
 from .routes.oauth_routes import router as oauth_router
 from .services.test_service import test_service
+from .services.database_connection_service import database_connection_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
 from .services.exceptions import create_secure_error, SecureHTTPException
 from .services.multi_step_generation_service import multi_step_generation_service
@@ -818,6 +821,12 @@ async def generate_proposal(
     
     logger.info(f"Generating proposal for user {proposal_request.user_id} with prompt: {proposal_request.prompt[:100]}...")
     
+    # Log database configuration if provided
+    if proposal_request.database_config and proposal_request.database_config.enabled:
+        logger.info(f"📊 Database configuration provided: {proposal_request.database_config.db_type} at {proposal_request.database_config.host}:{proposal_request.database_config.port}/{proposal_request.database_config.database_name}")
+    else:
+        logger.info(f"ℹ️ No database configuration provided for this proposal")
+    
     # Check API generation limits before allowing proposal generation
     # This prevents users from even starting the generation process if they've hit their limit
     try:
@@ -847,7 +856,14 @@ async def generate_proposal(
         # Analyze the prompt using PromptService
         logger.info("Analyzing prompt with PromptServiceBuild...")
         prompt_service = PromptServiceBuild()
-        analysis_result = await prompt_service.CanIBuildThis(proposal_request.user_id, proposal_request.prompt)
+        
+        # Pass database configuration if provided
+        database_config = proposal_request.database_config if hasattr(proposal_request, 'database_config') else None
+        analysis_result = await prompt_service.CanIBuildThis(
+            proposal_request.user_id, 
+            proposal_request.prompt,
+            database_config=database_config
+        )
         
         # Parse the analysis result
         try:
@@ -1189,6 +1205,20 @@ async def generate_api_stream(
                 }
             }) + "\n\n"
             
+            # Send database configuration message if enabled
+            if api_request.database_config and api_request.database_config.enabled:
+                logger.info(f"Database configuration enabled: {api_request.database_config}")
+                db_type = api_request.database_config.db_type.value if api_request.database_config.db_type else "unknown"
+                yield "data: " + json.dumps({
+                    "type": "chat_message",
+                    "timestamp": datetime.now().isoformat(),
+                    "data": {
+                        "message": f"Database integration enabled ({db_type.upper()}). Your API will include database connectivity.",
+                        "is_ai": True,
+                        "message_type": "info"
+                    }
+                }) + "\n\n"
+            
             # Start multi-step generation
             session_id = await multi_step_generation_service.start_generation(
                 prompt=api_request.prompt,
@@ -1197,7 +1227,8 @@ async def generate_api_stream(
                 expected_output=api_request.expected_output,
                 api_key_id=api_key_id,
                 pipeline_name=api_request.pipeline_name or "full_pipeline",
-                mode=GenerationMode("streaming")
+                mode=GenerationMode("streaming"),
+                database_config=api_request.database_config
             )
             
             # Skip session started message - handled by step messages
@@ -1338,6 +1369,11 @@ async def generate_api_stream(
                     
                     # Save API documentation and metadata to database
                     try:
+                        # Encode database credentials before saving
+                        encoded_db_config = None
+                        if api_request.database_config and api_request.database_config.enabled:
+                            encoded_db_config = database_connection_service.encode_credentials(api_request.database_config)
+                        
                         save_request = SaveAPIRequest(
                             user_id=current_user.id,
                             api_slug=clean_slug,
@@ -1348,7 +1384,8 @@ async def generate_api_stream(
                             curl_example=curl_example,
                             openapi_spec=json.dumps(openapi_spec) if openapi_spec else None,
                             sample_input=api_request.sample_input,
-                            expected_output=api_request.expected_output
+                            expected_output=api_request.expected_output,
+                            database_config=encoded_db_config
                         )
                         file_service.save_api_metadata(save_request)
                         logger.info(f"API documentation saved to database for {clean_slug}")
@@ -2627,6 +2664,60 @@ async def apidetails(user_id: str, api_slug: str):
             detail=f"Failed to get API details: {str(e)}"
         )
 
+@app.post("/api/{user_id}/{api_slug}/test-database-connection")
+async def test_api_database_connection(user_id: str, api_slug: str):
+    """
+    Test the database connection for a specific API.
+    """
+    try:
+        api_details = file_service.get_api_details(user_id, api_slug)
+        
+        # Check if API has database configuration
+        if not api_details.get("database_config"):
+            return {
+                "success": False,
+                "message": "This API does not have a database connection configured",
+                "has_database": False
+            }
+        
+        # Get database config
+        db_config_dict = api_details["database_config"]
+        
+        # Check if database is enabled
+        if not db_config_dict.get("enabled"):
+            return {
+                "success": False,
+                "message": "Database connection is disabled for this API",
+                "has_database": True,
+                "enabled": False
+            }
+        
+        # Create DatabaseConfig object
+        db_config = DatabaseConfig(**db_config_dict)
+        
+        # Test the connection
+        success, message, connection_time = await database_connection_service.test_connection(db_config)
+        
+        return {
+            "success": success,
+            "message": message,
+            "connection_time_ms": connection_time,
+            "has_database": True,
+            "enabled": True,
+            "db_type": db_config.db_type.value if db_config.db_type else None,
+            "host": db_config.host,
+            "port": db_config.port,
+            "database_name": db_config.database_name
+        }
+    except Exception as e:
+        logger.error(f"Error testing database connection for {user_id}/{api_slug}: {str(e)}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Failed to test connection: {str(e)}",
+            "has_database": True,
+            "enabled": True
+        }
+
 @app.get("/api/{user_id}/{api_slug}/openapi")
 async def get_openapi_spec(request: Request, user_id: str, api_slug: str):
     """
@@ -3271,6 +3362,49 @@ async def test_api(request: TestRequest):
             timestamp=datetime.now(),
             test_type=request.test_type or "manual",
             validation=None
+        )
+
+
+@app.post("/test-database-connection", response_model=TestDatabaseConnectionResponse)
+async def test_database_connection(request: TestDatabaseConnectionRequest):
+    """
+    Test a database connection with the provided credentials.
+    Supports PostgreSQL and MongoDB databases.
+    """
+    logger.info(f"=== TEST-DATABASE-CONNECTION ENDPOINT CALLED ===")
+    logger.info(f"Testing {request.db_type} connection to {request.host}:{request.port}/{request.database_name}")
+    
+    try:
+        # Create a DatabaseConfig from the request
+        config = DatabaseConfig(
+            enabled=True,
+            db_type=request.db_type,
+            host=request.host,
+            port=request.port,
+            database_name=request.database_name,
+            username=request.username,
+            password=request.password
+        )
+        
+        # Test the connection
+        success, message, connection_time_ms = await database_connection_service.test_connection(config)
+        
+        logger.info(f"Database connection test result: success={success}, message={message}")
+        
+        return TestDatabaseConnectionResponse(
+            success=success,
+            message=message,
+            db_type=request.db_type,
+            connection_time_ms=connection_time_ms
+        )
+        
+    except Exception as e:
+        logger.error(f"Database connection test error: {str(e)}", exc_info=True)
+        return TestDatabaseConnectionResponse(
+            success=False,
+            message=f"Connection test failed: {str(e)}",
+            db_type=request.db_type,
+            connection_time_ms=None
         )
 
 @app.post("/debug-api")

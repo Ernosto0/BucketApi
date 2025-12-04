@@ -211,7 +211,8 @@ class SandboxService:
         timeout_seconds: int = None,
         memory_limit_mb: int = None,
         cpu_limit: int = None,
-        is_test_execution: bool = False
+        is_test_execution: bool = False,
+        database_url: Optional[str] = None
     ) -> Any:
         """
         Execute API code in a sandboxed environment with resource limits.
@@ -234,7 +235,8 @@ class SandboxService:
                         timeout_seconds=timeout,
                         memory_limit_mb=memory_limit,
                         auto_install_dependencies=True,
-                        skip_dependency_check=False
+                        skip_dependency_check=False,
+                        database_url=database_url
                     )
                 else:
                     logger.info("Executing API using venv execution system (dependencies already prepared)")
@@ -246,7 +248,8 @@ class SandboxService:
                         timeout_seconds=timeout,
                         memory_limit_mb=memory_limit,
                         auto_install_dependencies=False,
-                        skip_dependency_check=True
+                        skip_dependency_check=True,
+                        database_url=database_url
                     )
                 
                 return result

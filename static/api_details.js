@@ -148,6 +148,57 @@ function populateAPIDetails(data) {
             loadSourceCode();
         }
         
+        // Store database config status for later use
+        window.apiHasDatabaseConfig = false;
+        window.showDbUpgradeMessage = false;
+        
+        console.log('Checking database configuration...', data.database_config);
+        
+        // Check if API has database configuration
+        if (data.database_config) {
+            console.log('Database config exists:', data.database_config);
+            console.log('Database enabled:', data.database_config.enabled);
+            
+            if (data.database_config.enabled) {
+                window.apiHasDatabaseConfig = true;
+                // Show database tab for APIs with enabled database
+                const databaseTab = document.getElementById('databaseTab');
+                if (databaseTab) {
+                    databaseTab.style.display = 'block';
+                    console.log('Database tab shown');
+                }
+                
+                // Populate database information
+                populateDatabaseInfo(data.database_config);
+            } else {
+                console.log('Database config exists but is disabled');
+            }
+        } else {
+            console.log('No database_config field found');
+            // Check if this is an older API that might have database connection
+            // by looking at the prompt or API name
+            const prompt = (data.prompt || '').toLowerCase();
+            const apiName = (data.api_name || '').toLowerCase();
+            const hasDbKeywords = prompt.includes('database') || prompt.includes('postgres') || 
+                                 prompt.includes('mongodb') || prompt.includes('mysql') ||
+                                 apiName.includes('database') || apiName.includes('db') ||
+                                 prompt.includes('sql') || prompt.includes('user') ||
+                                 prompt.includes('collection') || prompt.includes('table');
+            
+            console.log('Checking for database keywords:', hasDbKeywords);
+            
+            if (hasDbKeywords) {
+                // Show database tab with upgrade message
+                const databaseTab = document.getElementById('databaseTab');
+                if (databaseTab) {
+                    databaseTab.style.display = 'block';
+                    console.log('Database tab shown for keyword match');
+                }
+                // Mark that we need to show upgrade message when tab is opened
+                window.showDbUpgradeMessage = true;
+            }
+        }
+        
     } catch (error) {
         console.error('Error populating API details:', error);
         showError('Failed to display API details: ' + error.message);
@@ -168,6 +219,268 @@ async function loadSourceCode() {
     } catch (error) {
         document.getElementById('sourceCode').textContent = 'Error loading source code: ' + error.message;
     }
+}
+
+// Populate database information
+function populateDatabaseInfo(dbConfig) {
+    console.log('populateDatabaseInfo called with:', dbConfig);
+    
+    try {
+        // Database type
+        const dbTypeEl = document.getElementById('dbType');
+        console.log('dbTypeEl:', dbTypeEl, 'db_type:', dbConfig.db_type);
+        if (dbTypeEl && dbConfig.db_type) {
+            dbTypeEl.textContent = dbConfig.db_type.toUpperCase();
+            console.log('Set database type to:', dbConfig.db_type.toUpperCase());
+        }
+        
+        // Database name
+        const dbNameEl = document.getElementById('dbName');
+        console.log('dbNameEl:', dbNameEl, 'database_name:', dbConfig.database_name);
+        if (dbNameEl) {
+            dbNameEl.textContent = dbConfig.database_name || '--';
+            console.log('Set database name to:', dbConfig.database_name || '--');
+        }
+        
+        // Host
+        const dbHostEl = document.getElementById('dbHost');
+        console.log('dbHostEl:', dbHostEl, 'host:', dbConfig.host);
+        if (dbHostEl) {
+            dbHostEl.textContent = dbConfig.host || '--';
+            console.log('Set host to:', dbConfig.host || '--');
+        }
+        
+        // Port
+        const dbPortEl = document.getElementById('dbPort');
+        console.log('dbPortEl:', dbPortEl, 'port:', dbConfig.port);
+        if (dbPortEl) {
+            dbPortEl.textContent = dbConfig.port || '--';
+            console.log('Set port to:', dbConfig.port || '--');
+        }
+        
+        // Username
+        const dbUsernameEl = document.getElementById('dbUsername');
+        console.log('dbUsernameEl:', dbUsernameEl, 'username:', dbConfig.username);
+        if (dbUsernameEl) {
+            dbUsernameEl.textContent = dbConfig.username || '--';
+            console.log('Set username to:', dbConfig.username || '--');
+        }
+        
+        // Connection string
+        const dbConnectionStringEl = document.getElementById('dbConnectionString');
+        if (dbConnectionStringEl && dbConfig.connection_string) {
+            // Mask sensitive parts of connection string
+            const maskedConnectionString = maskConnectionString(dbConfig.connection_string);
+            dbConnectionStringEl.innerHTML = `<span class="text-white">${maskedConnectionString}</span>`;
+            console.log('Set connection string (masked)');
+        }
+        
+        console.log('✅ Database info populated successfully');
+    } catch (error) {
+        console.error('❌ Error populating database info:', error);
+        console.error('Stack trace:', error.stack);
+    }
+}
+
+// Mask sensitive information in connection string
+function maskConnectionString(connectionString) {
+    if (!connectionString) return '';
+    
+    // Mask password in connection string
+    // Pattern: protocol://username:password@host:port/database
+    const passwordPattern = /:\/\/([^:]+):([^@]+)@/;
+    const masked = connectionString.replace(passwordPattern, (match, username, password) => {
+        const maskedPassword = '*'.repeat(Math.min(password.length, 8));
+        return `://${username}:${maskedPassword}@`;
+    });
+    
+    return masked;
+}
+
+// Test database connection
+async function testDatabaseConnection() {
+    const testBtn = document.getElementById('testDbBtn');
+    const statusBadge = document.getElementById('dbStatusBadge');
+    const statusMessage = document.getElementById('dbStatusMessage');
+    const connectionTimeEl = document.getElementById('dbConnectionTime');
+    
+    // Disable button and show loading state
+    if (testBtn) {
+        testBtn.disabled = true;
+        testBtn.innerHTML = `
+            <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Testing...
+        `;
+    }
+    
+    // Update status to testing
+    if (statusBadge) {
+        statusBadge.innerHTML = `
+            <div class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+            <span class="text-sm text-yellow-300">Testing...</span>
+        `;
+    }
+    
+    if (statusMessage) {
+        statusMessage.textContent = 'Connecting to database...';
+        statusMessage.className = 'text-slate-400 text-sm';
+    }
+    
+    try {
+        const response = await fetch(`/api/${userId}/${apiSlug}/test-database-connection`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        // Update UI based on result
+        if (result.success) {
+            // Success state
+            if (statusBadge) {
+                statusBadge.innerHTML = `
+                    <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+                    <span class="text-sm text-green-300">Connected</span>
+                `;
+                statusBadge.className = 'flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/20 border border-green-500/30';
+            }
+            
+            if (statusMessage) {
+                statusMessage.textContent = result.message || 'Database connection successful!';
+                statusMessage.className = 'text-green-300 text-sm';
+            }
+            
+            // Show connection time
+            if (connectionTimeEl && result.connection_time_ms) {
+                connectionTimeEl.textContent = `Connection established in ${result.connection_time_ms.toFixed(2)}ms`;
+                connectionTimeEl.className = 'mt-2 text-xs text-green-400';
+                connectionTimeEl.classList.remove('hidden');
+            }
+        } else {
+            // Error state
+            if (statusBadge) {
+                statusBadge.innerHTML = `
+                    <div class="w-2 h-2 bg-red-400 rounded-full"></div>
+                    <span class="text-sm text-red-300">Failed</span>
+                `;
+                statusBadge.className = 'flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30';
+            }
+            
+            if (statusMessage) {
+                statusMessage.textContent = result.message || 'Failed to connect to database';
+                statusMessage.className = 'text-red-300 text-sm';
+            }
+            
+            if (connectionTimeEl) {
+                connectionTimeEl.classList.add('hidden');
+            }
+        }
+    } catch (error) {
+        console.error('Error testing database connection:', error);
+        
+        // Error state
+        if (statusBadge) {
+            statusBadge.innerHTML = `
+                <div class="w-2 h-2 bg-red-400 rounded-full"></div>
+                <span class="text-sm text-red-300">Error</span>
+            `;
+            statusBadge.className = 'flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30';
+        }
+        
+        if (statusMessage) {
+            statusMessage.textContent = `Error: ${error.message}`;
+            statusMessage.className = 'text-red-300 text-sm';
+        }
+        
+        if (connectionTimeEl) {
+            connectionTimeEl.classList.add('hidden');
+        }
+    } finally {
+        // Re-enable button
+        if (testBtn) {
+            testBtn.disabled = false;
+            testBtn.innerHTML = `
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Test Connection
+            `;
+        }
+    }
+}
+
+// Show database upgrade message for old APIs
+function showDatabaseUpgradeMessage() {
+    const databaseTabContent = document.getElementById('databaseTab');
+    if (!databaseTabContent) return;
+    
+    // Replace the content with an upgrade message
+    databaseTabContent.innerHTML = `
+        <div class="space-y-6">
+            <div class="text-center py-12">
+                <div class="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-bold text-white mb-4">Database Configuration Not Available</h3>
+                <p class="text-slate-300 text-lg mb-6 max-w-2xl mx-auto">
+                    This API was created before database configuration tracking was added. 
+                    You can add database connection details through our chat interface.
+                </p>
+                
+                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6 max-w-2xl mx-auto mb-6">
+                    <div class="flex items-start gap-3 text-left">
+                        <svg class="w-6 h-6 text-blue-400 flex-shrink-0 mt-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div class="text-sm text-blue-300">
+                            <p class="font-medium mb-2">How to add database configuration:</p>
+                            <ol class="list-decimal list-inside space-y-1 text-blue-200/80">
+                                <li>Go to the chat interface</li>
+                                <li>Tell the AI you want to add/update database connection for this API</li>
+                                <li>Provide your database credentials (host, port, database name, etc.)</li>
+                                <li>The API will be updated with database integration</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                    <button onclick="addDatabaseConfig()" class="action-btn btn-primary px-8 py-3 text-lg">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Add Database Configuration
+                    </button>
+                    <button onclick="goBack()" class="action-btn btn-secondary px-6 py-3">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                        Go Back
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Add database configuration for old APIs
+function addDatabaseConfig() {
+    // Redirect to chat with a pre-filled message about adding database config
+    const message = encodeURIComponent(`I want to add database configuration to my existing API "${apiSlug}". Can you help me connect it to my database?`);
+    window.location.href = `/chat?api_slug=${apiSlug}&message=${message}`;
+}
+
+// Modify database configuration
+function modifyDatabaseConfig() {
+    // Redirect to chat with a pre-filled message about modifying database config
+    const message = encodeURIComponent(`I want to modify the database configuration for my API "${apiSlug}". Can you help me update the connection settings?`);
+    window.location.href = `/chat?api_slug=${apiSlug}&message=${message}`;
 }
 
 // Tab switching
@@ -191,6 +504,12 @@ function switchTab(tabName) {
         loadUsageData();
     } else if (tabName === 'versions') {
         loadVersions();
+    } else if (tabName === 'database') {
+        // Check if we need to show upgrade message for old APIs
+        if (window.showDbUpgradeMessage && !window.apiHasDatabaseConfig) {
+            showDatabaseUpgradeMessage();
+            window.showDbUpgradeMessage = false; // Only show once
+        }
     }
 }
 

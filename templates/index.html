@@ -225,6 +225,17 @@
                                 <kbd class="px-2 py-1 bg-slate-700 rounded border border-slate-600">Enter</kbd>
                                 <span>for new line</span>
                             </span>
+                            <!-- Database Toggle -->
+                            <button 
+                                id="databaseToggleBtn"
+                                onclick="openDatabaseModal()"
+                                class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition-all duration-200 border-slate-600 text-slate-400 hover:border-emerald-500/50 hover:text-emerald-400"
+                            >
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                                </svg>
+                                <span id="databaseToggleText">Add Database</span>
+                            </button>
                         </div>
                         <div id="charCount" class="text-slate-500">0 characters</div>
                     </div>
@@ -440,6 +451,207 @@
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Database Configuration Modal -->
+<div id="databaseModal" class="fixed inset-0 z-50 hidden">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeDatabaseModal()"></div>
+    
+    <!-- Modal Content -->
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+        <div class="relative bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-6 border-b border-slate-700">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-white">Database Connection</h3>
+                        <p class="text-sm text-slate-400">Configure your database for the API</p>
+                    </div>
+                </div>
+                <button onclick="closeDatabaseModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="p-6 space-y-4">
+                <!-- Database Type -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Database Type</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button 
+                            type="button"
+                            id="dbTypePostgres"
+                            onclick="selectDatabaseType('postgresql')"
+                            class="flex items-center justify-center space-x-2 p-3 rounded-lg border-2 border-slate-600 hover:border-blue-500 transition-all duration-200 bg-slate-700/50"
+                        >
+                            <svg class="w-6 h-6 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93s3.05-7.44 7-7.93v15.86zm2-15.86c1.03.13 2 .45 2.87.93H13v-.93zM13 7h5.24c.25.31.48.65.68 1H13V7zm0 3h6.74c.08.33.15.66.19 1H13v-1zm0 9.93V19h2.87c-.87.48-1.84.8-2.87.93zM18.24 17H13v-1h5.92c-.2.35-.43.69-.68 1zm1.5-3H13v-1h6.93c-.04.34-.11.67-.19 1z"/>
+                            </svg>
+                            <span class="text-white font-medium">PostgreSQL</span>
+                        </button>
+                        <button 
+                            type="button"
+                            id="dbTypeMongo"
+                            onclick="selectDatabaseType('mongodb')"
+                            class="flex items-center justify-center space-x-2 p-3 rounded-lg border-2 border-slate-600 hover:border-green-500 transition-all duration-200 bg-slate-700/50"
+                        >
+                            <svg class="w-6 h-6 text-green-400" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+                            </svg>
+                            <span class="text-white font-medium">MongoDB</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Connection Method Toggle -->
+                <div class="flex items-center justify-center space-x-2 py-2">
+                    <button 
+                        type="button"
+                        id="useFieldsBtn"
+                        onclick="toggleConnectionMethod('fields')"
+                        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 bg-slate-600 text-white"
+                    >
+                        Individual Fields
+                    </button>
+                    <button 
+                        type="button"
+                        id="useConnectionStringBtn"
+                        onclick="toggleConnectionMethod('string')"
+                        class="px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-slate-400 hover:text-white"
+                    >
+                        Connection String
+                    </button>
+                </div>
+                
+                <!-- Connection String Input (Hidden by default) -->
+                <div id="connectionStringSection" class="hidden">
+                    <label class="block text-sm font-medium text-slate-300 mb-2">
+                        Connection String
+                        <span class="text-slate-500 text-xs ml-1">(e.g., postgresql://user:pass@host:port/db)</span>
+                    </label>
+                    <textarea 
+                        id="dbConnectionString"
+                        rows="3"
+                        placeholder="postgresql://username:password@host:port/database&#10;or&#10;mongodb://username:password@host:port/database"
+                        class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 font-mono text-sm resize-none"
+                        onpaste="setTimeout(handleConnectionStringInput, 100)"
+                    ></textarea>
+                    <p class="text-xs text-slate-500 mt-1">
+                        💡 Paste your full connection URL from Neon, Supabase, Railway, Atlas, etc.
+                    </p>
+                </div>
+                
+                <!-- Connection Fields (Shown by default) -->
+                <div id="connectionFieldsSection">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2 sm:col-span-1">
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Host</label>
+                            <input 
+                                type="text" 
+                                id="dbHost"
+                                placeholder="localhost"
+                                class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                            >
+                        </div>
+                        <div class="col-span-2 sm:col-span-1">
+                            <label class="block text-sm font-medium text-slate-300 mb-2">Port</label>
+                            <input 
+                                type="number" 
+                                id="dbPort"
+                                placeholder="5432"
+                                class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                            >
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">Database Name</label>
+                        <input 
+                            type="text" 
+                            id="dbName"
+                            placeholder="my_database"
+                            class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">Username</label>
+                        <input 
+                            type="text" 
+                            id="dbUsername"
+                            placeholder="postgres"
+                            class="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-2">Password</label>
+                        <div class="relative">
+                            <input 
+                                type="password" 
+                                id="dbPassword"
+                                placeholder="Enter password"
+                                class="w-full px-3 py-2 pr-10 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                            >
+                            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+                                <svg id="passwordEyeIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Test Connection Result -->
+                <div id="dbTestResult" class="hidden">
+                    <div id="dbTestResultContent" class="p-3 rounded-lg text-sm"></div>
+                </div>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="flex items-center justify-between p-6 border-t border-slate-700">
+                <button 
+                    type="button"
+                    onclick="testDatabaseConnection()"
+                    id="testConnectionBtn"
+                    class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-all duration-200 flex items-center space-x-2"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <span>Test Connection</span>
+                </button>
+                <div class="flex items-center space-x-3">
+                    <button 
+                        type="button"
+                        onclick="clearDatabaseConfig()"
+                        class="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                    >
+                        Clear
+                    </button>
+                    <button 
+                        type="button"
+                        onclick="saveDatabaseConfig()"
+                        class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-lg font-medium transition-all duration-200 flex items-center space-x-2"
+                    >
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span>Save Configuration</span>
+                    </button>
                 </div>
             </div>
         </div>

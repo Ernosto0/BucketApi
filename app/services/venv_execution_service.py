@@ -50,7 +50,8 @@ class VenvExecutionService:
         timeout_seconds: int = None,
         memory_limit_mb: int = None,
         auto_install_dependencies: bool = True,
-        skip_dependency_check: bool = False
+        skip_dependency_check: bool = False,
+        database_url: Optional[str] = None
     ) -> Any:
         """
         Execute API code in the api_venv with automatic dependency management.
@@ -96,7 +97,8 @@ class VenvExecutionService:
                 file_bytes=file_bytes,
                 timeout_seconds=timeout_seconds or self.DEFAULT_TIMEOUT_SECONDS,
                 memory_limit_mb=memory_limit_mb or self.DEFAULT_MEMORY_LIMIT_MB,
-                execution_id=execution_id
+                execution_id=execution_id,
+                database_url=database_url
             )
             
             # Step 3: Update statistics and return result
@@ -125,7 +127,8 @@ class VenvExecutionService:
         file_bytes: Optional[bytes],
         timeout_seconds: int,
         memory_limit_mb: int,
-        execution_id: str
+        execution_id: str,
+        database_url: Optional[str] = None
     ) -> Any:
         """Execute code in the api_venv with resource limits."""
         
@@ -146,7 +149,8 @@ class VenvExecutionService:
                 script_path=temp_file_path,
                 timeout_seconds=timeout_seconds,
                 memory_limit_mb=memory_limit_mb,
-                execution_id=execution_id
+                execution_id=execution_id,
+                database_url=database_url
             )
             
             return result
@@ -273,17 +277,25 @@ except Exception as e:
         script_path: str,
         timeout_seconds: int,
         memory_limit_mb: int,
-        execution_id: str
+        execution_id: str,
+        database_url: Optional[str] = None
     ) -> Any:
         """Run subprocess with resource limits and monitoring."""
         
         process = None
         try:
+            # Prepare environment variables
+            env = os.environ.copy()
+            if database_url:
+                env['DATABASE_URL'] = database_url
+                logger.info(f"Setting DATABASE_URL environment variable for execution {execution_id}")
+            
             # Start the subprocess
             process = await asyncio.create_subprocess_exec(
                 python_path, script_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                env=env,
                 limit=1024 * 1024  # 1MB buffer limit
             )
             

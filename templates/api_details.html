@@ -119,6 +119,12 @@
                             </svg>
                             Source Code
                         </button>
+                        <button onclick="switchTab('database')" class="tab-button" data-tab="database" id="databaseTab" style="display: none;">
+                            <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                            </svg>
+                            Database
+                        </button>
                     </nav>
                 </div>
 
@@ -530,6 +536,104 @@
                         </div>
                         <div class="code-viewer">
                             <pre id="sourceCode" class="text-slate-300 text-sm font-mono">Loading source code...</pre>
+                        </div>
+                    </div>
+
+                    <!-- Database Tab -->
+                    <div id="databaseTab" class="tab-content hidden">
+                        <div class="space-y-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <h3 class="section-header text-xl font-semibold text-white flex items-center gap-2">
+                                    <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                                    </svg>
+                                    Database Connection
+                                </h3>
+                                <button onclick="testDatabaseConnection()" id="testDbBtn" class="action-btn btn-primary">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Test Connection
+                                </button>
+                            </div>
+
+                            <!-- Connection Status Card -->
+                            <div class="glass-card rounded-xl p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-lg font-semibold text-white">Connection Status</h4>
+                                    <div id="dbStatusBadge" class="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-700/50">
+                                        <div class="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                        <span class="text-sm text-slate-300">Not Tested</span>
+                                    </div>
+                                </div>
+                                <div id="dbStatusMessage" class="text-slate-400 text-sm">
+                                    Click "Test Connection" to verify database connectivity
+                                </div>
+                                <div id="dbConnectionTime" class="hidden mt-2 text-xs text-slate-500">
+                                    <!-- Connection time will be displayed here -->
+                                </div>
+                            </div>
+
+                            <!-- Database Configuration -->
+                            <div class="glass-card rounded-xl p-6">
+                                <h4 class="text-lg font-semibold text-white mb-4">Configuration</h4>
+                                <div class="space-y-4">
+                                    <div class="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-300 mb-1">Database Type</label>
+                                            <div id="dbType" class="bg-slate-700/50 text-white px-3 py-2 rounded font-mono text-sm">--</div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-300 mb-1">Database Name</label>
+                                            <div id="dbName" class="bg-slate-700/50 text-white px-3 py-2 rounded font-mono text-sm">--</div>
+                                        </div>
+                                    </div>
+                                    <div class="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-300 mb-1">Host</label>
+                                            <div id="dbHost" class="bg-slate-700/50 text-white px-3 py-2 rounded font-mono text-sm">--</div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-slate-300 mb-1">Port</label>
+                                            <div id="dbPort" class="bg-slate-700/50 text-white px-3 py-2 rounded font-mono text-sm">--</div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-300 mb-1">Username</label>
+                                        <div id="dbUsername" class="bg-slate-700/50 text-white px-3 py-2 rounded font-mono text-sm">--</div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-slate-300 mb-1">Connection String</label>
+                                        <div id="dbConnectionString" class="bg-slate-700/50 text-white px-3 py-2 rounded font-mono text-sm break-all">
+                                            <span class="text-slate-500">Not using connection string</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Database Actions -->
+                            <div class="glass-card rounded-xl p-6">
+                                <h4 class="text-lg font-semibold text-white mb-4">Actions</h4>
+                                <div class="space-y-3">
+                                    <button onclick="modifyDatabaseConfig()" class="w-full action-btn btn-secondary justify-center">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                        </svg>
+                                        Modify Database Configuration
+                                    </button>
+                                    <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                                        <div class="flex items-start gap-3">
+                                            <svg class="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                            <div class="text-sm text-blue-300">
+                                                <p class="font-medium mb-1">Database Integration</p>
+                                                <p class="text-blue-200/80">This API is connected to a database. You can modify the connection settings through the chat interface or by editing the API configuration.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -168,7 +168,7 @@ class PromptServiceBuild:
         
         return int((input_cost + output_cost) * 100)
 
-    async def analyze_user_prompt(self, user_id: str, prompt: str) -> str:
+    async def analyze_user_prompt(self, user_id: str, prompt: str, database_config=None) -> str:
         """
         Analyze user prompt using OpenAI to determine if it's a buildable API, needs clarification, or is nonsense.
         Routes to appropriate function based on analysis.
@@ -194,7 +194,7 @@ class PromptServiceBuild:
                 
                 # Route to appropriate function based on decision
                 if decision == "BUILDABLE":
-                    return await self.IcanBuildThis(user_id, prompt)
+                    return await self.IcanBuildThis(user_id, prompt, database_config=database_config)
                 elif decision == "NEEDS_CLARIFICATION":
                     questions = analysis.get("questions", [])
                     return await self.AskMoreQuestions(user_id, prompt, questions)
@@ -213,9 +213,9 @@ class PromptServiceBuild:
             logger.error(f"Error analyzing prompt: {str(e)}")
             return await self.ICantBuildThis(user_id, prompt, None)
 
-    async def CanIBuildThis(self, user_id: str, prompt: str) -> str:
+    async def CanIBuildThis(self, user_id: str, prompt: str, database_config=None) -> str:
         """Main entry point for prompt analysis"""
-        return await self.analyze_user_prompt(user_id, prompt)
+        return await self.analyze_user_prompt(user_id, prompt, database_config=database_config)
     
     # NOTE: Removed CanIModifyProposal method - we now go directly to ModifyExistingProposal
     # This eliminates unnecessary analysis steps and reduces token usage
@@ -483,19 +483,45 @@ JSON format:
             logger.error(f"Fallback modification failed: {str(e)}")
             raise e
 
-    async def PropeseTheBuild(self, user_id: str, prompt: str) -> str:
+    async def PropeseTheBuild(self, user_id: str, prompt: str, database_config=None) -> str:
         """
         Create a detailed explanation of what the API will do and ask for user confirmation.
         Uses OpenAI to generate comprehensive API specifications.
         """
         try:
             logger.info(f"Creating detailed API proposal for user {user_id}: {prompt[:100]}...")
+            logger.info(f"Database config received: {database_config is not None}, enabled: {database_config.enabled if database_config else 'N/A'}")
             
-            # Load prompt configuration from JSON file
-            prompt_config = load_prompt("api_proposal")
-            system_prompt = prompt_config["system_prompt"]
+            # Check if database configuration is provided
+            database_schema = None
+            if database_config and database_config.enabled:
+                try:
+                    logger.info(f"Database config provided, fetching schema...")
+                    from .database_connection_service import database_connection_service
+                    schema_info = await database_connection_service.get_database_schema(database_config)
+                    
+                    if schema_info and "error" not in schema_info:
+                        database_schema = self._format_schema_for_prompt(schema_info)
+                        logger.info(f"Retrieved database schema: {len(schema_info.get('tables', schema_info.get('collections', {})))} tables/collections")
+                    else:
+                        logger.warning(f"Could not retrieve database schema: {schema_info.get('error', 'unknown error')}")
+                except Exception as e:
+                    logger.warning(f"Failed to get database schema for proposal: {e}")
             
-            user_prompt = f"Create a detailed API proposal for this request: {prompt}"
+            # Load appropriate prompt configuration
+            if database_schema:
+                # Use database-aware proposal prompt
+                prompt_config = load_prompt("api_proposal_with_database")
+                system_prompt = prompt_config["system_prompt"]
+                user_prompt_template = prompt_config.get("user_prompt_template", "User Request: {user_prompt}\n\nDATABASE SCHEMA:\n{database_schema}\n\nBased on the ACTUAL database schema above, generate a proposal for an API that fulfills the user's request.")
+                user_prompt = user_prompt_template.format(user_prompt=prompt, database_schema=database_schema)
+                logger.info(f"Using database-aware proposal prompt with schema")
+            else:
+                # Use regular proposal prompt
+                prompt_config = load_prompt("api_proposal")
+                system_prompt = prompt_config["system_prompt"]
+                user_prompt = f"Create a detailed API proposal for this request: {prompt}"
+                logger.info(f"Using regular proposal prompt (no database)")
             
             # Use the class's OpenAI request method
             proposal_result = await self._make_openai_request_with_logging(
@@ -544,6 +570,41 @@ JSON format:
             logger.error(f"Error creating API proposal: {str(e)}")
             return await self._create_simple_proposal(user_id, prompt)
 
+    def _format_schema_for_prompt(self, schema_info: dict) -> str:
+        """Format database schema information for inclusion in prompt."""
+        lines = []
+        
+        db_type = schema_info.get("database_type", "unknown")
+        db_name = schema_info.get("database_name", "")
+        
+        lines.append(f"Database: {db_name} ({db_type.upper()})")
+        lines.append("")
+        
+        if db_type == "postgresql":
+            tables = schema_info.get("tables", {})
+            for table_name, table_info in tables.items():
+                lines.append(f"Table: {table_name}")
+                columns = table_info.get("columns", [])
+                for col in columns:
+                    pk_marker = " [PRIMARY KEY]" if col.get("is_primary_key") else ""
+                    nullable = "NULL" if col.get("nullable") else "NOT NULL"
+                    col_type = col.get("type", "unknown")
+                    max_len = f"({col.get('max_length')})" if col.get("max_length") else ""
+                    lines.append(f"  - {col['name']}: {col_type}{max_len} {nullable}{pk_marker}")
+                lines.append("")
+        
+        elif db_type == "mongodb":
+            collections = schema_info.get("collections", {})
+            for coll_name, coll_info in collections.items():
+                lines.append(f"Collection: {coll_name}")
+                fields = coll_info.get("fields", [])
+                for field in fields:
+                    id_marker = " [ID]" if field.get("is_id") else ""
+                    lines.append(f"  - {field['name']}: {field.get('type', 'unknown')}{id_marker}")
+                lines.append("")
+        
+        return "\n".join(lines)
+    
     async def _create_simple_proposal(self, user_id: str, prompt: str) -> str:
         """Fallback method to create a simple proposal if detailed generation fails"""
         response = {
@@ -562,10 +623,10 @@ JSON format:
         logger.info(f"Created simple proposal fallback for user {user_id}")
         return json.dumps(response, indent=2)
 
-    async def IcanBuildThis(self, user_id: str, prompt: str) -> str:
+    async def IcanBuildThis(self, user_id: str, prompt: str, database_config=None) -> str:
         """Handle buildable API requests - now routes to proposal generation"""
         logger.info(f"Routing buildable API request to proposal generation for user {user_id}")
-        return await self.PropeseTheBuild(user_id, prompt)
+        return await self.PropeseTheBuild(user_id, prompt, database_config=database_config)
 
     async def ICantBuildThis(self, user_id: str, prompt: str, analysis: dict = None) -> str:
         """Handle non-buildable requests"""
