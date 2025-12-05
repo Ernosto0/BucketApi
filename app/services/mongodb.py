@@ -133,6 +133,9 @@ class MongoDB:
         # Settings management collection
         self._collections['system_settings'] = self.db['system_settings']
         
+        # Custom domains collection
+        self._collections['custom_domains'] = self.db['custom_domains']
+        
         logger.info(f"✅ Initialized {len(self._collections)} collections")
     
     def _create_indexes(self):
@@ -250,6 +253,14 @@ class MongoDB:
             self.system_settings.create_index([("category", ASCENDING)])
             self.system_settings.create_index([("last_updated", DESCENDING)])
             
+            # Custom Domains indexes
+            self.custom_domains.create_index([("domain", ASCENDING)], unique=True)
+            self.custom_domains.create_index([("user_id", ASCENDING)])
+            self.custom_domains.create_index([("api_slug", ASCENDING)])
+            self.custom_domains.create_index([("status", ASCENDING)])
+            self.custom_domains.create_index([("verification_token", ASCENDING)])
+            self.custom_domains.create_index([("created_at", DESCENDING)])
+            
             logger.info("✅ Created all database indexes")
             
         except Exception as e:
@@ -339,6 +350,10 @@ class MongoDB:
     @property
     def system_settings(self) -> Collection:
         return self._collections['system_settings']
+    
+    @property
+    def custom_domains(self) -> Collection:
+        return self._collections['custom_domains']
     
     def close(self):
         """Close MongoDB connection"""

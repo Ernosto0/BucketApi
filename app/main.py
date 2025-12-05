@@ -50,7 +50,11 @@ from .models import (
     # Report models
     CreateReportRequest, CreateReportResponse, Report, ListReportsResponse,
     # Database connection models
-    DatabaseType, DatabaseConfig, TestDatabaseConnectionRequest, TestDatabaseConnectionResponse
+    DatabaseType, DatabaseConfig, TestDatabaseConnectionRequest, TestDatabaseConnectionResponse,
+    # Custom domain models
+    CustomDomain, DomainStatus, VerificationMethod, SSLCertificateStatus,
+    CreateDomainRequest, CreateDomainResponse, VerifyDomainRequest, VerifyDomainResponse,
+    DomainStatusResponse, ListDomainsResponse, DeleteDomainResponse, DomainMapping
 )
 from .services.openai_service import openai_service
 from .services.claude_service import claude_service
@@ -72,6 +76,9 @@ from .services.test_service import test_service
 from .services.database_connection_service import database_connection_service
 from .services.logging_service import logging_service, LogLevel, LogCategory
 from .services.exceptions import create_secure_error, SecureHTTPException
+from .services.domain_service import domain_service
+from .services.domain_verification_service import domain_verification_service
+from .services.caddy_service import caddy_service
 from .services.multi_step_generation_service import multi_step_generation_service
 from .code_generation_config.multi_step_config import GenerationMode
 from .middleware.logging_middleware import LoggingMiddleware, RequestContextMiddleware
@@ -149,6 +156,151 @@ async def add_security_headers(request: Request, call_next):
         )
     
     return response
+
+
+# Custom domain routing middleware
+# This middleware intercepts requests from custom domains and routes them to the correct API
+MAIN_DOMAIN = os.getenv("MAIN_DOMAIN", "bucketapi.com")
+SKIP_DOMAIN_ROUTING_PATHS = {"/health", "/api/caddy/check-domain", "/api/caddy/health", "/.well-known"}
+
+
+@app.middleware("http")
+async def custom_domain_routing_middleware(request: Request, call_next):
+    """
+    Route custom domain requests to the appropriate API endpoint.
+    
+    Supports multiple APIs per domain via path-based routing:
+    - http://loopfeedback.dev/api/{api_slug} → /api/{user_id}/{api_slug}
+    - http://loopfeedback.dev/ → /api/{user_id}/{default_api_slug} (if default set)
+    """
+    try:
+        # Get the host header
+        host = request.headers.get("host", "").split(":")[0].lower()  # Remove port
+        path = request.url.path
+        
+        # Skip routing for main domain, localhost, and certain paths
+        if (host in {MAIN_DOMAIN, f"www.{MAIN_DOMAIN}", "localhost", "127.0.0.1"} or
+            any(path.startswith(skip_path) for skip_path in SKIP_DOMAIN_ROUTING_PATHS)):
+            return await call_next(request)
+        
+        # Check if this is a custom domain by looking up in database
+        domain_doc = mongodb.custom_domains.find_one({
+            "domain": host,
+            "status": "active"
+        })
+        
+        if domain_doc:
+            # Found custom domain - route based on path
+            user_id = domain_doc["user_id"]
+            original_path = path.rstrip("/")
+            
+            # Check if path starts with /api/{api_slug}
+            # Pattern: /api/{api_slug} or /api/{api_slug}/...
+            if original_path.startswith("/api/"):
+                # Extract api_slug from path: /api/{api_slug}/...
+                path_parts = original_path.split("/")
+                if len(path_parts) >= 3:  # /api/{api_slug}
+                    api_slug = path_parts[2]  # Get api_slug from /api/{api_slug}
+                    
+                    # Verify API belongs to this user
+                    api_exists = mongodb.saved_apis.find_one({
+                        "user_id": user_id,
+                        "api_slug": api_slug
+                    })
+                    
+                    if api_exists:
+                        # Build remaining path after /api/{api_slug}
+                        remaining_path = "/" + "/".join(path_parts[3:]) if len(path_parts) > 3 else ""
+                        
+                        # Rewrite: /api/{api_slug}/... → /api/{user_id}/{api_slug}/...
+                        new_path = f"/api/{user_id}/{api_slug}{remaining_path}"
+                        
+                        # Preserve query string
+                        query_string = request.url.query
+                        if query_string:
+                            new_path += f"?{query_string}"
+                        
+                        # Log the routing
+                        logger.debug(f"Custom domain routing: {host}{path} → {new_path}")
+                        
+                        # Create a new scope with the rewritten path
+                        scope = dict(request.scope)
+                        scope["path"] = new_path
+                        scope["raw_path"] = new_path.encode()
+                        scope["path_info"] = new_path.split("?")[0]
+                        scope["query_string"] = query_string.encode() if query_string else b""
+                        
+                        # Add custom headers
+                        headers = list(request.scope.get("headers", []))
+                        headers.append((b"x-custom-domain", host.encode()))
+                        headers.append((b"x-original-path", path.encode()))
+                        scope["headers"] = headers
+                        
+                        # Create a new request with the modified scope
+                        from starlette.requests import Request as StarletteRequest
+                        modified_request = StarletteRequest(scope, request.receive)
+                        
+                        return await call_next(modified_request)
+                    else:
+                        # API not found for this user
+                        logger.warning(f"API {api_slug} not found for user {user_id} on domain {host}")
+                        # Return 404 - let FastAPI handle it
+                        return await call_next(request)
+                else:
+                    # Invalid path format: /api/ without slug
+                    return await call_next(request)
+            
+            # Root path "/" - check if domain has a default API
+            elif original_path in ("", "/"):
+                # Check if domain has a default API (api_slug field)
+                default_api_slug = domain_doc.get("api_slug")
+                
+                if default_api_slug:
+                    # Route to default API
+                    new_path = f"/api/{user_id}/{default_api_slug}"
+                    
+                    # Preserve query string
+                    query_string = request.url.query
+                    if query_string:
+                        new_path += f"?{query_string}"
+                    
+                    logger.debug(f"Custom domain root routing: {host}/ → {new_path}")
+                    
+                    # Create a new scope with the rewritten path
+                    scope = dict(request.scope)
+                    scope["path"] = new_path
+                    scope["raw_path"] = new_path.encode()
+                    scope["path_info"] = new_path.split("?")[0]
+                    scope["query_string"] = query_string.encode() if query_string else b""
+                    
+                    # Add custom headers
+                    headers = list(request.scope.get("headers", []))
+                    headers.append((b"x-custom-domain", host.encode()))
+                    headers.append((b"x-original-path", path.encode()))
+                    scope["headers"] = headers
+                    
+                    # Create a new request with the modified scope
+                    from starlette.requests import Request as StarletteRequest
+                    modified_request = StarletteRequest(scope, request.receive)
+                    
+                    return await call_next(modified_request)
+                else:
+                    # No default API - could return list of available APIs or 404
+                    logger.debug(f"Custom domain {host} has no default API, path: {path}")
+                    # For now, proceed normally (could add endpoint to list APIs)
+                    return await call_next(request)
+            else:
+                # Other paths - proceed normally (could be static files, etc.)
+                return await call_next(request)
+        
+        # Not a custom domain, proceed normally
+        return await call_next(request)
+        
+    except Exception as e:
+        # Log error but don't fail the request - just proceed normally
+        logger.error(f"Custom domain routing error: {str(e)}", exc_info=True)
+        return await call_next(request)
+
 
 # Add logging middleware (disabled - causes deadlocks with database sessions)
 app.add_middleware(RequestContextMiddleware)
@@ -2508,6 +2660,238 @@ async def execute_api(
             error=str(e),
             execution_time=execution_time
         )
+
+# ===================================
+# CUSTOM DOMAIN ENDPOINTS
+# NOTE: These routes MUST come before /api/{user_id} to avoid route conflicts
+# ===================================
+
+@app.post("/api/domains", response_model=CreateDomainResponse)
+async def create_domain(
+    request: CreateDomainRequest,
+    current_user: User = Depends(require_active_user)
+):
+    """
+    Register a custom domain for an API.
+    The domain must be verified via DNS TXT record before it becomes active.
+    """
+    try:
+        logger.info(f"User {current_user.id} creating domain {request.domain} for API {request.api_slug}")
+        
+        result = await domain_service.create_domain(
+            user_id=current_user.id,
+            request=request
+        )
+        
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.message)
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating domain: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create domain: {str(e)}")
+
+
+@app.get("/api/domains", response_model=ListDomainsResponse)
+async def list_domains(
+    api_slug: Optional[str] = None,
+    current_user: User = Depends(require_active_user)
+):
+    """
+    List all custom domains for the authenticated user.
+    Optionally filter by API slug.
+    """
+    try:
+        return await domain_service.list_domains(
+            user_id=current_user.id,
+            api_slug=api_slug
+        )
+    except Exception as e:
+        logger.error(f"Error listing domains: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list domains: {str(e)}")
+
+
+@app.get("/api/domains/{domain_id}", response_model=DomainStatusResponse)
+async def get_domain(
+    domain_id: str,
+    current_user: User = Depends(require_active_user)
+):
+    """Get details for a specific domain."""
+    try:
+        domain = await domain_service.get_domain(domain_id, current_user.id)
+        
+        if not domain:
+            raise HTTPException(status_code=404, detail="Domain not found")
+        
+        return DomainStatusResponse(
+            success=True,
+            domain=domain,
+            ssl_status=domain.ssl_certificate_status,
+            message=f"Domain status: {domain.status.value}"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting domain: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get domain: {str(e)}")
+
+
+@app.post("/api/domains/{domain_id}/verify", response_model=VerifyDomainResponse)
+async def verify_domain(
+    domain_id: str,
+    current_user: User = Depends(require_active_user)
+):
+    """
+    Verify domain ownership via DNS TXT record or HTTP file.
+    Must be called after DNS/HTTP setup is complete.
+    """
+    try:
+        logger.info(f"User {current_user.id} verifying domain {domain_id}")
+        
+        result = await domain_verification_service.verify_domain(
+            domain_id=domain_id,
+            user_id=current_user.id
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error verifying domain: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to verify domain: {str(e)}")
+
+
+@app.delete("/api/domains/{domain_id}", response_model=DeleteDomainResponse)
+async def delete_domain(
+    domain_id: str,
+    current_user: User = Depends(require_active_user)
+):
+    """Delete a custom domain."""
+    try:
+        logger.info(f"User {current_user.id} deleting domain {domain_id}")
+        
+        return await domain_service.delete_domain(
+            domain_id=domain_id,
+            user_id=current_user.id
+        )
+        
+    except Exception as e:
+        logger.error(f"Error deleting domain: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to delete domain: {str(e)}")
+
+
+@app.get("/api/domains/{domain_id}/status", response_model=DomainStatusResponse)
+async def get_domain_status(
+    domain_id: str,
+    current_user: User = Depends(require_active_user)
+):
+    """Get verification and SSL status for a domain."""
+    try:
+        domain = await domain_service.get_domain(domain_id, current_user.id)
+        
+        if not domain:
+            raise HTTPException(status_code=404, detail="Domain not found")
+        
+        # Check SSL status if domain is active
+        ssl_status = domain.ssl_certificate_status
+        if domain.status == DomainStatus.ACTIVE:
+            ssl_info = await caddy_service.check_ssl_status(domain.domain)
+            if ssl_info and ssl_info.get("issued"):
+                ssl_status = SSLCertificateStatus.ISSUED
+        
+        return DomainStatusResponse(
+            success=True,
+            domain=domain,
+            ssl_status=ssl_status,
+            message=f"Domain is {domain.status.value}"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting domain status: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get domain status: {str(e)}")
+
+
+# ===================================
+# CADDY INTEGRATION ENDPOINT
+# ===================================
+
+@app.get("/api/caddy/check-domain")
+async def check_domain_for_caddy(domain: str):
+    """
+    Called by Caddy before issuing SSL certificate via on-demand TLS.
+    Returns 200 if domain is verified and allowed, 403 otherwise.
+    
+    This endpoint MUST respond quickly (Caddy has a timeout).
+    """
+    try:
+        is_allowed = await domain_service.check_domain_for_caddy(domain)
+        
+        if is_allowed:
+            logger.info(f"Caddy check: Domain {domain} is allowed for SSL")
+            return Response(status_code=200)
+        
+        logger.warning(f"Caddy check: Domain {domain} is NOT allowed for SSL")
+        return Response(status_code=403)
+        
+    except Exception as e:
+        logger.error(f"Error checking domain for Caddy: {str(e)}")
+        return Response(status_code=403)
+
+
+@app.get("/api/caddy/health")
+async def caddy_health():
+    """Check Caddy connectivity status."""
+    try:
+        is_healthy = await caddy_service.health_check()
+        
+        return {
+            "success": is_healthy,
+            "message": "Caddy is healthy" if is_healthy else "Caddy is not reachable",
+            "status": "healthy" if is_healthy else "unhealthy"
+        }
+        
+    except Exception as e:
+        logger.error(f"Caddy health check failed: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Health check failed: {str(e)}",
+            "status": "unhealthy"
+        }
+
+
+@app.get("/api/domains/health")
+async def domains_health():
+    """Check domain service health."""
+    try:
+        # Count domains by status
+        total_domains = mongodb.custom_domains.count_documents({})
+        active_domains = mongodb.custom_domains.count_documents({"status": DomainStatus.ACTIVE.value})
+        pending_domains = mongodb.custom_domains.count_documents({"status": DomainStatus.PENDING.value})
+        
+        return {
+            "success": True,
+            "total_domains": total_domains,
+            "active_domains": active_domains,
+            "pending_domains": pending_domains,
+            "status": "healthy"
+        }
+        
+    except Exception as e:
+        logger.error(f"Domain health check failed: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Health check failed: {str(e)}",
+            "status": "unhealthy"
+        }
+
+# ===================================
+# USER API ENDPOINTS
+# ===================================
 
 @app.get("/api/{user_id}", response_model=ListAPIsResponse)
 async def list_user_apis(user_id: str):

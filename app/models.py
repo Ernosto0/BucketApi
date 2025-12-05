@@ -1057,4 +1057,115 @@ class UpdateSettingResponse(BaseModel):
     message: str
     setting: Optional[SettingValue] = None
     requires_restart: bool = False
+
+
+# Custom Domain Models
+class DomainStatus(str, Enum):
+    """Domain verification and activation status"""
+    PENDING = "pending"           # Domain registered, waiting for DNS setup
+    VERIFYING = "verifying"       # DNS check in progress
+    VERIFIED = "verified"         # DNS verified, ready for Caddy
+    ACTIVATING = "activating"     # Adding to Caddy, generating SSL
+    ACTIVE = "active"             # Fully operational
+    FAILED = "failed"             # Verification or activation failed
+
+
+class VerificationMethod(str, Enum):
+    """Domain verification methods"""
+    DNS_TXT = "dns_txt"
+    HTTP_FILE = "http_file"
+
+
+class SSLCertificateStatus(str, Enum):
+    """SSL certificate status"""
+    PENDING = "pending"
+    ISSUED = "issued"
+    FAILED = "failed"
+
+
+class CustomDomain(BaseModel):
+    """Custom domain configuration for a user (can serve multiple APIs)"""
+    id: str
+    user_id: str
+    api_slug: Optional[str] = None  # Optional: Default API slug for root path "/"
+    domain: str  # e.g., "api.example.com"
+    status: DomainStatus = DomainStatus.PENDING
+    verification_token: str  # For DNS TXT record verification
+    verification_method: VerificationMethod = VerificationMethod.DNS_TXT
+    ssl_certificate_status: Optional[SSLCertificateStatus] = None
+    caddy_route_id: Optional[str] = None  # Caddy route identifier
+    created_at: datetime
+    verified_at: Optional[datetime] = None
+    last_verified_at: Optional[datetime] = None
+    activated_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    verification_attempts: int = 0
+    last_verification_attempt: Optional[datetime] = None
+    
+    # Note: api_slug is optional. If set, it's the default API for root path "/"
+    # All user's APIs are accessible via: http://domain/api/{api_slug}
+
+
+class CreateDomainRequest(BaseModel):
+    """Request to create/register a custom domain"""
+    domain: str = Field(..., description="The domain to register (e.g., api.example.com)")
+    api_slug: Optional[str] = Field(None, description="Optional: Default API slug for root path. If not set, root path will not route to any API. All APIs accessible via /api/{api_slug}")
+    verification_method: Optional[VerificationMethod] = Field(
+        VerificationMethod.DNS_TXT, 
+        description="Verification method: dns_txt or http_file"
+    )
+
+
+class CreateDomainResponse(BaseModel):
+    """Response after creating a domain"""
+    success: bool
+    message: str
+    domain: Optional[CustomDomain] = None
+    verification_instructions: Optional[str] = None
+    dns_record: Optional[str] = None  # TXT record to add
+
+
+class VerifyDomainRequest(BaseModel):
+    """Request to verify domain ownership"""
+    domain_id: str = Field(..., description="Domain ID to verify")
+
+
+class VerifyDomainResponse(BaseModel):
+    """Response after domain verification attempt"""
+    success: bool
+    status: DomainStatus
+    message: str
+    verification_token: Optional[str] = None
+    dns_record: Optional[str] = None
+    next_retry_at: Optional[datetime] = None
+
+
+class DomainStatusResponse(BaseModel):
+    """Response for domain status check"""
+    success: bool
+    domain: Optional[CustomDomain] = None
+    ssl_status: Optional[SSLCertificateStatus] = None
+    message: str
+
+
+class ListDomainsResponse(BaseModel):
+    """Response for listing user's domains"""
+    success: bool
+    domains: List[CustomDomain]
+    total: int
+
+
+class DeleteDomainResponse(BaseModel):
+    """Response after deleting a domain"""
+    success: bool
+    message: str
+
+
+class DomainMapping(BaseModel):
+    """Domain mapping for routing (api_slug is optional - default API)"""
+    domain: str
+    user_id: str
+    api_slug: Optional[str] = None  # Optional: Default API slug for root path
+    status: DomainStatus
    
