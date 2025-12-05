@@ -219,28 +219,28 @@ async def custom_domain_routing_middleware(request: Request, call_next):
                         query_string = request.url.query
                         if query_string:
                             new_path += f"?{query_string}"
-            
-            # Log the routing
-            logger.debug(f"Custom domain routing: {host}{path} → {new_path}")
-            
-            # Create a new scope with the rewritten path
-            scope = dict(request.scope)
-            scope["path"] = new_path
-            scope["raw_path"] = new_path.encode()
+                        
+                        # Log the routing
+                        logger.debug(f"Custom domain routing: {host}{path} → {new_path}")
+                        
+                        # Create a new scope with the rewritten path
+                        scope = dict(request.scope)
+                        scope["path"] = new_path
+                        scope["raw_path"] = new_path.encode()
                         scope["path_info"] = new_path.split("?")[0]
                         scope["query_string"] = query_string.encode() if query_string else b""
-            
+                        
                         # Add custom headers
-            headers = list(request.scope.get("headers", []))
-            headers.append((b"x-custom-domain", host.encode()))
-            headers.append((b"x-original-path", path.encode()))
-            scope["headers"] = headers
-            
-            # Create a new request with the modified scope
-            from starlette.requests import Request as StarletteRequest
-            modified_request = StarletteRequest(scope, request.receive)
-            
-            return await call_next(modified_request)
+                        headers = list(request.scope.get("headers", []))
+                        headers.append((b"x-custom-domain", host.encode()))
+                        headers.append((b"x-original-path", path.encode()))
+                        scope["headers"] = headers
+                        
+                        # Create a new request with the modified scope
+                        from starlette.requests import Request as StarletteRequest
+                        modified_request = StarletteRequest(scope, request.receive)
+                        
+                        return await call_next(modified_request)
                     else:
                         # API not found for this user
                         logger.warning(f"API {api_slug} not found for user {user_id} on domain {host}")
@@ -249,8 +249,6 @@ async def custom_domain_routing_middleware(request: Request, call_next):
                 else:
                     # Invalid path format: /api/ without slug
                     return await call_next(request)
-            
-            # Root path "/" - check if domain has a default API
             elif original_path in ("", "/"):
                 # Check if domain has a default API (api_slug field)
                 default_api_slug = domain_doc.get("api_slug")
