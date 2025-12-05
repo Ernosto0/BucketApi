@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     libcap2-bin \
-    su-exec \
+    gosu \
     && apt-get upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
@@ -67,7 +67,7 @@ caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &\n\
 sleep 2\n\
 \n\
 # Start FastAPI with Gunicorn as non-root user\n\
-exec su-exec appuser gunicorn -k uvicorn.workers.UvicornWorker -w 4 --timeout 300 --graceful-timeout 300 --keep-alive 5 --bind 0.0.0.0:8000 app.main:app\n\
+exec gosu appuser gunicorn -k uvicorn.workers.UvicornWorker -w 4 --timeout 300 --graceful-timeout 300 --keep-alive 5 --bind 0.0.0.0:8000 app.main:app\n\
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Run the startup script
