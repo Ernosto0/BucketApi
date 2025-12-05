@@ -235,5 +235,36 @@ class Settings:
     @property
     def HOST(self) -> str:
         return self._get_db_setting("HOST", os.getenv('HOST', '127.0.0.1'))
+    
+    # Custom Domain Configuration
+    MAIN_DOMAIN: str = os.getenv("MAIN_DOMAIN", "bucketapi.com")
+    CADDY_ADMIN_URL: str = os.getenv("CADDY_ADMIN_URL", "http://localhost:2019")
+    CADDY_EMAIL: str = os.getenv("CADDY_EMAIL", "admin@bucketapi.com")
+    
+    # Domain verification settings
+    @property
+    def VERIFICATION_TIMEOUT_HOURS(self) -> int:
+        return self._get_db_setting("VERIFICATION_TIMEOUT_HOURS", 48)
+    
+    @property
+    def DNS_CHECK_RETRY_INTERVAL(self) -> int:
+        """Interval between DNS verification retries in seconds"""
+        return self._get_db_setting("DNS_CHECK_RETRY_INTERVAL", 300)  # 5 minutes
+    
+    @property
+    def DNS_CHECK_MAX_RETRIES(self) -> int:
+        """Maximum number of DNS verification retries"""
+        return self._get_db_setting("DNS_CHECK_MAX_RETRIES", 48)  # 24 hours worth
+    
+    # Domain rate limiting
+    @property
+    def DOMAIN_CREATION_RATE_LIMIT(self) -> int:
+        """Maximum domains a user can create per hour"""
+        return self._get_db_setting("DOMAIN_CREATION_RATE_LIMIT", 5)
+    
+    @property
+    def VERIFICATION_ATTEMPTS_LIMIT(self) -> int:
+        """Maximum verification attempts per day per domain"""
+        return self._get_db_setting("VERIFICATION_ATTEMPTS_LIMIT", 10)
 
 settings = Settings()  

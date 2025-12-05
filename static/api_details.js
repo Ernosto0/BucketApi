@@ -14,10 +14,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (userIdElement) userId = userIdElement.getAttribute('data-user-id');
     if (apiSlugElement) apiSlug = apiSlugElement.getAttribute('data-api-slug');
     
-    console.log('Initialized with userId:', userId, 'apiSlug:', apiSlug);
+    console.log('=== PAGE INITIALIZATION ===');
+    console.log('User ID:', userId);
+    console.log('API Slug:', apiSlug);
+    console.log('Full URL:', window.location.href);
+    console.log('Data attributes found:', {
+        userIdElement: !!userIdElement,
+        apiSlugElement: !!apiSlugElement
+    });
     
     if (!userId || !apiSlug) {
-        console.error('Missing userId or apiSlug');
+        console.error('❌ Missing userId or apiSlug');
         showError('Missing API information. Please navigate to this page from your API list.');
         return;
     }
@@ -152,20 +159,24 @@ function populateAPIDetails(data) {
         window.apiHasDatabaseConfig = false;
         window.showDbUpgradeMessage = false;
         
-        console.log('Checking database configuration...', data.database_config);
+        console.log('=== DATABASE CONFIGURATION CHECK ===');
+        console.log('API Data:', data);
+        console.log('Database Config Field:', data.database_config);
+        console.log('Database Config Type:', typeof data.database_config);
         
         // Check if API has database configuration
         if (data.database_config) {
-            console.log('Database config exists:', data.database_config);
+            console.log('✅ Database config exists');
+            console.log('Database config details:', JSON.stringify(data.database_config, null, 2));
             console.log('Database enabled:', data.database_config.enabled);
             
             if (data.database_config.enabled) {
                 window.apiHasDatabaseConfig = true;
                 // Show database tab for APIs with enabled database
-                const databaseTab = document.getElementById('databaseTab');
-                if (databaseTab) {
-                    databaseTab.style.display = 'block';
-                    console.log('Database tab shown');
+                const databaseTabButton = document.getElementById('databaseTabButton');
+                if (databaseTabButton) {
+                    databaseTabButton.style.display = 'block';
+                    console.log('Database tab button shown');
                 }
                 
                 // Populate database information
@@ -189,10 +200,10 @@ function populateAPIDetails(data) {
             
             if (hasDbKeywords) {
                 // Show database tab with upgrade message
-                const databaseTab = document.getElementById('databaseTab');
-                if (databaseTab) {
-                    databaseTab.style.display = 'block';
-                    console.log('Database tab shown for keyword match');
+                const databaseTabButton = document.getElementById('databaseTabButton');
+                if (databaseTabButton) {
+                    databaseTabButton.style.display = 'block';
+                    console.log('Database tab button shown for keyword match');
                 }
                 // Mark that we need to show upgrade message when tab is opened
                 window.showDbUpgradeMessage = true;
@@ -499,17 +510,384 @@ function switchTab(tabName) {
     document.getElementById(tabName + 'Tab').classList.remove('hidden');
     document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
     
-    // Load usage data when switching to usage tab
+    // Load tab-specific data
     if (tabName === 'usage') {
         loadUsageData();
     } else if (tabName === 'versions') {
         loadVersions();
+    } else if (tabName === 'domains') {
+        loadDomains();
     } else if (tabName === 'database') {
         // Check if we need to show upgrade message for old APIs
         if (window.showDbUpgradeMessage && !window.apiHasDatabaseConfig) {
             showDatabaseUpgradeMessage();
             window.showDbUpgradeMessage = false; // Only show once
         }
+    }
+}
+
+// Domain Management Functions
+
+// Make loadDomains globally accessible for debugging
+window.loadDomains = loadDomains;
+window.debugDomains = function() {
+    console.log('=== DOMAIN DEBUG INFO ===');
+    console.log('userId:', userId);
+    console.log('apiSlug:', apiSlug);
+    console.log('Current URL:', window.location.href);
+    loadDomains();
+};
+
+async function loadDomains() {
+    const domainsList = document.getElementById('domainsList');
+    if (!domainsList) {
+        console.warn('domainsList element not found');
+        return;
+    }
+    
+    domainsList.innerHTML = '<div class="text-center py-8 text-slate-400">Loading domains...</div>';
+    
+    try {
+        console.log(`Loading domains for API: ${apiSlug}, User: ${userId}`);
+        
+        // Try with api_slug filter first
+        let response = await fetch(`/api/domains?api_slug=${apiSlug}`);
+        
+        if (!response.ok) {
+            console.error(`Domains API returned status ${response.status}`);
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        let result = await response.json();
+        console.log('Domains API response (filtered by api_slug):', result);
+        console.log('Number of domains found:', result.domains ? result.domains.length : 0);
+        
+        // If no domains found with filter, try without filter to see all user domains
+        if (result.success && (!result.domains || result.domains.length === 0)) {
+            console.log('No domains found with api_slug filter, trying without filter...');
+            response = await fetch(`/api/domains`);
+            if (response.ok) {
+                result = await response.json();
+                console.log('Domains API response (all user domains):', result);
+                console.log('Total user domains found:', result.domains ? result.domains.length : 0);
+            }
+        }
+        
+        if (!result.success) {
+            console.error('Domains API returned success=false:', result);
+            throw new Error(result.detail || result.message || 'Failed to load domains');
+        }
+        
+        if (!result.domains || result.domains.length === 0) {
+            console.log('❌ No domains found to display');
+            domainsList.innerHTML = `
+                <div class="text-center py-8 text-slate-400">
+                    <div class="w-16 h-16 bg-slate-700/50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                        </svg>
+                    </div>
+                    <p class="text-lg font-medium text-slate-300 mb-2">No Custom Domains</p>
+                    <p class="text-sm">Add a custom domain to access your API via your own domain name.</p>
+                    <button onclick="window.debugDomains()" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm">
+                        🔍 Debug Domains
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        console.log(`Loading ${result.domains.length} domain(s)`);
+        
+        const html = result.domains.map(domain => {
+            let statusBadge = '';
+            let actionButton = '';
+            
+            // Status Badge
+            switch (domain.status) {
+                case 'active':
+                    statusBadge = '<span class="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs border border-green-500/30">Active</span>';
+                    break;
+                case 'verified':
+                    statusBadge = '<span class="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs border border-blue-500/30">Verified</span>';
+                    break;
+                case 'verifying':
+                    statusBadge = '<span class="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded text-xs border border-yellow-500/30">Verifying...</span>';
+                    break;
+                case 'failed':
+                    statusBadge = '<span class="px-2 py-1 bg-red-500/20 text-red-300 rounded text-xs border border-red-500/30">Failed</span>';
+                    break;
+                default:
+                    statusBadge = '<span class="px-2 py-1 bg-slate-500/20 text-slate-300 rounded text-xs border border-slate-500/30">Pending</span>';
+            }
+            
+            // Action Button
+            if (domain.status === 'pending' || domain.status === 'failed') {
+                actionButton = `
+                    <button onclick="openVerifyDomainModal('${domain.id}', '${domain.domain}', '${domain.verification_token}')" 
+                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors">
+                        Verify
+                    </button>
+                `;
+            }
+            
+            // SSL Status
+            let sslStatus = '';
+            if (domain.ssl_certificate_status === 'issued') {
+                sslStatus = '<span class="text-green-400 text-xs flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg> SSL Active</span>';
+            }
+            
+            return `
+                <div class="glass-card p-4 rounded-xl border border-slate-700/50 flex justify-between items-center hover:border-slate-600 transition-colors">
+                    <div>
+                        <div class="flex items-center space-x-3 mb-1">
+                            <span class="text-lg font-semibold text-white">${domain.domain}</span>
+                            ${statusBadge}
+                        </div>
+                        <div class="flex items-center gap-4 text-xs text-slate-400">
+                            <span>Added: ${new Date(domain.created_at).toLocaleDateString()}</span>
+                            ${sslStatus}
+                        </div>
+                        ${domain.error_message ? `<div class="text-red-400 text-xs mt-1">${domain.error_message}</div>` : ''}
+                    </div>
+                    <div class="flex items-center gap-3">
+                        ${actionButton}
+                        <button onclick="deleteDomain('${domain.id}')" class="text-slate-400 hover:text-red-400 transition-colors p-1">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        domainsList.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading domains:', error);
+        domainsList.innerHTML = `<div class="text-center py-8 text-red-400">Error loading domains: ${error.message}</div>`;
+    }
+}
+
+// Domain Modal Functions
+function openAddDomainModal() {
+    document.getElementById('addDomainModal').classList.remove('hidden');
+    document.getElementById('addDomainModal').classList.add('flex');
+}
+
+function closeAddDomainModal() {
+    document.getElementById('addDomainModal').classList.add('hidden');
+    document.getElementById('addDomainModal').classList.remove('flex');
+    document.getElementById('addDomainForm').reset();
+}
+
+async function handleAddDomain(event) {
+    event.preventDefault();
+    
+    const domainInput = document.getElementById('domainInput');
+    const domain = domainInput.value.trim();
+    
+    if (!domain) return;
+    
+    try {
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Adding...';
+        
+        console.log('Adding domain:', domain);
+        console.log('For API slug:', apiSlug);
+        console.log('User ID:', userId);
+        
+        const requestBody = {
+            domain: domain,
+            api_slug: apiSlug,
+            verification_method: 'dns_txt'
+        };
+        console.log('Request body:', requestBody);
+        
+        const response = await fetch('/api/domains', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            // Show appropriate message based on whether it's a new domain or existing one
+            const message = result.message || 'Domain added successfully';
+            showNotification(message, result.message && result.message.includes('previously registered') ? 'info' : 'success');
+            closeAddDomainModal();
+            loadDomains();
+            
+            // Open verification modal
+            if (result.domain) {
+                openVerifyDomainModal(result.domain.id, result.domain.domain, result.domain.verification_token);
+            }
+        } else {
+            const errorMessage = result.detail || result.message || 'Failed to add domain';
+            showNotification(errorMessage, 'error');
+            
+            // If the error is about domain already being verified/active, refresh the domains list
+            // so the user can see it
+            if (errorMessage.includes('already') && (errorMessage.includes('verified') || errorMessage.includes('active'))) {
+                console.log('Domain already exists and is verified/active, refreshing domains list...');
+                closeAddDomainModal();
+                loadDomains();
+            }
+        }
+        
+    } catch (error) {
+        showNotification('Error adding domain: ' + error.message, 'error');
+    } finally {
+        const submitBtn = event.target.querySelector('button[type="submit"]');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Add Domain';
+    }
+}
+
+function openVerifyDomainModal(domainId, domain, token) {
+    const modal = document.getElementById('verifyDomainModal');
+    const dnsHostDisplay = document.getElementById('dnsHostDisplay');
+    const dnsValueDisplay = document.getElementById('dnsValueDisplay');
+    const dnsHostDisplayInline = document.getElementById('dnsHostDisplayInline');
+    const dnsSubdomainDisplayInline = document.getElementById('dnsSubdomainDisplayInline');
+    const dnsValueDisplayInline = document.getElementById('dnsValueDisplayInline');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const statusDiv = document.getElementById('verificationStatus');
+    
+    // Set data attributes for verify function
+    modal.dataset.domainId = domainId;
+    
+    // Set display values
+    // For subdomain: _bucketapi-verify.sub
+    // For root: _bucketapi-verify
+    const isSubdomain = domain.split('.').length > 2;
+    const hostPrefix = '_bucketapi-verify';
+    const hostDisplay = isSubdomain ? `${hostPrefix}.${domain}` : `${hostPrefix}.${domain}`;
+    
+    dnsHostDisplay.textContent = hostDisplay;
+    dnsValueDisplay.textContent = token;
+    
+    // Also set inline display values for instructions
+    if (dnsHostDisplayInline) {
+        dnsHostDisplayInline.textContent = hostDisplay;
+    }
+    // Extract just the subdomain part (for providers like Dynadot)
+    if (dnsSubdomainDisplayInline) {
+        // Extract the subdomain part: _bucketapi-verify from _bucketapi-verify.loopfeedback.dev
+        const subdomainPart = hostDisplay.split('.')[0];
+        dnsSubdomainDisplayInline.textContent = subdomainPart;
+    }
+    if (dnsValueDisplayInline) {
+        dnsValueDisplayInline.textContent = token;
+    }
+    
+    // Reset UI state
+    statusDiv.className = 'hidden p-4 rounded-lg text-sm';
+    verifyBtn.disabled = false;
+    verifyBtn.textContent = 'Verify Now';
+    
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeVerifyDomainModal() {
+    document.getElementById('verifyDomainModal').classList.add('hidden');
+    document.getElementById('verifyDomainModal').classList.remove('flex');
+}
+
+async function verifyDomain() {
+    const modal = document.getElementById('verifyDomainModal');
+    const domainId = modal.dataset.domainId;
+    const verifyBtn = document.getElementById('verifyBtn');
+    const statusDiv = document.getElementById('verificationStatus');
+    
+    if (!domainId) return;
+    
+    try {
+        verifyBtn.disabled = true;
+        verifyBtn.innerHTML = '<svg class="w-4 h-4 animate-spin inline mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Verifying...';
+        
+        const response = await fetch(`/api/domains/${domainId}/verify`, {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        statusDiv.classList.remove('hidden', 'bg-red-500/20', 'text-red-300', 'bg-green-500/20', 'text-green-300', 'bg-yellow-500/20', 'text-yellow-300');
+        
+        // Check if verification was successful (status can be 'verified' or 'VERIFIED')
+        const isVerified = result.success && (result.status === 'verified' || result.status === 'VERIFIED');
+        
+        if (isVerified) {
+            statusDiv.classList.add('bg-green-500/20', 'text-green-300');
+            statusDiv.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Domain verified successfully!
+                </div>
+            `;
+            
+            // Refresh domains list immediately
+            loadDomains();
+            
+            setTimeout(() => {
+                closeVerifyDomainModal();
+                // Switch to domains tab and refresh to ensure UI is updated
+                switchTab('domains');
+            }, 2000);
+        } else {
+            const statusStr = result.status?.toLowerCase() || '';
+            const isPending = statusStr === 'pending' || statusStr === 'verifying';
+            statusDiv.classList.add(isPending ? 'bg-yellow-500/20' : 'bg-red-500/20', isPending ? 'text-yellow-300' : 'text-red-300');
+            statusDiv.textContent = result.message || 'Verification failed. Please check your DNS records and try again.';
+            
+            // Still refresh domains list to show updated status
+            loadDomains();
+        }
+        
+    } catch (error) {
+        statusDiv.classList.remove('hidden');
+        statusDiv.classList.add('bg-red-500/20', 'text-red-300');
+        statusDiv.textContent = 'Error verifying domain: ' + error.message;
+    } finally {
+        verifyBtn.disabled = false;
+        verifyBtn.textContent = 'Verify Now';
+    }
+}
+
+async function deleteDomain(domainId) {
+    if (!confirm('Are you sure you want to remove this domain? This will stop all traffic to your API via this domain.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/domains/${domainId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showNotification('Domain removed successfully');
+            loadDomains();
+        } else {
+            const result = await response.json();
+            showNotification(result.detail || 'Failed to remove domain', 'error');
+        }
+    } catch (error) {
+        showNotification('Error removing domain: ' + error.message, 'error');
+    }
+}
+
+function copyText(elementId) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        navigator.clipboard.writeText(element.textContent);
+        showNotification('Copied to clipboard!');
     }
 }
 

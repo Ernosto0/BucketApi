@@ -292,3 +292,4 @@ class CaddyService:
 # Global instance
 caddy_service = CaddyService()
 
+

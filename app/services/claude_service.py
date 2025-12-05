@@ -468,7 +468,8 @@ class ClaudeService:
         before_sleep=log_retry_before_sleep
     )
     async def generate_documentation(self, code: str, prompt: str, user_id: Optional[str] = None,
-                                    api_key_id: Optional[str] = None, api_slug: Optional[str] = None) -> Tuple[str, str]:
+                                    api_key_id: Optional[str] = None, api_slug: Optional[str] = None,
+                                    api_name: Optional[str] = None) -> Tuple[str, str]:
         """Generate documentation and curl example for the generated API."""
         request_id = str(uuid.uuid4())
         
@@ -583,6 +584,10 @@ class ClaudeService:
                             "min_required_length": min_curl_length
                         }
                     )
+                
+                # Prepend API name as header if provided
+                if api_name:
+                    doc = f"# {api_name}\n\n{doc}"
                 
                 success = True
                 response_length = len(doc) + len(curl)

@@ -27,6 +27,14 @@ logger = logging.getLogger(__name__)
 
 class SubscriptionService:
     def __init__(self):
+        # Custom domain limits per subscription tier
+        self.MAX_DOMAINS_PER_TIER = {
+            "free": 0,
+            "starter": 1,
+            "professional": 3,
+            "enterprise": 999  # Effectively unlimited
+        }
+        
         # Subscription tiers configuration
         self.SUBSCRIPTION_TIERS = {
             "free": SubscriptionTier(
@@ -42,7 +50,8 @@ class SubscriptionService:
                     "7,000 execution tokens/month (API calls)",
                     "Basic API generation",
                     "Community support",
-                    "Basic AI models (gpt-5-mini, Claude Haiku)"
+                    "Basic AI models (gpt-5-mini, Claude Haiku)",
+                    "No custom domains"
                 ],
                 ai_models=["gpt-5-mini", "gpt-4o-mini", "claude-3-haiku"]
             ),
@@ -57,6 +66,7 @@ class SubscriptionService:
                 features=[
                     "4 API generations/month",
                     "35,000 execution tokens/month (API calls)",
+                    "1 custom domain with SSL",
                     "Priority AI model access",
                     "Email support",
                     "API analytics",
@@ -75,6 +85,7 @@ class SubscriptionService:
                 features=[
                     "20 API generations/month",
                     "140,000 execution tokens/month (API calls)",
+                    "3 custom domains with SSL",
                     "All AI models including GPT-5, Claude-4 Opus",
                     "Custom API complexity settings",
                     "Priority support",
@@ -93,6 +104,7 @@ class SubscriptionService:
                 features=[
                     "100 API generations/month",
                     "700,000 execution tokens/month (API calls)",
+                    "Unlimited custom domains with SSL",
                     "All AI models including latest GPT-4 and Claude-4",
                     "Custom integrations",
                     "Dedicated support",
@@ -109,6 +121,37 @@ class SubscriptionService:
         self.webhook_secret = None  # Set from environment
         
         logger.info("SubscriptionService initialized")
+    
+    def get_max_domains_for_tier(self, tier: str) -> int:
+        """Get the maximum number of custom domains allowed for a subscription tier."""
+        return self.MAX_DOMAINS_PER_TIER.get(tier, 0)
+    
+    async def check_domain_limit(self, user_id: str) -> tuple[bool, int, int]:
+        """
+        Check if user can create more domains.
+        
+        Returns:
+            tuple: (can_create, current_count, max_allowed)
+        """
+        try:
+            # Get user's subscription tier
+            user = mongodb.users.find_one({"_id": user_id})
+            tier = user.get("subscription_tier", "free") if user else "free"
+            
+            max_domains = self.get_max_domains_for_tier(tier)
+            
+            # Count current domains (excluding failed ones)
+            current_count = mongodb.custom_domains.count_documents({
+                "user_id": user_id,
+                "status": {"$ne": "failed"}
+            })
+            
+            can_create = current_count < max_domains
+            return can_create, current_count, max_domains
+            
+        except Exception as e:
+            logger.error(f"Error checking domain limit: {str(e)}")
+            return False, 0, 0
     
     async def get_available_tiers(self, user_id: Optional[str] = None) -> SubscriptionTiersResponse:
         """Get all available subscription tiers."""
