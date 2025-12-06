@@ -119,7 +119,13 @@
                             </svg>
                             Source Code
                         </button>
-                        <button onclick="switchTab('database')" class="tab-button" data-tab="database" id="databaseTab" style="display: none;">
+                        <button onclick="switchTab('domains')" class="tab-button" data-tab="domains">
+                            <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path>
+                            </svg>
+                            Custom Domains
+                        </button>
+                        <button onclick="switchTab('database')" class="tab-button" data-tab="database" id="databaseTabButton">
                             <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
                             </svg>
@@ -539,6 +545,42 @@
                         </div>
                     </div>
 
+                    <!-- Domains Tab -->
+                    <div id="domainsTab" class="tab-content hidden">
+                        <div class="space-y-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <div>
+                                    <h3 class="section-header text-xl font-semibold text-white">Custom Domains</h3>
+                                    <p class="text-slate-400 text-sm mt-1">Connect your own domain to this API</p>
+                                </div>
+                                <button onclick="openAddDomainModal()" class="action-btn btn-primary">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    Add Domain
+                                </button>
+                            </div>
+                            
+                            <div id="domainsList" class="space-y-4">
+                                <div class="text-center py-8 text-slate-400">
+                                    Loading domains...
+                                </div>
+                            </div>
+
+                            <!-- Domain Instructions -->
+                            <div class="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6 mt-8">
+                                <h4 class="text-lg font-semibold text-white mb-4">How to setup a custom domain</h4>
+                                <ol class="list-decimal list-inside space-y-3 text-slate-300 text-sm">
+                                    <li>Click <strong>Add Domain</strong> and enter your domain name (e.g., <code>api.example.com</code>)</li>
+                                    <li>We'll provide a <strong>TXT record</strong> for verification</li>
+                                    <li>Add the TXT record to your domain's DNS settings</li>
+                                    <li>Once verified, we'll issue an SSL certificate automatically</li>
+                                    <li>Finally, add a <strong>CNAME record</strong> pointing to <code>caddy</code> (or your instance domain)</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Database Tab -->
                     <div id="databaseTab" class="tab-content hidden">
                         <div class="space-y-6">
@@ -636,6 +678,95 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Domain Modal -->
+    <div id="addDomainModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" style="backdrop-filter: blur(4px);">
+        <div class="glass-card rounded-2xl p-8 max-w-md w-full mx-4">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-white">Add Custom Domain</h3>
+                <button onclick="closeAddDomainModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <form id="addDomainForm" onsubmit="handleAddDomain(event)">
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Domain Name</label>
+                    <input type="text" id="domainInput" required placeholder="api.yourdomain.com" 
+                           class="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                    <p class="text-xs text-slate-400 mt-2">Enter the full domain or subdomain you want to use.</p>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeAddDomainModal()" class="flex-1 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium">
+                        Add Domain
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Verify Domain Modal -->
+    <div id="verifyDomainModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" style="backdrop-filter: blur(4px);">
+        <div class="glass-card rounded-2xl p-8 max-w-lg w-full mx-4">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold text-white">Verify Domain Ownership</h3>
+                <button onclick="closeVerifyDomainModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="space-y-6">
+                <p class="text-slate-300 text-sm">
+                    Please add the following TXT record to your DNS configuration to prove ownership of <span id="dnsHostDisplayInline" class="font-semibold text-white"></span>.
+                </p>
+
+                <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-600/50">
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-medium text-slate-400">Type</label>
+                        </div>
+                        <div class="font-mono text-sm text-white">TXT</div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-medium text-slate-400">Host / Name</label>
+                            <button onclick="copyText('dnsHostDisplay')" class="text-xs text-blue-400 hover:text-blue-300">Copy</button>
+                        </div>
+                        <div id="dnsHostDisplay" class="font-mono text-sm text-emerald-400 break-all"></div>
+                        <p class="text-xs text-slate-500 mt-1">Note: Some providers only require <span id="dnsSubdomainDisplayInline" class="font-mono text-slate-400"></span></p>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-xs font-medium text-slate-400">Value / Data</label>
+                            <button onclick="copyText('dnsValueDisplay')" class="text-xs text-blue-400 hover:text-blue-300">Copy</button>
+                        </div>
+                        <div id="dnsValueDisplay" class="font-mono text-sm text-emerald-400 break-all"></div>
+                    </div>
+                </div>
+
+                <div id="verificationStatus" class="hidden p-4 rounded-lg text-sm"></div>
+                
+                <div class="flex gap-3">
+                    <button onclick="closeVerifyDomainModal()" class="flex-1 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors">
+                        Close
+                    </button>
+                    <button onclick="verifyDomain()" id="verifyBtn" class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors font-medium">
+                        Verify Now
+                    </button>
                 </div>
             </div>
         </div>

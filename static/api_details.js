@@ -164,50 +164,22 @@ function populateAPIDetails(data) {
         console.log('Database Config Field:', data.database_config);
         console.log('Database Config Type:', typeof data.database_config);
         
-        // Check if API has database configuration
-        if (data.database_config) {
-            console.log('✅ Database config exists');
-            console.log('Database config details:', JSON.stringify(data.database_config, null, 2));
-            console.log('Database enabled:', data.database_config.enabled);
-            
-            if (data.database_config.enabled) {
-                window.apiHasDatabaseConfig = true;
-                // Show database tab for APIs with enabled database
-                const databaseTabButton = document.getElementById('databaseTabButton');
-                if (databaseTabButton) {
-                    databaseTabButton.style.display = 'block';
-                    console.log('Database tab button shown');
-                }
-                
-                // Populate database information
-                populateDatabaseInfo(data.database_config);
-            } else {
-                console.log('Database config exists but is disabled');
-            }
+        // Database Configuration Logic
+        // Always show database tab button
+        const databaseTabButton = document.getElementById('databaseTabButton');
+        if (databaseTabButton) {
+            databaseTabButton.style.display = 'block';
+        }
+
+        // Check if API has enabled database configuration
+        if (data.database_config && data.database_config.enabled) {
+            console.log('✅ Database config exists and enabled');
+            window.apiHasDatabaseConfig = true;
+            populateDatabaseInfo(data.database_config);
         } else {
-            console.log('No database_config field found');
-            // Check if this is an older API that might have database connection
-            // by looking at the prompt or API name
-            const prompt = (data.prompt || '').toLowerCase();
-            const apiName = (data.api_name || '').toLowerCase();
-            const hasDbKeywords = prompt.includes('database') || prompt.includes('postgres') || 
-                                 prompt.includes('mongodb') || prompt.includes('mysql') ||
-                                 apiName.includes('database') || apiName.includes('db') ||
-                                 prompt.includes('sql') || prompt.includes('user') ||
-                                 prompt.includes('collection') || prompt.includes('table');
-            
-            console.log('Checking for database keywords:', hasDbKeywords);
-            
-            if (hasDbKeywords) {
-                // Show database tab with upgrade message
-                const databaseTabButton = document.getElementById('databaseTabButton');
-                if (databaseTabButton) {
-                    databaseTabButton.style.display = 'block';
-                    console.log('Database tab button shown for keyword match');
-                }
-                // Mark that we need to show upgrade message when tab is opened
-                window.showDbUpgradeMessage = true;
-            }
+            // No active database config - show "Add Database" UI when tab is clicked
+            console.log('No active database config, enabling upgrade message');
+            window.showDbUpgradeMessage = true;
         }
         
     } catch (error) {
