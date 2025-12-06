@@ -44,9 +44,7 @@
     }
     
     # Enable automatic TLS for main domain
-    tls {
-        # Default TLS settings - Let's Encrypt will handle certificate
-    }
+    # tls directive is optional - Caddy uses automatic TLS by default
     
     # Health check endpoint
     handle /health {
