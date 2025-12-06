@@ -208,7 +208,30 @@ class FileService:
         file_path = self._get_api_file_path(full_slug)
         
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"API not found: {full_slug}")
+            # Try to recover from database
+            logger.info(f"File not found for {full_slug}, attempting DB recovery")
+            try:
+                metadata = self.get_api_metadata(user_id, api_slug)
+                if metadata and metadata.code:
+                    # Return code directly from metadata - no need to enforce file write
+                    # This is crucial for ephemeral environments like Railway/Docker
+                    try:
+                        # Attempt to cache to disk if possible, but don't fail if we can't
+                        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(metadata.code)
+                        logger.info(f"Restored {full_slug} from database to file")
+                    except Exception as e:
+                        logger.warning(f"Could not cache restored code to disk (using memory only): {e}")
+                    
+                    return metadata.code
+                else:
+                    raise FileNotFoundError(f"API not found: {full_slug}")
+            except Exception as e:
+                if isinstance(e, FileNotFoundError):
+                    raise
+                logger.error(f"DB recovery failed: {e}")
+                raise FileNotFoundError(f"API not found: {full_slug}")
         
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -260,6 +283,12 @@ class FileService:
             raise Exception("API metadata already exists")
         
         # Create database entry
+        current_code = None
+        try:
+            current_code = self.load_api_code(request.user_id, request.api_slug)
+        except Exception as e:
+            logger.warning(f"Could not load code for saving to DB: {e}")
+
         db_api = {
             "api_slug": request.api_slug,
             "user_id": request.user_id,
@@ -271,27 +300,28 @@ class FileService:
             "openapi_spec": request.openapi_spec,
             "sample_input": request.sample_input,
             "expected_output": request.expected_output,
+            "database_config": request.database_config.model_dump() if request.database_config else None,
+            "code": current_code,  # Save code to DB for persistence
             "created_at": created_at,
             "saved_at": datetime.utcnow(),
             "is_saved": True,
-            "database_config": request.database_config.model_dump() if request.database_config else None
         }
         
         mongodb.saved_apis.insert_one(db_api)
         
         # Create initial version (v1) from the current code
         try:
-            current_code = self.load_api_code(request.user_id, request.api_slug)
-            self.save_version(
-                user_id=request.user_id,
-                api_slug=request.api_slug,
-                code=current_code,
-                prompt=request.prompt,
-                endpoint_url=request.endpoint_url,
-                commit_message="Initial version",
-                version_override=1
-            )
-            logger.info(f"Created initial version for API {request.api_slug}")
+            if current_code:
+                self.save_version(
+                    user_id=request.user_id,
+                    api_slug=request.api_slug,
+                    code=current_code,
+                    prompt=request.prompt,
+                    endpoint_url=request.endpoint_url,
+                    commit_message="Initial version",
+                    version_override=1
+                )
+                logger.info(f"Created initial version for API {request.api_slug}")
         except Exception as e:
             logger.warning(f"Failed to create initial version for {request.api_slug}: {e}")
             # Don't fail the whole save operation if versioning fails
@@ -309,6 +339,7 @@ class FileService:
             sample_input=db_api["sample_input"],
             expected_output=db_api["expected_output"],
             database_config=DatabaseConfig(**db_api["database_config"]) if db_api.get("database_config") else None,
+            code=db_api.get("code"),
             created_at=db_api["created_at"],
             saved_at=db_api["saved_at"],
             is_saved=db_api["is_saved"],
@@ -356,6 +387,7 @@ class FileService:
             sample_input=db_api.get("sample_input"),
             expected_output=db_api.get("expected_output"),
             database_config=database_config,
+            code=db_api.get("code"),
             created_at=db_api["created_at"],
             saved_at=db_api["saved_at"],
             is_saved=db_api.get("is_saved", True),
@@ -409,11 +441,20 @@ class FileService:
                 "last_modified": datetime.fromtimestamp(os.path.getmtime(file_path))
             }
         else:
-            file_info = {
-                "code_available": False,
-                "file_size": 0,
-                "last_modified": None
-            }
+            # Check if code is available in metadata (DB)
+            code_in_db = api_metadata.code if api_metadata else None
+            if code_in_db:
+                 file_info = {
+                    "code_available": True,
+                    "file_size": len(code_in_db.encode('utf-8')),
+                    "last_modified": api_metadata.saved_at
+                }
+            else:
+                file_info = {
+                    "code_available": False,
+                    "file_size": 0,
+                    "last_modified": None
+                }
         
         # Convert SavedAPI to dict and add file info
         # Use model_dump() to properly serialize Pydantic model including nested objects
@@ -586,15 +627,10 @@ class FileService:
                            is_test_execution: bool = False) -> Any:
         """Load and execute the generated API from Python file."""
         full_slug = f"{user_id}_{api_slug}"
-        file_path = self._get_api_file_path(full_slug)
-        
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"API not found: {full_slug}")
         
         try:
-            # Read the code
-            with open(file_path, 'r', encoding='utf-8') as f:
-                code = f.read()
+            # Load code using the robust loader (handles DB fallback for ephemeral envs)
+            code = self.load_api_code(user_id, api_slug)
             
             # Get database configuration if available
             database_url = None
@@ -640,9 +676,13 @@ class FileService:
             raise Exception(f"Failed to execute API {full_slug}: {str(e)}")
     
     def api_exists(self, user_id: str, api_slug: str) -> bool:
-        """Check if an API Python file exists."""
+        """Check if an API Python file exists (or can be restored from DB)."""
         full_slug = f"{user_id}_{api_slug}"
-        return self._api_file_exists(full_slug)
+        if self._api_file_exists(full_slug):
+            return True
+            
+        # Check database as fallback
+        return self.is_api_saved(user_id, api_slug)
     
     def load_api_code(self, user_id: str, api_slug: str) -> str:
         """Load the Python code for a specific API."""
@@ -687,6 +727,7 @@ class FileService:
                 openapi_spec=db_api.get("openapi_spec"),
                 sample_input=db_api.get("sample_input"),
                 expected_output=db_api.get("expected_output"),
+                code=db_api.get("code"),
                 created_at=db_api["created_at"],
                 saved_at=db_api["saved_at"],
                 is_saved=db_api.get("is_saved", True),
