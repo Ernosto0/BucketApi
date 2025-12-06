@@ -12,7 +12,7 @@
     # On-demand TLS configuration
     # Caddy will ask the FastAPI app before issuing certificates
     on_demand_tls {
-        ask http://localhost:8000/api/caddy/check-domain
+        ask http://localhost:8000/api/caddy/check-domain?domain={host}
         interval 2m
         burst 5
     }
@@ -39,8 +39,6 @@
     reverse_proxy localhost:8000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
     }
     
     # Enable automatic TLS for main domain
@@ -69,8 +67,6 @@ https:// {
     reverse_proxy localhost:8000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
         header_up X-Custom-Domain {host}
     }
     
