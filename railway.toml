@@ -2,7 +2,8 @@
 builder = "DOCKERFILE"
 
 [deploy]
-startCommand = "sh -c 'gunicorn -k uvicorn.workers.UvicornWorker -w 4 --timeout 300 --graceful-timeout 300 --keep-alive 5 --bind 0.0.0.0:$PORT app.main:app'"
+# Caddy startup script is in Dockerfile - don't override it
+# startCommand is removed so Dockerfile CMD runs (starts Caddy + FastAPI)
 healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"

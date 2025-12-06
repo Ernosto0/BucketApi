@@ -57,18 +57,9 @@ EXPOSE 80 443 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-# Create startup script
-# Caddy runs with capabilities (for ports 80/443), FastAPI runs as appuser
-RUN echo '#!/bin/sh\n\
-# Start Caddy in background (with capabilities for ports 80/443)\n\
-caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &\n\
-\n\
-# Wait for Caddy to start\n\
-sleep 2\n\
-\n\
-# Start FastAPI with Gunicorn as non-root user\n\
-exec gosu appuser gunicorn -k uvicorn.workers.UvicornWorker -w 4 --timeout 300 --graceful-timeout 300 --keep-alive 5 --bind 0.0.0.0:8000 app.main:app\n\
-' > /app/start.sh && chmod +x /app/start.sh
+# Copy startup script
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
 
 # Run the startup script
 CMD ["/app/start.sh"]
