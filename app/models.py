@@ -182,6 +182,7 @@ class SavedAPI(BaseModel):
     sample_input: Optional[str] = None
     expected_output: Optional[str] = None
     database_config: Optional[DatabaseConfig] = None  # Database connection configuration
+    code: Optional[str] = None  # Full source code of the API (backup for ephemeral storage)
     created_at: datetime
     saved_at: datetime
     is_saved: bool = True
