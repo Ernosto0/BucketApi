@@ -35,3 +35,6 @@ def check_domains():
 if __name__ == "__main__":
     check_domains()
 
+
+
+

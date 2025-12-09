@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  bucketapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bucketapi
+    restart: unless-stopped
+    ports:
+      - "80:80"    # HTTP
+      - "443:443"  # HTTPS
+      - "8000:8000" # FastAPI (internal)
+    env_file:
+      - .env
+    volumes:
+      - ./generated_apis:/app/generated_apis
+      - ./data:/data
+      - caddy_data:/data/caddy
+    networks:
+      - bucketapi-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  caddy_data:
+    driver: local
+
+networks:
+  bucketapi-network:
+    driver: bridge
+

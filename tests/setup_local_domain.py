@@ -103,3 +103,6 @@ if __name__ == "__main__":
     else:
         add_to_hosts(args.domain, args.ip)
 
+
+
+

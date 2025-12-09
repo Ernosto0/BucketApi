@@ -97,7 +97,7 @@ async def run(file_bytes=None, input_data=None):
             print(f"⚠️  Package installation test failed: {e}")
         
         # Test 5: Code Execution
-        print("\n🚀 Test 5: Code Execution")
+        print("\n Test 5: Code Execution")
         simple_test_code = '''
 import json
 import datetime
