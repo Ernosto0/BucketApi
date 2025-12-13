@@ -61,6 +61,7 @@ class Settings:
     # Redis Configuration (for session storage in multi-worker environment)
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     USE_REDIS_SESSIONS: bool = os.getenv("USE_REDIS_SESSIONS", "false").lower() == "true"
+    SESSION_COOKIE_DOMAIN: str = os.getenv("SESSION_COOKIE_DOMAIN", None)  # e.g., ".bucketapi.com" for subdomain sharing
 
     # OpenAI Configuration for api generation
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")

@@ -19,12 +19,14 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
     This allows session sharing across multiple worker processes.
     """
     
-    def __init__(self, app, redis_url: str, secret_key: str, max_age: int = 1800, session_cookie: str = "session"):
+    def __init__(self, app, redis_url: str, secret_key: str, max_age: int = 1800, session_cookie: str = "session", domain: str = None, https_only: bool = False):
         super().__init__(app)
         self.redis_url = redis_url
         self.secret_key = secret_key
         self.max_age = max_age
         self.session_cookie = session_cookie
+        self.domain = domain
+        self.https_only = https_only
         self.serializer = URLSafeTimedSerializer(secret_key)
         self.redis_client: Optional[aioredis.Redis] = None
         
@@ -106,15 +108,29 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
                 
                 # Set session cookie
                 signed_session_id = self.serializer.dumps(session_id)
-                response.set_cookie(
-                    key=self.session_cookie,
-                    value=signed_session_id,
-                    max_age=self.max_age,
-                    httponly=True,
-                    secure=request.url.scheme == "https",
-                    samesite="lax"
-                )
-                logger.debug(f"Saved session {session_id[:8]}... to Redis")
+                
+                # Check if we're behind a reverse proxy (X-Forwarded-Proto header)
+                forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+                is_https = forwarded_proto == "https" or request.url.scheme == "https"
+                
+                # For OAuth, we need 'none' samesite when behind reverse proxy
+                # to allow the callback to send the cookie
+                cookie_params = {
+                    "key": self.session_cookie,
+                    "value": signed_session_id,
+                    "max_age": self.max_age,
+                    "httponly": True,
+                    "secure": self.https_only if self.https_only is not None else is_https,
+                    "samesite": "none" if is_https else "lax",  # 'none' requires secure=True
+                    "path": "/"
+                }
+                
+                # Add domain if specified
+                if self.domain:
+                    cookie_params["domain"] = self.domain
+                
+                response.set_cookie(**cookie_params)
+                logger.debug(f"Saved session {session_id[:8]}... to Redis (secure={cookie_params['secure']}, samesite={cookie_params['samesite']})")
                 
             except Exception as e:
                 logger.error(f"Error saving session: {e}")
