@@ -19,7 +19,16 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
     This allows session sharing across multiple worker processes.
     """
     
-    def __init__(self, app, redis_url: str, secret_key: str, max_age: int = 1800, session_cookie: str = "session", domain: str = None, https_only: bool = False):
+    def __init__(
+        self,
+        app,
+        redis_url: str,
+        secret_key: str,
+        max_age: int = 1800,
+        session_cookie: str = "session",
+        domain: str = None,
+        https_only: bool = False,
+    ):
         super().__init__(app)
         self.redis_url = redis_url
         self.secret_key = secret_key
@@ -81,15 +90,18 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
                 logger.error(f"Error loading session: {e}")
                 session_id = None
         
-        # Attach session to request
+        # Expose session using Starlette's expected API (request.session)
+        # Authlib relies on request.session (backed by scope["session"]) to persist the OAuth "state".
         request.state.session = session_data
         request.state.session_id = session_id
+        request.scope["session"] = session_data
         
         # Process request
         response = await call_next(request)
         
         # Save session if modified
-        if hasattr(request.state, 'session') and request.state.session:
+        session_after = request.scope.get("session") or getattr(request.state, "session", None) or {}
+        if session_after:
             try:
                 redis = await self._get_redis()
                 
@@ -99,7 +111,7 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
                     session_id = str(uuid.uuid4())
                 
                 # Save session data to Redis
-                session_json = json.dumps(request.state.session)
+                session_json = json.dumps(session_after)
                 await redis.setex(
                     f"session:{session_id}",
                     self.max_age,
@@ -111,17 +123,19 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
                 
                 # Check if we're behind a reverse proxy (X-Forwarded-Proto header)
                 forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
-                is_https = forwarded_proto == "https" or request.url.scheme == "https"
+                is_https = forwarded_proto == "https" or request.url.scheme == "https" or bool(self.https_only)
                 
-                # For OAuth, we need 'none' samesite when behind reverse proxy
-                # to allow the callback to send the cookie
+                # IMPORTANT:
+                # - Authlib's OAuth flow requires that this cookie is sent back on the callback request.
+                # - Browsers require SameSite=None cookies to also be Secure.
+                # We prefer SameSite=None on HTTPS to be maximally compatible with cross-site OAuth redirects.
                 cookie_params = {
                     "key": self.session_cookie,
                     "value": signed_session_id,
                     "max_age": self.max_age,
                     "httponly": True,
-                    "secure": self.https_only if self.https_only is not None else is_https,
-                    "samesite": "none" if is_https else "lax",  # 'none' requires secure=True
+                    "secure": True if is_https else False,
+                    "samesite": "none" if is_https else "lax",
                     "path": "/"
                 }
                 
@@ -136,7 +150,7 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
                 logger.error(f"Error saving session: {e}")
         
         # Clear session if explicitly cleared
-        elif hasattr(request.state, 'session') and not request.state.session and session_id:
+        elif not session_after and session_id:
             try:
                 redis = await self._get_redis()
                 await redis.delete(f"session:{session_id}")
