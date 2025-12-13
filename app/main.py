@@ -127,12 +127,17 @@ if settings.USE_REDIS_SESSIONS:
         https_only=settings.COOKIE_SECURE  # Use HTTPS in production
     )
 else:
-    logger.warning("⚠️ Using in-memory sessions - OAuth may fail with multiple workers!")
+    # Starlette's SessionMiddleware stores session data in a signed cookie (not in-memory),
+    # so it works fine with multiple workers. The main OAuth requirement is SameSite != Strict.
+    logger.info("🔄 Using cookie-backed SessionMiddleware for OAuth state")
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.SECRET_KEY,
         max_age=30 * 24 * 60 * 60,  # 30 days
-        same_site=settings.COOKIE_SAMESITE,
+        # OAuth requires the temporary session cookie (used to store `state`)
+        # to be sent back after the cross-site redirect from the provider.
+        # `SameSite=Strict` will break that flow, so we force at least Lax here.
+        same_site="lax",
         https_only=settings.COOKIE_SECURE
     )
 
