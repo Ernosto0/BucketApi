@@ -122,7 +122,9 @@ if settings.USE_REDIS_SESSIONS:
         redis_url=settings.REDIS_URL,
         secret_key=settings.SECRET_KEY,
         max_age=1800,  # 30 minutes for OAuth state
-        session_cookie="session"
+        session_cookie="session",
+        domain=settings.SESSION_COOKIE_DOMAIN,  # For reverse proxy support
+        https_only=settings.COOKIE_SECURE  # Use HTTPS in production
     )
 else:
     logger.warning("⚠️ Using in-memory sessions - OAuth may fail with multiple workers!")
