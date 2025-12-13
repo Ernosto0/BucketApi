@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 # Create router
 router = APIRouter(prefix="/auth", tags=["oauth"])
 
+
+def clear_oauth_session(request: Request):
+    """Clear OAuth session state (works with both Redis and regular sessions)"""
+    if settings.USE_REDIS_SESSIONS:
+        # Redis-backed session
+        if hasattr(request.state, 'session') and request.state.session:
+            request.state.session.clear()
+    else:
+        # Regular SessionMiddleware
+        if hasattr(request, 'session'):
+            request.session.clear()
+
 @router.get("/google/login")
 async def google_login(request: Request):
     """Initiate Google OAuth login"""
@@ -40,8 +52,7 @@ async def google_login(request: Request):
         redirect_uri = settings.OAUTH_REDIRECT_URI
         
         # Clear any existing session state to prevent conflicts
-        if hasattr(request, 'session'):
-            request.session.clear()
+        clear_oauth_session(request)
         
         return await google.authorize_redirect(request, redirect_uri)
         
@@ -74,8 +85,7 @@ async def google_callback(request: Request, response: Response):
         except Exception as token_error:
             logger.error(f"Token authorization failed: {token_error}")
             # Clear session state and try again
-            if hasattr(request, 'session'):
-                request.session.clear()
+            clear_oauth_session(request)
             return RedirectResponse(url="/login?error=oauth_failed")
         
         # Get user info from Google
@@ -142,8 +152,7 @@ async def google_callback(request: Request, response: Response):
         )
         
         # Clear OAuth session state after successful login
-        if hasattr(request, 'session'):
-            request.session.clear()
+        clear_oauth_session(request)
         
         logger.info(f"✅ Google OAuth login successful: {email}")
         return redirect_response
@@ -151,8 +160,7 @@ async def google_callback(request: Request, response: Response):
     except Exception as e:
         logger.error(f"Google OAuth callback error: {e}", exc_info=True)
         # Clear session state on error
-        if hasattr(request, 'session'):
-            request.session.clear()
+        clear_oauth_session(request)
         return RedirectResponse(url="/login?error=oauth_failed")
 
 
@@ -179,8 +187,7 @@ async def github_login(request: Request):
         redirect_uri = settings.GITHUB_REDIRECT_URI
         
         # Clear any existing session state to prevent conflicts
-        if hasattr(request, 'session'):
-            request.session.clear()
+        clear_oauth_session(request)
         
         return await github.authorize_redirect(request, redirect_uri)
         
@@ -213,8 +220,7 @@ async def github_callback(request: Request, response: Response):
         except Exception as token_error:
             logger.error(f"Token authorization failed: {token_error}")
             # Clear session state and try again
-            if hasattr(request, 'session'):
-                request.session.clear()
+            clear_oauth_session(request)
             return RedirectResponse(url="/login?error=oauth_failed")
         
         # Get user info from GitHub
@@ -281,8 +287,7 @@ async def github_callback(request: Request, response: Response):
         )
         
         # Clear OAuth session state after successful login
-        if hasattr(request, 'session'):
-            request.session.clear()
+        clear_oauth_session(request)
         
         logger.info(f"✅ GitHub OAuth login successful: {email}")
         return redirect_response

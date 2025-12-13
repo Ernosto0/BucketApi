@@ -75,6 +75,7 @@ from .services.exceptions import create_secure_error, SecureHTTPException
 from .services.multi_step_generation_service import multi_step_generation_service
 from .code_generation_config.multi_step_config import GenerationMode
 from .middleware.logging_middleware import LoggingMiddleware, RequestContextMiddleware
+from .middleware.redis_session_middleware import RedisSessionMiddleware, get_session
 from .config import settings
 from .logging_config import setup_logging
 import os
@@ -106,13 +107,25 @@ async def startup_event():
 
 
 # Add session middleware for OAuth (required by authlib)
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=settings.SECRET_KEY,
-    max_age=30 * 24 * 60 * 60,  # 30 days
-    same_site=settings.COOKIE_SAMESITE,
-    https_only=settings.COOKIE_SECURE
-)
+# Use Redis-backed sessions in multi-worker environments for proper OAuth state management
+if settings.USE_REDIS_SESSIONS:
+    logger.info("🔄 Using Redis-backed session storage for multi-worker support")
+    app.add_middleware(
+        RedisSessionMiddleware,
+        redis_url=settings.REDIS_URL,
+        secret_key=settings.SECRET_KEY,
+        max_age=1800,  # 30 minutes for OAuth state
+        session_cookie="session"
+    )
+else:
+    logger.warning("⚠️ Using in-memory sessions - OAuth may fail with multiple workers!")
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=settings.SECRET_KEY,
+        max_age=30 * 24 * 60 * 60,  # 30 days
+        same_site=settings.COOKIE_SAMESITE,
+        https_only=settings.COOKIE_SECURE
+    )
 
 # Add CORS middleware with secure configuration
 app.add_middleware(

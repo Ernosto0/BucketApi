@@ -57,6 +57,10 @@ class Settings:
     # MongoDB Configuration 
     MONGODB_URL: str = os.getenv("MONGODB_URL")
     MONGODB_DB_NAME: str = os.getenv("MONGODB_DB_NAME")
+    
+    # Redis Configuration (for session storage in multi-worker environment)
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    USE_REDIS_SESSIONS: bool = os.getenv("USE_REDIS_SESSIONS", "false").lower() == "true"
 
     # OpenAI Configuration for api generation
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
