@@ -8,12 +8,18 @@ import subprocess
 import logging
 import json
 import shutil
+import contextlib
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import venv
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+try:
+    import fcntl  # type: ignore
+except Exception:  # pragma: no cover - not available on Windows
+    fcntl = None
 
 class VenvManager:
     """Manages two virtual environments: main_venv and api_venv"""
@@ -28,37 +34,68 @@ class VenvManager:
         self.packages_file = self.api_venv_path / "installed_packages.json"
         
         # Ensure venv directory exists
-        self.venv_dir.mkdir(exist_ok=True)
+        self.venv_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize venvs if they don't exist
         self._ensure_venvs_exist()
+
+    @contextlib.contextmanager
+    def _venv_create_lock(self):
+        """
+        Prevent concurrent venv creation across multiple processes (e.g. Gunicorn workers).
+        Without this, two workers can race and crash with FileExistsError.
+        """
+        lock_path = self.venv_dir / ".venv_create.lock"
+        self.venv_dir.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w", encoding="utf-8") as lock_file:
+            if fcntl is not None:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if fcntl is not None:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
     
     def _ensure_venvs_exist(self):
         """Ensure both virtual environments exist and are properly set up."""
         try:
-            # Check if we're already in a venv (main_venv)
-            if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-                logger.info("Already running in main_venv, skipping main_venv creation")
-            else:
-                # Create main_venv if it doesn't exist
-                if not self.main_venv_path.exists():
-                    logger.info("Creating main_venv...")
-                    self._create_main_venv()
-            
-            # Always ensure api_venv exists
-            if not self.api_venv_path.exists():
-                logger.info("Creating api_venv...")
-                self._create_api_venv()
-            else:
-                logger.info("api_venv already exists")
+            # Creating venvs during import can race under multi-worker servers.
+            # Use a filesystem lock so only one process does the creation.
+            with self._venv_create_lock():
+                # Check if we're already in a venv (main_venv)
+                if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+                    logger.info("Already running in main_venv, skipping main_venv creation")
+                else:
+                    # Create main_venv if it doesn't exist
+                    if not self._venv_is_valid(self.main_venv_path):
+                        logger.info("Creating main_venv...")
+                        self._create_main_venv()
+                
+                # Always ensure api_venv exists
+                if not self._venv_is_valid(self.api_venv_path):
+                    logger.info("Creating api_venv...")
+                    self._create_api_venv()
+                else:
+                    logger.info("api_venv already exists")
                 
         except Exception as e:
             logger.error(f"Error ensuring venvs exist: {e}")
             raise
+
+    def _venv_is_valid(self, venv_path: Path) -> bool:
+        """A venv is considered valid if it has a pyvenv.cfg file."""
+        try:
+            return venv_path.exists() and (venv_path / "pyvenv.cfg").exists()
+        except Exception:
+            return False
     
     def _create_main_venv(self):
         """Create main virtual environment for the application."""
         try:
+            # If something already created it (or partially exists), clean up safely.
+            if self.main_venv_path.exists() and not self._venv_is_valid(self.main_venv_path):
+                shutil.rmtree(self.main_venv_path, ignore_errors=True)
+
             # Create the venv
             venv.create(self.main_venv_path, with_pip=True, clear=True)
             
@@ -93,6 +130,10 @@ class VenvManager:
     def _create_api_venv(self):
         """Create API virtual environment for generated APIs."""
         try:
+            # If something already created it (or partially exists), clean up safely.
+            if self.api_venv_path.exists() and not self._venv_is_valid(self.api_venv_path):
+                shutil.rmtree(self.api_venv_path, ignore_errors=True)
+
             # Create the venv
             venv.create(self.api_venv_path, with_pip=True, clear=True)
             
