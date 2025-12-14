@@ -53,8 +53,30 @@ async def google_login(request: Request):
         
         # Clear any existing session state to prevent conflicts
         clear_oauth_session(request)
-        
-        return await google.authorize_redirect(request, redirect_uri)
+
+        redirect_response = await google.authorize_redirect(request, redirect_uri)
+
+        # Safe debug: log cookie attributes (not values) so we can verify the session cookie
+        # is being set in a way that browsers will store/send on the callback.
+        set_cookie = redirect_response.headers.get("set-cookie", "")
+        if set_cookie:
+            try:
+                parts = [p.strip() for p in set_cookie.split(";")]
+                cookie_name = parts[0].split("=", 1)[0] if parts else "unknown"
+                attrs = []
+                for p in parts[1:]:
+                    lower = p.lower()
+                    if lower.startswith("samesite=") or lower.startswith("domain=") or lower.startswith("path=") or lower.startswith("max-age="):
+                        attrs.append(p)
+                    elif lower in ("secure", "httponly"):
+                        attrs.append(p)
+                logger.info(f"OAuth login set cookie: {cookie_name}; " + "; ".join(attrs))
+            except Exception:
+                logger.info("OAuth login set cookie (unable to parse attributes)")
+        else:
+            logger.warning("OAuth login response had no Set-Cookie header")
+
+        return redirect_response
         
     except Exception as e:
         logger.error(f"Error initiating Google login: {e}")
@@ -83,6 +105,19 @@ async def google_callback(request: Request, response: Response):
         try:
             token = await google.authorize_access_token(request)
         except Exception as token_error:
+            # High-signal diagnostics: the most common cause is the session cookie not being sent.
+            cookie_header_present = bool(request.headers.get("cookie"))
+            has_session_cookie = "session" in request.cookies
+            logger.error(
+                "OAuth callback diagnostics: cookie_header=%s, session_cookie=%s, cookies=%s, "
+                "x-forwarded-proto=%s, x-forwarded-host=%s, host=%s",
+                cookie_header_present,
+                has_session_cookie,
+                list(request.cookies.keys()),
+                request.headers.get("x-forwarded-proto"),
+                request.headers.get("x-forwarded-host"),
+                request.headers.get("host"),
+            )
             logger.error(f"Token authorization failed: {token_error}")
             # Clear session state and try again
             clear_oauth_session(request)

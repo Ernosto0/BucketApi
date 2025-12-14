@@ -37,4 +37,3 @@ fastapi
 uvicorn
 httpx
 schedule==1.2.0
-contextlib

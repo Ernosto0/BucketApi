@@ -127,15 +127,15 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
                 
                 # IMPORTANT:
                 # - Authlib's OAuth flow requires that this cookie is sent back on the callback request.
-                # - Browsers require SameSite=None cookies to also be Secure.
-                # We prefer SameSite=None on HTTPS to be maximally compatible with cross-site OAuth redirects.
+                # - In practice, `SameSite=Lax` is the most reliable for OAuth redirects (top-level GET),
+                #   and avoids browser policies that treat `SameSite=None` cookies as "third-party".
                 cookie_params = {
                     "key": self.session_cookie,
                     "value": signed_session_id,
                     "max_age": self.max_age,
                     "httponly": True,
                     "secure": True if is_https else False,
-                    "samesite": "none" if is_https else "lax",
+                    "samesite": "lax",
                     "path": "/"
                 }
                 
@@ -154,7 +154,7 @@ class RedisSessionMiddleware(BaseHTTPMiddleware):
             try:
                 redis = await self._get_redis()
                 await redis.delete(f"session:{session_id}")
-                response.delete_cookie(self.session_cookie)
+                response.delete_cookie(self.session_cookie, path="/", domain=self.domain)
                 logger.debug(f"Cleared session {session_id[:8]}...")
             except Exception as e:
                 logger.error(f"Error clearing session: {e}")
