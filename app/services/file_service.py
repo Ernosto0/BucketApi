@@ -672,6 +672,9 @@ class FileService:
             
             return result
             
+        except FileNotFoundError:
+            # Preserve the exception type so callers can return a 404 instead of a generic 200 error.
+            raise
         except Exception as e:
             raise Exception(f"Failed to execute API {full_slug}: {str(e)}")
     
@@ -685,18 +688,73 @@ class FileService:
         return self.is_api_saved(user_id, api_slug)
     
     def load_api_code(self, user_id: str, api_slug: str) -> str:
-        """Load the Python code for a specific API."""
+        """
+        Load existing API code (disk-first, with MongoDB fallback for ephemeral environments).
+
+        Note: This method is used during API execution, including custom domain requests.
+        """
         full_slug = f"{user_id}_{api_slug}"
         file_path = self._get_api_file_path(full_slug)
-        
+
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"API code not found: {full_slug}")
-        
+            # Try to recover from database (important for ephemeral filesystems)
+            logger.info(f"File not found for {full_slug}, attempting DB recovery")
+            try:
+                metadata = self.get_api_metadata(user_id, api_slug)
+                if metadata and getattr(metadata, "code", None):
+                    # Attempt to cache to disk if possible, but don't fail if we can't.
+                    try:
+                        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+                        with open(file_path, "w", encoding="utf-8", newline="\n") as f:
+                            f.write(metadata.code)
+                        logger.info(f"Restored {full_slug} from database to file")
+                    except Exception as cache_err:
+                        logger.warning(
+                            f"Could not cache restored code to disk (using memory only): {cache_err}"
+                        )
+
+                    return metadata.code
+
+                raise FileNotFoundError(f"API not found: {full_slug}")
+            except Exception as e:
+                if isinstance(e, FileNotFoundError):
+                    raise
+                logger.error(f"DB recovery failed: {e}")
+                raise FileNotFoundError(f"API not found: {full_slug}")
+
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+                # Backward-compatibility: if the file doesn't contain a FastAPI app,
+                # attempt to wrap it (older generated formats).
+                if "app = FastAPI(" not in content:
+                    try:
+                        if content.startswith('"""'):
+                            end_quote = content.find('"""', 3)
+                            if end_quote != -1:
+                                original_code = content[end_quote + 3 :].lstrip("\n")
+                            else:
+                                original_code = content
+                        else:
+                            original_code = content
+
+                        wrapped_code = sandbox_service._wrap_code_in_fastapi(original_code)
+                        with open(file_path, "w", encoding="utf-8", newline="\n") as f:
+                            f.write(wrapped_code)
+                        return wrapped_code
+                    except Exception as wrap_error:
+                        logger.error(f"Failed to wrap code in FastAPI app: {wrap_error}")
+                        raise Exception(
+                            "API file does not contain FastAPI app and could not be fixed"
+                        )
+
+                return content
         except Exception as e:
-            raise Exception(f"Failed to load API code {full_slug}: {str(e)}")
+            logger.error(f"Failed to load API code for {user_id}/{api_slug}: {e}")
+            raise Exception(
+                "Failed to load API code. The API may not exist or be corrupted."
+            )
     
     def get_user_apis(self, user_id: str) -> List[SavedAPI]:
         """Get list of saved APIs with full metadata for a specific user from database."""
