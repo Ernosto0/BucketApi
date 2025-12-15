@@ -206,10 +206,35 @@ async def custom_domain_routing_middleware(request: Request, call_next):
         # Check if this is a custom domain by looking up in database
         domain_doc = mongodb.custom_domains.find_one({
             "domain": host,
-            "status": "active"
+            # Allow routing for domains that are already active, or in the middle of
+            # certificate issuance/activation (on-demand TLS).
+            "status": {"$in": ["active", "activating", "verified"]}
         })
         
         if domain_doc:
+            # If the domain is in the process of activation and this request came in over HTTPS
+            # (as reported by the reverse proxy), mark it active.
+            #
+            # Note: FastAPI sees the proxied request as HTTP from Caddy -> backend.
+            # We rely on X-Forwarded-Proto being set by Caddy.
+            forwarded_proto = (request.headers.get("x-forwarded-proto") or "").lower()
+            if domain_doc.get("status") in {"verified", "activating"} and forwarded_proto == "https":
+                try:
+                    mongodb.custom_domains.update_one(
+                        {"_id": domain_doc["_id"]},
+                        {"$set": {
+                            "status": "active",
+                            "ssl_certificate_status": "issued",
+                            "activated_at": datetime.utcnow()
+                        }}
+                    )
+                    domain_doc["status"] = "active"
+                    domain_doc["ssl_certificate_status"] = "issued"
+                    domain_doc["activated_at"] = datetime.utcnow()
+                    logger.info(f"✅ Domain {host} activated after HTTPS request")
+                except Exception as activate_err:
+                    logger.warning(f"Failed to auto-activate domain {host}: {activate_err}")
+
             # Found custom domain - route based on path
             user_id = domain_doc["user_id"]
             original_path = path.rstrip("/")
