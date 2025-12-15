@@ -18,6 +18,7 @@ from ..models import (
     DomainMapping
 )
 from .mongodb import mongodb
+from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +261,10 @@ class DomainService:
             if request.verification_method == VerificationMethod.DNS_TXT:
                 instructions = f"""To verify ownership of {domain}, please add a DNS TXT record:
 
+0. Make sure your domain points to this server:
+   - For a subdomain (e.g. api.{domain}): create a CNAME to {settings.MAIN_DOMAIN}
+   - For a root/apex domain (e.g. {domain}): create an A record to your server IP (or ALIAS/ANAME to {settings.MAIN_DOMAIN} if supported)
+
 1. Go to your DNS provider's settings
 2. Add a new TXT record:
    - Name/Host: _bucketapi-verify.{domain.split('.')[0] if '.' in domain else domain}
@@ -272,6 +277,8 @@ class DomainService:
 Note: DNS changes may take time to propagate. You can try verification multiple times."""
             else:
                 instructions = f"""To verify ownership of {domain} using HTTP file verification:
+
+0. Make sure your domain points to this server (A record to your server IP, or CNAME to {settings.MAIN_DOMAIN} for subdomains)
 
 1. Create a file at: http://{domain}/.well-known/bucketapi-verify.txt
 2. Add this content to the file: {verification_token}
@@ -517,7 +524,13 @@ Note: DNS changes may take time to propagate. You can try verification multiple 
         try:
             domain_doc = mongodb.custom_domains.find_one({
                 "domain": domain.lower(),
-                "status": {"$in": [DomainStatus.VERIFIED.value, DomainStatus.ACTIVE.value]}
+                # Allow VERIFIED (first issuance), ACTIVATING (retries while issuance is in progress),
+                # and ACTIVE (already live).
+                "status": {"$in": [
+                    DomainStatus.VERIFIED.value,
+                    DomainStatus.ACTIVATING.value,
+                    DomainStatus.ACTIVE.value,
+                ]}
             })
             
             if domain_doc:
