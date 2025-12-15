@@ -1523,17 +1523,18 @@ async def generate_api_stream(
                     try:
                         await file_service.save_api_code(api_slug, code)
                     except Exception as save_error:
-                        logger.error(f"Failed to save API code: {save_error}")
+                        # Don't hard-fail generation when disk is read-only or permissions are restricted.
+                        # We'll still persist the code in MongoDB (see SaveAPIRequest.code below).
+                        logger.warning(f"Failed to save API code to disk (continuing with DB persistence): {save_error}")
                         yield "data: " + json.dumps({
-                            "type": "error",
+                            "type": "chat_message",
                             "timestamp": datetime.now().isoformat(),
                             "data": {
-                                "message": f"❌ Failed to save API code: {str(save_error)}",
-                                "error_type": "FileSaveError",
-                                "details": "The generated code could not be saved. Please try again."
+                                "message": "⚠️ Could not write API file to disk (permissions). Continuing by saving the API in the database.",
+                                "is_ai": True,
+                                "message_type": "warning"
                             }
                         }) + "\n\n"
-                        return
                     
                     yield "data: " + json.dumps({
                         "type": "chat_message",
@@ -1580,7 +1581,8 @@ async def generate_api_stream(
                             openapi_spec=json.dumps(openapi_spec) if openapi_spec else None,
                             sample_input=api_request.sample_input,
                             expected_output=api_request.expected_output,
-                            database_config=encoded_db_config
+                            database_config=encoded_db_config,
+                            code=code
                         )
                         file_service.save_api_metadata(save_request)
                         logger.info(f"API documentation saved to database for {clean_slug}")
@@ -1845,7 +1847,12 @@ async def generate_api(
         clean_slug = api_slug.replace(f"{current_user.id}_", "")
         
         # Save the code
-        await file_service.save_api_code(api_slug, code)
+        try:
+            await file_service.save_api_code(api_slug, code)
+        except Exception as save_error:
+            # Don't hard-fail generation when disk is read-only or permissions are restricted.
+            # The API source is persisted in MongoDB via SaveAPIRequest.code below.
+            logger.warning(f"Failed to save API code to disk (continuing with DB persistence): {save_error}")
         
         # Generate documentation
         documentation, openapi_spec, curl_example = await openai_service.generate_documentation(
@@ -1876,7 +1883,8 @@ async def generate_api(
                 curl_example=curl_example,
                 openapi_spec=json.dumps(openapi_spec) if openapi_spec else None,
                 sample_input=api_request.sample_input,
-                expected_output=api_request.expected_output
+                expected_output=api_request.expected_output,
+                code=code
             )
             await file_service.save_api_metadata(save_request)
             logger.info(f"API documentation saved to database for {clean_slug}")
@@ -2236,17 +2244,27 @@ async def modify_api(
             try:
                 await file_service.save_api_code(full_slug, code)
             except Exception as save_error:
-                logger.error(f"Failed to save API code: {save_error}")
+                # Don't hard-fail modification when disk is read-only/permissions are restricted.
+                # We'll persist the updated code to MongoDB below.
+                logger.warning(f"Failed to save modified API code to disk (continuing with DB persistence): {save_error}")
                 yield "data: " + json.dumps({
-                    "type": "error",
+                    "type": "chat_message",
                     "timestamp": datetime.now().isoformat(),
                     "data": {
-                        "message": f"Failed to save API code: {str(save_error)}",
-                        "error_type": "FileSaveError",
-                        "details": "The modified code could not be saved. Please try again."
+                        "message": "⚠️ Could not write modified API file to disk (permissions). Continuing by saving the updated code in the database.",
+                        "is_ai": True,
+                        "message_type": "warning"
                     }
                 }) + "\n\n"
-                return
+
+            # Persist updated code in DB for environments where generated_apis/ is ephemeral.
+            try:
+                mongodb.saved_apis.update_one(
+                    {"user_id": modification_request.user_id, "api_slug": modification_request.api_slug},
+                    {"$set": {"code": code}}
+                )
+            except Exception as db_err:
+                logger.warning(f"Failed to persist modified API code to database: {db_err}")
             
             # Save new version
             endpoint_url = f"{settings.API_PREFIX}/{modification_request.user_id}/{modification_request.api_slug}"
@@ -3720,10 +3738,28 @@ async def test_api(request: TestRequest):
                             backup_slug = f"{request.api_slug}_backup_{timestamp}"
                             
                             # Save backup
-                            await file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
+                            try:
+                                await file_service.save_api_code(f"{request.user_id}_{backup_slug}", current_code)
+                            except Exception as save_err:
+                                logger.warning(f"Failed to save backup code to disk (continuing): {save_err}")
                             
                             # Save fixed code
-                            await file_service.save_api_code(f"{request.user_id}_{request.api_slug}", debug_result["fixed_code"])
+                            try:
+                                await file_service.save_api_code(
+                                    f"{request.user_id}_{request.api_slug}",
+                                    debug_result["fixed_code"]
+                                )
+                            except Exception as save_err:
+                                logger.warning(f"Failed to save fixed code to disk (continuing with DB persistence): {save_err}")
+
+                            # Persist fixed code in DB so future executions work even without disk persistence.
+                            try:
+                                mongodb.saved_apis.update_one(
+                                    {"user_id": request.user_id, "api_slug": request.api_slug},
+                                    {"$set": {"code": debug_result["fixed_code"]}}
+                                )
+                            except Exception as db_err:
+                                logger.warning(f"Failed to persist fixed API code to database: {db_err}")
                             
                             # Add debug information to the test response
                             test_response.validation.update({
