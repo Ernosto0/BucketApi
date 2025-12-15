@@ -283,11 +283,14 @@ class FileService:
             raise Exception("API metadata already exists")
         
         # Create database entry
-        current_code = None
-        try:
-            current_code = self.load_api_code(request.user_id, request.api_slug)
-        except Exception as e:
-            logger.warning(f"Could not load code for saving to DB: {e}")
+        # Prefer code passed in the request (e.g. from generation flow) so we don't
+        # depend on generated_apis/ being persisted.
+        current_code = getattr(request, "code", None)
+        if not current_code:
+            try:
+                current_code = self.load_api_code(request.user_id, request.api_slug)
+            except Exception as e:
+                logger.warning(f"Could not load code for saving to DB: {e}")
 
         db_api = {
             "api_slug": request.api_slug,

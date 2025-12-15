@@ -203,6 +203,9 @@ class SaveAPIRequest(BaseModel):
     sample_input: Optional[str] = None
     expected_output: Optional[str] = None
     database_config: Optional[DatabaseConfig] = None  # Database connection configuration
+    # Optional: allow callers (like API generation flow) to include the code directly.
+    # This is important for deployments where generated_apis/ is ephemeral.
+    code: Optional[str] = None
 
 class SaveAPIResponse(BaseModel):
     success: bool

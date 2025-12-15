@@ -25,6 +25,13 @@ fi
 echo "✅ Caddy started successfully (PID: $CADDY_PID)"
 echo "🌐 Caddy listening on ports 80 (HTTP) and 443 (HTTPS)"
 
+# Ensure generated_apis directory is writable for the non-root app user.
+# This is especially important when /app/generated_apis is a bind-mounted host volume.
+echo "🔧 Ensuring /app/generated_apis is writable..."
+mkdir -p /app/generated_apis || true
+chown -R appuser:appuser /app/generated_apis 2>/dev/null || true
+chmod -R u+rwX,g+rwX /app/generated_apis 2>/dev/null || true
+
 # Start FastAPI with Gunicorn as non-root user
 echo "🐍 Starting FastAPI application..."
 exec gosu appuser gunicorn -k uvicorn.workers.UvicornWorker -w 4 \
