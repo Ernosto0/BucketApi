@@ -890,7 +890,9 @@ async function generateAPIStream(message, userId, skipAnalysis = true) {
                 // Extract sample input/output from proposal if available
                 sample_input: currentProposal?.proposal?.input_format?.example || null,
                 expected_output: currentProposal?.proposal?.output_format?.example || null,
-                api_name: `api-${Date.now()}`, // Generate a unique name
+                // IMPORTANT: don't use a timestamp slug as the "API name" — it ends up persisted to DB as api_name.
+                // Prefer the proposal's friendly name; fall back to structured extraction if the user provided one.
+                api_name: getApiNameForGeneration(message),
                 // Include database configuration if enabled
                 database_config: getDatabaseConfigForRequest()
             })
@@ -4890,11 +4892,14 @@ async function loadUserAPIsForModification() {
             option.dataset.userId = userId; // Use the userId from request since it's the same
             
             // Format the display name with emoji indicators
-            const name = api.api_name || api.api_slug;
+            const displayName = deriveApiDisplayName(api);
             const statusEmoji = api.code_available ? '✓' : '○';
             const dateStr = formatRelativeDate(api.last_modified || api.created_at);
             
-            option.textContent = `${statusEmoji} ${name} • ${dateStr}`;
+            // Show both human-friendly name and slug so users can disambiguate similarly-named APIs.
+            option.textContent = (displayName && displayName === api.api_slug)
+                ? `${statusEmoji} ${api.api_slug} • ${dateStr}`
+                : `${statusEmoji} ${displayName} (${api.api_slug}) • ${dateStr}`;
             apiSelector.appendChild(option);
         });
         
@@ -5246,6 +5251,70 @@ function extractDescriptionFromPrompt(promptText) {
     }
     
     return promptText.substring(0, 200);
+}
+
+/**
+ * Extract API name from a prompt (mirrors logic in templates/profile.html).
+ */
+function extractAPINameFromPrompt(promptText, fallbackName) {
+    if (!promptText || typeof promptText !== 'string') return fallbackName;
+    
+    // Pattern: "API Name: ..." or "Name: ..."
+    const nameMatch = promptText.match(/(?:API Name|Name):\s*([^\n]+)/i);
+    if (nameMatch && nameMatch[1]) {
+        return nameMatch[1].trim();
+    }
+    
+    // Pattern: prompt starts with name, then "Description:"
+    const inlineMatch = promptText.match(/^([^\n:]+?)(?:\s+Description:)/i);
+    if (inlineMatch && inlineMatch[1]) {
+        return inlineMatch[1].trim();
+    }
+    
+    return fallbackName;
+}
+
+/**
+ * Decide the API name to send to the backend for generation.
+ * This value is persisted as `api_name` in MongoDB.
+ */
+function getApiNameForGeneration(promptText) {
+    // Best source: proposal model-generated name
+    const proposalName = currentProposal?.proposal?.api_name;
+    if (proposalName && typeof proposalName === 'string' && proposalName.trim()) {
+        return proposalName.trim();
+    }
+    
+    // Fallback: if user used a structured prompt format
+    const extracted = extractAPINameFromPrompt(promptText, null);
+    if (extracted && typeof extracted === 'string' && extracted.trim()) {
+        return extracted.trim();
+    }
+    
+    // Allow backend to auto-generate if absent
+    return null;
+}
+
+/**
+ * Derive a human-friendly API display name for UI lists.
+ * If the stored `api_name` looks like a slug, attempt to extract a nicer name from `api.prompt`.
+ */
+function deriveApiDisplayName(api) {
+    const slug = api?.api_slug || '';
+    const storedName = api?.api_name || '';
+    const extracted = extractAPINameFromPrompt(api?.prompt, null);
+    
+    const looksAutoSlug =
+        !storedName ||
+        storedName === slug ||
+        /^api[-_]\d+$/i.test(storedName) ||
+        /^api[_-]\d{8}(_\d{6})?$/i.test(storedName);
+    
+    if (looksAutoSlug && extracted && extracted !== slug) {
+        return extracted;
+    }
+    
+    return storedName || slug || 'Unknown API';
 }
 
 /**

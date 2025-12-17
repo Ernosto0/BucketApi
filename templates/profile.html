@@ -700,6 +700,21 @@
         }
     }
 
+    function getInitialTabFromUrl() {
+        const allowedTabs = ['usage', 'api-keys', 'subscription', 'saved-apis'];
+        try {
+            const params = new URLSearchParams(window.location.search);
+            let tab = params.get('tab');
+            if (!tab && window.location.hash) {
+                tab = window.location.hash.replace('#', '');
+            }
+            if (tab && allowedTabs.includes(tab)) return tab;
+        } catch (e) {
+            // Ignore URL parsing issues
+        }
+        return 'usage';
+    }
+
     // Usage data loading is now handled directly in loadUsageData
 
     // Event Listeners
@@ -718,11 +733,21 @@
         // Usage type tab handlers removed - no longer needed
 
         // Modal handlers
-        document.getElementById('createAPIKeyBtn').addEventListener('click', showCreateAPIKeyModal);
+        const createAPIKeyBtn = document.getElementById('createAPIKeyBtn');
+        if (createAPIKeyBtn) {
+            createAPIKeyBtn.addEventListener('click', showCreateAPIKeyModal);
+        }
 
-        // Initial load
-        loadUsageData();
-        loadTokenBalance();
+        // Initial tab (supports deep-linking like /profile#saved-apis)
+        const initialTab = getInitialTabFromUrl();
+        switchTab(initialTab);
+
+        // If user changes URL fragment (e.g. clicks header link while already on /profile),
+        // keep tabs in sync without requiring a full page reload.
+        window.addEventListener('hashchange', function() {
+            const tabFromUrl = getInitialTabFromUrl();
+            switchTab(tabFromUrl);
+        });
     });
 
     // Initialize User Data

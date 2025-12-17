@@ -572,10 +572,16 @@
                                 <h4 class="text-lg font-semibold text-white mb-4">How to setup a custom domain</h4>
                                 <ol class="list-decimal list-inside space-y-3 text-slate-300 text-sm">
                                     <li>Click <strong>Add Domain</strong> and enter your domain name (e.g., <code>api.example.com</code>)</li>
+                                    <li><strong>Point your domain to this server</strong> in your DNS provider:
+                                        <ul class="list-disc list-inside ml-5 mt-2 space-y-1 text-slate-300/90">
+                                            <li><strong>Recommended (subdomain like</strong> <code>api.example.com</code><strong>):</strong> add a <strong>CNAME</strong> to <code>bucketapi.com</code></li>
+                                            <li><strong>Root/apex domain like</strong> <code>example.com</code><strong>:</strong> add an <strong>A</strong> record to <code>64.226.102.134</code> (or use <strong>ALIAS/ANAME</strong> to <code>bucketapi.com</code> if your DNS provider supports it)</li>
+                                        </ul>
+                                    </li>
                                     <li>We'll provide a <strong>TXT record</strong> for verification</li>
                                     <li>Add the TXT record to your domain's DNS settings</li>
-                                    <li>Once verified, we'll issue an SSL certificate automatically</li>
-                                    <li>Finally, add a <strong>CNAME record</strong> pointing to <code>caddy</code> (or your instance domain)</li>
+                                    <li>Click <strong>Verify</strong> once DNS is propagated</li>
+                                    <li>After verification, we automatically issue an SSL certificate and your domain becomes live</li>
                                 </ol>
                             </div>
                         </div>
@@ -731,6 +737,13 @@
                 <p class="text-slate-300 text-sm">
                     Please add the following TXT record to your DNS configuration to prove ownership of <span id="dnsHostDisplayInline" class="font-semibold text-white"></span>.
                 </p>
+                
+                <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-sm text-amber-200/90">
+                    <p class="font-medium text-amber-200 mb-1">Important: your domain must resolve to your server</p>
+                    <p class="text-amber-200/80">
+                        Before clicking <strong>Verify</strong>, create an <strong>A</strong> record to your server IP (or a <strong>CNAME</strong> to <code>bucketapi.com</code> for subdomains). If your domain doesn’t resolve yet, verification and SSL issuance will fail.
+                    </p>
+                </div>
 
                 <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-600/50">
                     <div class="mb-4">
