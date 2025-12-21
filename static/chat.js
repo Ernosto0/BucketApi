@@ -20,6 +20,10 @@ let isProcessingQueue = false;
 let lastMessageTime = 0;
 const MIN_MESSAGE_DELAY = 500;//500 milliseconds between messages
 
+// Active streaming generation control (so "Clear chat" can stop in-flight updates)
+let activeStreamAbortController = null;
+let activeStreamRunId = 0; // increments to invalidate queued handlers from older runs
+
 // Helper function to detect if a message is a modification request using cheap LLM classification
 async function isModificationRequest(message) {
     try {
@@ -582,6 +586,54 @@ function clearChat() {
     showChatInput(); // Show chat input when clearing chat for new conversation
 }
 
+function resetChat(confirmUser = true) {
+    if (confirmUser) {
+        const ok = window.confirm('Clear the chat and reset the preview panel? This will stop any in-progress generation.');
+        if (!ok) return;
+    }
+
+    // Invalidate any queued streaming UI updates immediately
+    activeStreamRunId += 1;
+
+    // Abort any in-flight streaming request
+    if (activeStreamAbortController) {
+        try {
+            activeStreamAbortController.abort();
+        } catch (e) {
+            // ignore
+        }
+        activeStreamAbortController = null;
+    }
+
+    // Clear queued messages + unblock the queue loop
+    messageQueue = [];
+    isProcessingQueue = false;
+    lastMessageTime = 0;
+
+    // Reset UI "busy" state
+    isGenerating = false;
+    try { hideTypingIndicator(); } catch (e) { /* ignore */ }
+    try { hideAPIBuildLoading(); } catch (e) { /* ignore */ }
+    try { handleInputChange(); } catch (e) { /* ignore */ }
+
+    // Reset right-side preview panel if present
+    try { resetPreviewPanel(); } catch (e) { /* ignore */ }
+
+    // Hide scroll-to-bottom button if visible
+    const scrollBtn = document.getElementById('scrollToBottomBtn');
+    if (scrollBtn) scrollBtn.classList.add('hidden');
+
+    // Prefer the full mode reset (keeps the mode toggle UI consistent)
+    if (typeof switchToGenerationMode === 'function') {
+        switchToGenerationMode();
+        showChatInput();
+        return;
+    }
+
+    // Fallback: reset the chat UI + state
+    clearChat();
+}
+
 async function sendMessage() {
     const input = document.getElementById('chatInput');
     const message = input.value.trim();
@@ -862,6 +914,16 @@ async function generateAPI(message, userId, skipAnalysis = true) {
 
 // New streaming API generation function with real-time chat updates
 async function generateAPIStream(message, userId, skipAnalysis = true) {
+    // Start a new streaming run (invalidates any queued handlers from a previous run)
+    const runId = ++activeStreamRunId;
+
+    // Abort any previous streaming request
+    if (activeStreamAbortController) {
+        try { activeStreamAbortController.abort(); } catch (e) { /* ignore */ }
+    }
+    const controller = new AbortController();
+    activeStreamAbortController = controller;
+
     try {
         console.log(`Starting streaming API generation - Mode: ${generationMode}`);
         
@@ -881,6 +943,7 @@ async function generateAPIStream(message, userId, skipAnalysis = true) {
                 'Content-Type': 'application/json',
                 ...(authToken && { 'Authorization': `Bearer ${authToken}` })
             },
+            signal: controller.signal,
             body: JSON.stringify({
                 prompt: message,
                 user_id: userId,
@@ -915,6 +978,12 @@ async function generateAPIStream(message, userId, skipAnalysis = true) {
         let buffer = '';
 
         while (true) {
+            // If chat was reset or a newer run started, stop processing
+            if (runId !== activeStreamRunId) {
+                try { reader.cancel(); } catch (e) { /* ignore */ }
+                break;
+            }
+
             const { done, value } = await reader.read();
             if (done) break;
 
@@ -928,7 +997,7 @@ async function generateAPIStream(message, userId, skipAnalysis = true) {
                 if (line.startsWith('data: ')) {
                     try {
                         const eventData = JSON.parse(line.slice(6));
-                        await handleStreamEvent(eventData);
+                        await handleStreamEvent(eventData, runId);
                     } catch (e) {
                         console.warn('Failed to parse SSE data:', line, e);
                     }
@@ -937,26 +1006,42 @@ async function generateAPIStream(message, userId, skipAnalysis = true) {
         }
 
     } catch (error) {
+        // Abort is expected when user clears/resets the chat
+        if (controller?.signal?.aborted || error?.name === 'AbortError') {
+            return;
+        }
         // Hide the loading animation
         hideAPIBuildLoading();
         console.error('Streaming generation error:', error);
         addMessage('assistant', `❌ Connection error: ${error.message}`);
+    } finally {
+        // Only clear if this run still owns the controller
+        if (activeStreamAbortController === controller) {
+            activeStreamAbortController = null;
+        }
     }
 }
 
 // Handle different types of streaming events
-async function handleStreamEvent(event) {
+async function handleStreamEvent(event, runId = activeStreamRunId) {
+    if (runId !== activeStreamRunId) return;
     const { type, timestamp, data } = event;
 
     switch (type) {
         case 'chat_message':
             // Queue chat messages for staggered display
-            queueMessage(() => handleChatMessage(data));
+            queueMessage(() => {
+                if (runId !== activeStreamRunId) return;
+                handleChatMessage(data);
+            });
             break;
         
         case 'step_start':
             // Queue step start messages
-            queueMessage(() => handleStepStart(data));
+            queueMessage(() => {
+                if (runId !== activeStreamRunId) return;
+                handleStepStart(data);
+            });
             break;
         
         case 'step_phase':
@@ -965,7 +1050,10 @@ async function handleStreamEvent(event) {
         
         case 'step_complete':
             // Queue step complete messages
-            queueMessage(() => handleStepComplete(data));
+            queueMessage(() => {
+                if (runId !== activeStreamRunId) return;
+                handleStepComplete(data);
+            });
             break;
         
         case 'step_error':

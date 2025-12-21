@@ -37,6 +37,19 @@
                     </button>
                 </div>
 
+                <!-- Clear / Reset Chat -->
+                <button
+                    id="resetChatBtn"
+                    onclick="resetChat(true)"
+                    class="pointer-events-auto inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900/80 border border-slate-700/70 rounded-full text-[11px] font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all duration-200 shadow-lg backdrop-blur"
+                    title="Clear chat and reset the preview panel"
+                >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a2 2 0 012-2h2a2 2 0 012 2v2"></path>
+                    </svg>
+                    <span>Clear chat</span>
+                </button>
+
                 <!-- API Selector (Hidden by default, shown in modification mode) -->
                 <div id="apiSelectorContainer" class="hidden w-80 pointer-events-auto">
                     <select
