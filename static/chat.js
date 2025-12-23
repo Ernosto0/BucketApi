@@ -704,10 +704,10 @@ async function sendMessage() {
         const userId = currentUser ? currentUser.id : 'temp_' + Date.now();
         
         // Add initial proposal analysis system messages (similar to generate-api)
-        addStreamingMessage('🔍 Starting proposal analysis...', 'greeting');
+        addStreamingMessage('Starting proposal analysis...', 'greeting');
         await new Promise(resolve => setTimeout(resolve, 4800)); // Small delay for natural flow
         
-        addStreamingMessage('🧠 Analyzing your requirements and determining feasibility...', 'ai_processing');
+        addStreamingMessage(' Analyzing your requirements and determining feasibility...', 'ai_processing');
         await new Promise(resolve => setTimeout(resolve, 4000)); // Small delay for natural flow
         
         // Get database config for the request
@@ -778,7 +778,7 @@ async function sendMessage() {
             if (proposalResult.status === 'buildable' || proposalResult.status === 'proposal_ready') {
                 console.log('Creating new proposal - calling addProposalMessage');
                 // Add completion message before showing proposal
-                addStreamingMessage('✅ Analysis complete! Creating detailed proposal...', 'step_complete');
+                addStreamingMessage('Analysis complete! Creating detailed proposal...', 'step_complete');
                 await new Promise(resolve => setTimeout(resolve, 500)); // Small delay
                 // Show detailed API proposal and ask for confirmation
                 addProposalMessage(proposalResult, message, userId);
@@ -4471,7 +4471,7 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
     
     // Create functionality HTML
     const functionalityHtml = proposal.functionality ? 
-        proposal.functionality.map(func => `<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">${func}</span></li>`).join('') : 
+        proposal.functionality.map(func => `<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">${escapeHtml(String(func))}</span></li>`).join('') : 
         '<li class="flex items-start space-x-2"><span class="text-blue-400">•</span><span class="text-slate-300">Custom API functionality</span></li>';
     
     proposalSection.innerHTML = `
@@ -4488,47 +4488,112 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
 
         <!-- Input/Output Format -->
         ${proposal.input_format || proposal.output_format ? `
-        <div class="w-full space-y-4">
+        <div class="bg-slate-900/20 border border-slate-700/40 rounded-xl p-4 w-full space-y-3">
+            <div class="flex items-center justify-between min-w-0 gap-3">
+                <h4 class="font-semibold text-white flex items-center space-x-2">
+                    <span class="text-slate-300">🧩</span>
+                    <span>API Contract</span>
+                </h4>
+                <span class="text-xs text-slate-400 shrink-0">Request / Response preview</span>
+            </div>
+            <div class="space-y-4">
             ${proposal.input_format ? `
-            <div class="bg-green-900/20 border border-green-500/30 rounded-xl p-4 w-full">
-                <h5 class="font-semibold text-green-400 mb-2">📥 Input Format</h5>
-                <p class="text-sm text-slate-300 mb-2">${proposal.input_format.type || 'JSON'}</p>
+            <div class="bg-green-900/15 border border-green-500/25 rounded-xl p-4 w-full">
+                <div class="flex items-start justify-between gap-3 mb-3 min-w-0">
+                    <div class="min-w-0">
+                        <h5 class="font-semibold text-green-300 flex items-center space-x-2">
+                            <span>📥</span>
+                            <span>Request</span>
+                        </h5>
+                        <p class="text-xs text-slate-400 mt-1">What the client sends</p>
+                    </div>
+                    <span class="px-2 py-1 rounded-md bg-slate-950/30 border border-slate-700/50 text-[11px] text-slate-200 font-mono max-w-[55%] truncate">
+                        ${escapeHtml(String(proposal.input_format.type || 'JSON'))}
+                    </span>
+                </div>
                 ${proposal.input_format.fields ? `
-                <div class="mb-3">
-                    <h6 class="text-xs font-medium text-green-300 mb-1">Required Fields:</h6>
-                    <div class="flex flex-wrap gap-1">
-                        ${proposal.input_format.fields.map(field => `<span class="px-2 py-1 bg-green-600/20 text-green-300 rounded text-xs font-mono">${field}</span>`).join('')}
+                <div class="rounded-lg border border-green-500/15 bg-slate-950/25 p-3 mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <h6 class="text-[11px] font-semibold uppercase tracking-wide text-green-200/90">Required fields</h6>
+                        <span class="text-xs text-green-200/70">${proposal.input_format.fields.length}</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        ${proposal.input_format.fields.map(field => {
+                            const fieldStr = String(field);
+                            const colonIdx = fieldStr.indexOf(':');
+                            const fieldName = colonIdx > 0 ? fieldStr.slice(0, colonIdx).trim() : fieldStr.trim();
+                            const fieldRest = colonIdx > 0 ? fieldStr.slice(colonIdx) : '';
+                            return `
+                            <div class="flex items-center gap-2 rounded-md border border-green-500/15 bg-green-500/5 px-2.5 py-1.5 min-w-0">
+                                <span class="h-1.5 w-1.5 rounded-full bg-green-400/80"></span>
+                                <span class="text-xs text-green-50 font-mono font-semibold uppercase whitespace-nowrap shrink-0 max-w-[45%] truncate" title="${escapeHtml(fieldName)}">${escapeHtml(fieldName)}</span>
+                                ${fieldRest ? `<span class="text-xs text-green-100/80 break-words flex-1 min-w-0">${escapeHtml(fieldRest)}</span>` : ''}
+                            </div>
+                            `;
+                        }).join('')}
                     </div>
                 </div>
                 ` : ''}
                 ${proposal.input_format.example ? `
-                <div class="bg-slate-800/50 rounded-lg p-3">
-                    <h6 class="text-xs font-medium text-green-300 mb-2">Example:</h6>
-                    <pre class="text-xs text-slate-300 font-mono whitespace-pre-wrap break-all">${typeof proposal.input_format.example === 'object' ? JSON.stringify(proposal.input_format.example, null, 2) : proposal.input_format.example}</pre>
+                <div class="bg-slate-950/30 border border-slate-700/50 rounded-lg p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <h6 class="text-[11px] font-semibold uppercase tracking-wide text-green-200/90">Example</h6>
+                        <span class="text-xs text-slate-400 font-mono">JSON</span>
+                    </div>
+                    <pre class="text-xs text-slate-200 font-mono whitespace-pre-wrap break-words max-w-full overflow-x-hidden max-h-64 pr-2">${escapeHtml(typeof proposal.input_format.example === 'object' ? JSON.stringify(proposal.input_format.example, null, 2) : String(proposal.input_format.example))}</pre>
                 </div>
                 ` : ''}
             </div>
             ` : ''}
             ${proposal.output_format ? `
-            <div class="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4 w-full">
-                <h5 class="font-semibold text-purple-400 mb-2">📤 Output Format</h5>
-                <p class="text-sm text-slate-300 mb-2">${proposal.output_format.type || 'JSON'}</p>
+            <div class="bg-purple-900/15 border border-purple-500/25 rounded-xl p-4 w-full">
+                <div class="flex items-start justify-between gap-3 mb-3 min-w-0">
+                    <div class="min-w-0">
+                        <h5 class="font-semibold text-purple-300 flex items-center space-x-2">
+                            <span>📤</span>
+                            <span>Response</span>
+                        </h5>
+                        <p class="text-xs text-slate-400 mt-1">What the API returns</p>
+                    </div>
+                    <span class="px-2 py-1 rounded-md bg-slate-950/30 border border-slate-700/50 text-[11px] text-slate-200 font-mono max-w-[55%] truncate">
+                        ${escapeHtml(String(proposal.output_format.type || 'JSON'))}
+                    </span>
+                </div>
                 ${proposal.output_format.fields ? `
-                <div class="mb-3">
-                    <h6 class="text-xs font-medium text-purple-300 mb-1">Response Fields:</h6>
-                    <div class="flex flex-wrap gap-1">
-                        ${proposal.output_format.fields.map(field => `<span class="px-2 py-1 bg-purple-600/20 text-purple-300 rounded text-xs font-mono">${field}</span>`).join('')}
+                <div class="rounded-lg border border-purple-500/15 bg-slate-950/25 p-3 mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <h6 class="text-[11px] font-semibold uppercase tracking-wide text-purple-200/90">Response fields</h6>
+                        <span class="text-xs text-purple-200/70">${proposal.output_format.fields.length}</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        ${proposal.output_format.fields.map(field => {
+                            const fieldStr = String(field);
+                            const colonIdx = fieldStr.indexOf(':');
+                            const fieldName = colonIdx > 0 ? fieldStr.slice(0, colonIdx).trim() : fieldStr.trim();
+                            const fieldRest = colonIdx > 0 ? fieldStr.slice(colonIdx) : '';
+                            return `
+                            <div class="flex items-center gap-2 rounded-md border border-purple-500/15 bg-purple-500/5 px-2.5 py-1.5 min-w-0">
+                                <span class="h-1.5 w-1.5 rounded-full bg-purple-400/80"></span>
+                                <span class="text-xs text-purple-50 font-mono font-semibold uppercase whitespace-nowrap shrink-0 max-w-[45%] truncate" title="${escapeHtml(fieldName)}">${escapeHtml(fieldName)}</span>
+                                ${fieldRest ? `<span class="text-xs text-purple-100/80 break-words flex-1 min-w-0">${escapeHtml(fieldRest)}</span>` : ''}
+                            </div>
+                            `;
+                        }).join('')}
                     </div>
                 </div>
                 ` : ''}
                 ${proposal.output_format.example ? `
-                <div class="bg-slate-800/50 rounded-lg p-3">
-                    <h6 class="text-xs font-medium text-purple-300 mb-2">Example:</h6>
-                    <pre class="text-xs text-slate-300 font-mono whitespace-pre-wrap break-all">${typeof proposal.output_format.example === 'object' ? JSON.stringify(proposal.output_format.example, null, 2) : proposal.output_format.example}</pre>
+                <div class="bg-slate-950/30 border border-slate-700/50 rounded-lg p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <h6 class="text-[11px] font-semibold uppercase tracking-wide text-purple-200/90">Example</h6>
+                        <span class="text-xs text-slate-400 font-mono">JSON</span>
+                    </div>
+                    <pre class="text-xs text-slate-200 font-mono whitespace-pre-wrap break-words max-w-full overflow-x-hidden max-h-64 pr-2">${escapeHtml(typeof proposal.output_format.example === 'object' ? JSON.stringify(proposal.output_format.example, null, 2) : String(proposal.output_format.example))}</pre>
                 </div>
                 ` : ''}
             </div>
             ` : ''}
+            </div>
         </div>
         ` : ''}
 
@@ -4542,10 +4607,6 @@ function createProposalContentInPreview(analysis, originalPrompt, userId) {
                 <button data-action="build" data-proposal-id="${proposalId}"
                         class="proposal-action-btn px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
                      Build It!
-                </button>
-                <button data-action="modify" data-proposal-id="${proposalId}"
-                        class="proposal-action-btn px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
-                    ✏️ Modify
                 </button>
                 <button data-action="cancel"
                         class="proposal-action-btn px-4 py-2 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white rounded-lg font-medium transition-all duration-200 transform hover:scale-105 active:scale-95 shadow-lg">
