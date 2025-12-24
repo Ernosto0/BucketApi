@@ -37,19 +37,6 @@
                     </button>
                 </div>
 
-                <!-- Clear / Reset Chat -->
-                <button
-                    id="resetChatBtn"
-                    onclick="resetChat(true)"
-                    class="pointer-events-auto inline-flex items-center space-x-1.5 px-3 py-1.5 bg-slate-900/80 border border-slate-700/70 rounded-full text-[11px] font-medium text-slate-300 hover:text-white hover:bg-slate-800/80 transition-all duration-200 shadow-lg backdrop-blur"
-                    title="Clear chat and reset the preview panel"
-                >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a2 2 0 012-2h2a2 2 0 012 2v2"></path>
-                    </svg>
-                    <span>Clear chat</span>
-                </button>
-
                 <!-- API Selector (Hidden by default, shown in modification mode) -->
                 <div id="apiSelectorContainer" class="hidden w-80 pointer-events-auto">
                     <select
@@ -248,6 +235,18 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
                                 </svg>
                                 <span id="databaseToggleText">Add Database</span>
+                            </button>
+                            <!-- Clear / Reset Chat -->
+                            <button
+                                id="resetChatBtn"
+                                onclick="resetChat(true)"
+                                class="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg border transition-all duration-200 border-slate-600 text-slate-400 hover:border-red-500/50 hover:text-red-400"
+                                title="Clear chat and reset the preview panel"
+                            >
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m-7 0V5a2 2 0 012-2h2a2 2 0 012 2v2"></path>
+                                </svg>
+                                <span>Clear chat</span>
                             </button>
                         </div>
                         <div id="charCount" class="text-slate-500">0 characters</div>

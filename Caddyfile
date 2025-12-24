@@ -6,7 +6,6 @@
     email {$CADDY_EMAIL:admin@bucketapi.com}
     
     on_demand_tls {
-        # ❌ OLD/BROKEN: ask http://localhost:8000/api/caddy/check-domain?domain={host}
         # ✅ CORRECTED: Remove the query parameter. Caddy adds '?domain=...' automatically.
         ask http://localhost:8000/api/caddy/check-domain
         
