@@ -63,6 +63,17 @@
                     </button>
                 </li>
                 <li class="sidebar-nav-item">
+                    <button class="sidebar-nav-link" data-tab="settings">
+                        <div class="sidebar-nav-icon">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                        </div>
+                        <span>Settings</span>
+                    </button>
+                </li>
+                <li class="sidebar-nav-item">
                     <a href="/" class="sidebar-nav-link">
                         <div class="sidebar-nav-icon">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -461,6 +472,48 @@
                 <!-- Saved APIs will be loaded here -->
             </div>
         </div>
+
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+            <div class="mb-6">
+                <h1 class="text-2xl font-bold text-white mb-2">Settings</h1>
+                <p class="text-slate-400">Manage your account settings and preferences</p>
+            </div>
+
+            <!-- Danger Zone -->
+            <div class="glass-effect rounded-xl p-6 border border-red-500/20">
+                <div class="flex items-start space-x-4">
+                    <div class="p-3 bg-red-500/20 rounded-lg">
+                        <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-semibold text-white mb-2">Danger Zone</h3>
+                        <p class="text-slate-400 mb-4">Irreversible and destructive actions</p>
+                        
+                        <!-- Delete Account Section -->
+                        <div class="border border-red-500/30 rounded-lg p-4 bg-red-500/5">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <h4 class="text-base font-semibold text-white mb-1">Delete Account</h4>
+                                    <p class="text-sm text-slate-400 mb-2">Permanently delete your account and all associated data</p>
+                                    <ul class="text-xs text-slate-500 space-y-1 mb-3">
+                                        <li>• All your saved APIs will be deleted</li>
+                                        <li>• Your API keys will be revoked</li>
+                                        <li>• Your subscription will be cancelled</li>
+                                        <li>• This action cannot be undone</li>
+                                    </ul>
+                                </div>
+                                <button onclick="showDeleteAccountModal()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors whitespace-nowrap ml-4">
+                                    Delete Account
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -652,6 +705,51 @@
     </div>
 </div>
 
+<!-- Delete Account Modal -->
+<div id="deleteAccountModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+    <div class="glass-effect rounded-2xl p-6 m-4 max-w-md w-full border border-red-500/20 animate-slide-up">
+        <div class="flex items-center space-x-3 mb-6">
+            <div class="p-2 bg-red-500/20 rounded-lg">
+                <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold text-white">Delete Account</h3>
+                <p class="text-sm text-slate-400">This action cannot be undone</p>
+            </div>
+        </div>
+        
+        <div class="mb-6">
+            <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
+                <p class="text-sm text-red-300 mb-2 font-semibold">Warning: This will permanently delete:</p>
+                <ul class="text-xs text-red-200 space-y-1">
+                    <li>• All your saved APIs and configurations</li>
+                    <li>• All your API keys</li>
+                    <li>• Your subscription and billing information</li>
+                    <li>• All usage history and data</li>
+                </ul>
+            </div>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-white mb-2">Type <span class="font-mono text-red-400">DELETE</span> to confirm</label>
+                    <input type="text" id="deleteAccountConfirmInput" class="w-full px-3 py-2 bg-dark-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors" placeholder="Type DELETE">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-white mb-2">Enter your email to confirm</label>
+                    <input type="email" id="deleteAccountEmailInput" class="w-full px-3 py-2 bg-dark-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors" placeholder="your@email.com">
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-end space-x-3">
+            <button onclick="hideDeleteAccountModal()" class="px-4 py-2 text-slate-300 hover:text-white transition-colors">Cancel</button>
+            <button onclick="confirmDeleteAccount()" id="deleteAccountButton" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors opacity-50 cursor-not-allowed" disabled>Delete Account</button>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -690,11 +788,13 @@
             loadSubscriptionData();
         } else if (tabName === 'saved-apis') {
             loadSavedAPIs();
+        } else if (tabName === 'settings') {
+            // Settings tab doesn't need to load data
         }
     }
 
     function getInitialTabFromUrl() {
-        const allowedTabs = ['usage', 'api-keys', 'subscription', 'saved-apis'];
+        const allowedTabs = ['usage', 'api-keys', 'subscription', 'saved-apis', 'settings'];
         try {
             const params = new URLSearchParams(window.location.search);
             let tab = params.get('tab');
@@ -751,10 +851,16 @@
         const profileAvatar = document.getElementById('profileAvatar');
 
         if (currentUser) {
-            profileEmail.textContent = currentUser.email;
-            profileInitials.textContent = currentUser.email.substring(0, 2).toUpperCase();
+            if (profileEmail) {
+                profileEmail.textContent = currentUser.email;
+            }
+            currentUserEmail = currentUser.email; // Store for delete account confirmation
             
-            if (currentUser.created_at) {
+            if (profileInitials) {
+                profileInitials.textContent = currentUser.email.substring(0, 2).toUpperCase();
+            }
+            
+            if (profileJoinDate && currentUser.created_at) {
                 const joinDate = new Date(currentUser.created_at);
                 profileJoinDate.textContent = `Member since ${joinDate.toLocaleDateString('en-US', { 
                     year: 'numeric', 
@@ -763,12 +869,14 @@
             }
 
             // Set avatar background based on email hash
-            const emailHash = currentUser.email.split('').reduce((a, b) => {
-                a = ((a << 5) - a) + b.charCodeAt(0);
-                return a & a;
-            }, 0);
-            const hue = Math.abs(emailHash) % 360;
-            profileAvatar.style.background = `linear-gradient(135deg, hsl(${hue}, 70%, 50%), hsl(${(hue + 60) % 360}, 70%, 60%))`;
+            if (profileAvatar) {
+                const emailHash = currentUser.email.split('').reduce((a, b) => {
+                    a = ((a << 5) - a) + b.charCodeAt(0);
+                    return a & a;
+                }, 0);
+                const hue = Math.abs(emailHash) % 360;
+                profileAvatar.style.background = `linear-gradient(135deg, hsl(${hue}, 70%, 50%), hsl(${(hue + 60) % 360}, 70%, 60%))`;
+            }
         }
     }
 
@@ -2095,6 +2203,90 @@
         if (changePlanModal && !changePlanModal.classList.contains('hidden') && e.target === changePlanModal) {
             closeChangePlanModal();
         }
+        const deleteAccountModal = document.getElementById('deleteAccountModal');
+        if (deleteAccountModal && !deleteAccountModal.classList.contains('hidden') && e.target === deleteAccountModal) {
+            hideDeleteAccountModal();
+        }
     });
+
+    // Delete Account Functions
+    let currentUserEmail = null;
+
+    function showDeleteAccountModal() {
+        const modal = document.getElementById('deleteAccountModal');
+        modal.classList.remove('hidden');
+        
+        // Reset inputs
+        document.getElementById('deleteAccountConfirmInput').value = '';
+        document.getElementById('deleteAccountEmailInput').value = '';
+        document.getElementById('deleteAccountButton').disabled = true;
+        document.getElementById('deleteAccountButton').classList.add('opacity-50', 'cursor-not-allowed');
+    }
+
+    function hideDeleteAccountModal() {
+        const modal = document.getElementById('deleteAccountModal');
+        modal.classList.add('hidden');
+    }
+
+    // Enable delete button only when both inputs are correct
+    document.addEventListener('DOMContentLoaded', function() {
+        const confirmInput = document.getElementById('deleteAccountConfirmInput');
+        const emailInput = document.getElementById('deleteAccountEmailInput');
+        const deleteButton = document.getElementById('deleteAccountButton');
+
+        function checkDeleteInputs() {
+            const confirmText = confirmInput.value;
+            const emailText = emailInput.value;
+            
+            if (confirmText === 'DELETE' && emailText === currentUserEmail) {
+                deleteButton.disabled = false;
+                deleteButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                deleteButton.disabled = true;
+                deleteButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        if (confirmInput && emailInput) {
+            confirmInput.addEventListener('input', checkDeleteInputs);
+            emailInput.addEventListener('input', checkDeleteInputs);
+        }
+    });
+
+    async function confirmDeleteAccount() {
+        const confirmText = document.getElementById('deleteAccountConfirmInput').value;
+        const emailText = document.getElementById('deleteAccountEmailInput').value;
+
+        if (confirmText !== 'DELETE' || emailText !== currentUserEmail) {
+            showToast('error', 'Please confirm the deletion correctly');
+            return;
+        }
+
+        try {
+            const response = await fetch('/auth/delete-account', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include'
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                showToast('success', 'Account deleted successfully. Redirecting...');
+                
+                // Wait a moment then redirect to home
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            } else {
+                showToast('error', data.detail || 'Failed to delete account');
+            }
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            showToast('error', 'An error occurred while deleting your account');
+        }
+    }
 </script>
 {% endblock %}

@@ -209,3 +209,114 @@ async def require_active_user(request: Request) -> User:
             detail="Account is deactivated"
         )
     return user
+
+@router.delete("/delete-account", response_model=AuthResponse)
+async def delete_account(request: Request, response: Response):
+    """Permanently delete user account and all associated data"""
+    try:
+        # Get current user
+        session_id = request.cookies.get("session_id")
+        if not session_id:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        
+        user = auth_service.validate_session(session_id)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        user_id = user.id
+        logger.info(f"Starting account deletion for user: {user_id} ({user.email})")
+        
+        # Import mongodb here to avoid circular imports
+        from ..services.mongodb import mongodb
+        
+        # Delete all user data from all collections
+        deletion_summary = {}
+        
+        # 1. Delete user sessions
+        result = mongodb.user_sessions.delete_many({"user_id": user_id})
+        deletion_summary['sessions'] = result.deleted_count
+        
+        # 2. Delete API keys
+        result = mongodb.api_keys.delete_many({"user_id": user_id})
+        deletion_summary['api_keys'] = result.deleted_count
+        
+        # 3. Delete saved APIs
+        result = mongodb.saved_apis.delete_many({"user_id": user_id})
+        deletion_summary['saved_apis'] = result.deleted_count
+        
+        # 4. Delete LLM usage records
+        result = mongodb.llm_usage.delete_many({"user_id": user_id})
+        deletion_summary['llm_usage'] = result.deleted_count
+        
+        # 5. Delete API execution usage
+        result = mongodb.api_execution_usage.delete_many({"user_id": user_id})
+        deletion_summary['api_execution_usage'] = result.deleted_count
+        
+        # 6. Delete API generation usage
+        result = mongodb.api_generation_usage.delete_many({"user_id": user_id})
+        deletion_summary['api_generation_usage'] = result.deleted_count
+        
+        # 7. Delete API metadata
+        result = mongodb.api_metadata.delete_many({"user_id": user_id})
+        deletion_summary['api_metadata'] = result.deleted_count
+        
+        # 8. Delete internal tokens
+        result = mongodb.internal_tokens.delete_many({"user_id": user_id})
+        deletion_summary['internal_tokens'] = result.deleted_count
+        
+        # 9. Delete API execution token usage
+        result = mongodb.api_execution_token_usage.delete_many({"user_id": user_id})
+        deletion_summary['api_execution_token_usage'] = result.deleted_count
+        
+        # 10. Delete subscriptions
+        result = mongodb.subscriptions.delete_many({"user_id": user_id})
+        deletion_summary['subscriptions'] = result.deleted_count
+        
+        # 11. Delete subscription events
+        result = mongodb.subscription_events.delete_many({"user_id": user_id})
+        deletion_summary['subscription_events'] = result.deleted_count
+        
+        # 12. Delete custom domains
+        result = mongodb.custom_domains.delete_many({"user_id": user_id})
+        deletion_summary['custom_domains'] = result.deleted_count
+        
+        # 13. Delete reports
+        result = mongodb.reports.delete_many({"user_id": user_id})
+        deletion_summary['reports'] = result.deleted_count
+        
+        # 14. Delete logs (optional)
+        # Uncomment if you want to delete logs as well
+        # result = mongodb.system_logs.delete_many({"user_id": user_id})
+        # deletion_summary['system_logs'] = result.deleted_count
+        # result = mongodb.http_request_logs.delete_many({"user_id": user_id})
+        # deletion_summary['http_request_logs'] = result.deleted_count
+        # result = mongodb.llm_call_logs.delete_many({"user_id": user_id})
+        # deletion_summary['llm_call_logs'] = result.deleted_count
+        # result = mongodb.chat_message_logs.delete_many({"user_id": user_id})
+        # deletion_summary['chat_message_logs'] = result.deleted_count
+        # result = mongodb.error_logs.delete_many({"user_id": user_id})
+        # deletion_summary['error_logs'] = result.deleted_count
+        
+        # 15. Finally, delete the user account
+        result = mongodb.users.delete_one({"_id": user_id})
+        deletion_summary['user'] = result.deleted_count
+        
+        # Log deletion summary
+        logger.info(f"Account deletion completed for {user.email}: {deletion_summary}")
+        
+        # Clear session cookie
+        response.delete_cookie("session_id")
+        
+        return AuthResponse(
+            success=True,
+            message="Account successfully deleted"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Account deletion failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete account. Please contact support."
+        )
