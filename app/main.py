@@ -19,7 +19,7 @@ import logging
 import os
 import warnings
 
-# Suppress transformers library warnings about PyTorch/TensorFlow not being installed
+# Suppress transformers library warnings about PyTorch/TensorFlow not being installed. I dont even remember what that does.
 os.environ['TRANSFORMERS_VERBOSITY'] = 'error'
 warnings.filterwarnings("ignore", category=UserWarning, module="transformers")
 from .models import (
@@ -510,6 +510,18 @@ async def admin_panel_page(request: Request):
         return RedirectResponse(url="/dashboard?admin_access_denied=true", status_code=302)
     
     return templates.TemplateResponse("admin_panel.html", {"request": request, "user": user})
+
+@app.get("/privacy_policy", response_class=HTMLResponse)
+async def privacy_policy_page(request: Request):
+    """Serve the privacy policy page (publicly accessible)."""
+    user = await get_current_user(request)
+    return templates.TemplateResponse("privacy_policy.html", {"request": request, "user": user})
+
+@app.get("/terms_of_use", response_class=HTMLResponse)
+async def terms_of_use_page(request: Request):
+    """Serve the terms of use page (publicly accessible)."""
+    user = await get_current_user(request)
+    return templates.TemplateResponse("terms_of_use.html", {"request": request, "user": user})
 
 @app.get("/api/{user_id}/{api_slug}/details", response_class=HTMLResponse)
 async def api_details_page(request: Request, user_id: str, api_slug: str):
@@ -1339,8 +1351,8 @@ async def modify_proposal(
             status_code=500,
             detail=f"Failed to modify proposal: {str(e)}"
         )
-
-
+# We use a pipline to generate the api for lower cost and faster response time.
+# TODO Implement Pydantic AI agent future, replace with pipeline sysmtem.
 @app.post("/generate-api-stream")
 async def generate_api_stream(
     api_request: APIGenerationRequest,

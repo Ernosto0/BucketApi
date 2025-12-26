@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Subscription Successful - BucketApi{% endblock %}
+
+{% block extra_head %}
+<style>
+    @keyframes checkmark {
+        0% {
+            stroke-dashoffset: 100;
+        }
+        100% {
+            stroke-dashoffset: 0;
+        }
+    }
+    
+    @keyframes scaleIn {
+        0% {
+            transform: scale(0);
+            opacity: 0;
+        }
+        50% {
+            transform: scale(1.1);
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+    
+    .checkmark-circle {
+        animation: scaleIn 0.5s ease-out;
+    }
+    
+    .checkmark-path {
+        stroke-dasharray: 100;
+        stroke-dashoffset: 100;
+        animation: checkmark 0.5s ease-out 0.3s forwards;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-16">
+    <div class="max-w-2xl mx-auto">
+        <!-- Success Icon -->
+        <div class="flex justify-center mb-8">
+            <div class="checkmark-circle relative">
+                <svg class="w-32 h-32" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#10b981" stroke-width="4" class="opacity-20"/>
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="#10b981" stroke-width="4" class="checkmark-circle"/>
+                    <path class="checkmark-path" fill="none" stroke="#10b981" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" d="M30 50 L45 65 L70 35"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div class="text-center mb-12 animate-fade-in">
+            <h1 class="text-4xl font-bold text-slate-100 mb-4">
+                🎉 Subscription Successful!
+            </h1>
+            <p class="text-xl text-slate-300 mb-2">
+                Welcome to your new plan
+            </p>
+            {% if subscription %}
+            <p class="text-lg text-emerald-400 font-semibold">
+                {{ subscription.tier_name|title }} Tier
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- Subscription Details Card -->
+        {% if subscription %}
+        <div class="glass-effect rounded-xl p-8 mb-8 animate-slide-up">
+            <h2 class="text-2xl font-bold text-slate-100 mb-6 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Your Subscription Details
+            </h2>
+            
+            <div class="space-y-4">
+                <div class="flex justify-between items-center py-3 border-b border-slate-700/50">
+                    <span class="text-slate-400">Plan</span>
+                    <span class="text-slate-100 font-semibold">{{ subscription.tier_name|title }}</span>
+                </div>
+                
+                <div class="flex justify-between items-center py-3 border-b border-slate-700/50">
+                    <span class="text-slate-400">Status</span>
+                    <span class="px-3 py-1 rounded-full text-sm font-medium bg-emerald-500/20 text-emerald-400">
+                        {{ subscription.status|title }}
+                    </span>
+                </div>
+                
+                {% if subscription.api_calls_limit %}
+                <div class="flex justify-between items-center py-3 border-b border-slate-700/50">
+                    <span class="text-slate-400">API Calls Limit</span>
+                    <span class="text-slate-100 font-semibold">
+                        {% if subscription.api_calls_limit == -1 %}
+                            Unlimited
+                        {% else %}
+                            {{ "{:,}".format(subscription.api_calls_limit) }} / month
+                        {% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                
+                {% if subscription.apis_limit %}
+                <div class="flex justify-between items-center py-3 border-b border-slate-700/50">
+                    <span class="text-slate-400">APIs Limit</span>
+                    <span class="text-slate-100 font-semibold">
+                        {% if subscription.apis_limit == -1 %}
+                            Unlimited
+                        {% else %}
+                            {{ subscription.apis_limit }}
+                        {% endif %}
+                    </span>
+                </div>
+                {% endif %}
+                
+                {% if subscription.current_period_end %}
+                <div class="flex justify-between items-center py-3">
+                    <span class="text-slate-400">Next Billing Date</span>
+                    <span class="text-slate-100 font-semibold">
+                        {{ subscription.current_period_end.strftime('%B %d, %Y') }}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- What's Next Section -->
+        <div class="glass-effect rounded-xl p-8 mb-8 animate-slide-up" style="animation-delay: 0.1s;">
+            <h2 class="text-2xl font-bold text-slate-100 mb-6">What's Next?</h2>
+            
+            <div class="space-y-4">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center mr-4">
+                        <span class="text-emerald-400 font-bold">1</span>
+                    </div>
+                    <div>
+                        <h3 class="text-slate-100 font-semibold mb-1">Create Your First API</h3>
+                        <p class="text-slate-400 text-sm">Start building powerful APIs with AI assistance</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center mr-4">
+                        <span class="text-emerald-400 font-bold">2</span>
+                    </div>
+                    <div>
+                        <h3 class="text-slate-100 font-semibold mb-1">Explore Your Dashboard</h3>
+                        <p class="text-slate-400 text-sm">Monitor usage, manage APIs, and track performance</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-start">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center mr-4">
+                        <span class="text-emerald-400 font-bold">3</span>
+                    </div>
+                    <div>
+                        <h3 class="text-slate-100 font-semibold mb-1">Get Support</h3>
+                        <p class="text-slate-400 text-sm">Need help? Contact us anytime at <a href="mailto:cinarcheaksoy@gmail.com" class="text-emerald-400 hover:text-emerald-300">ernosto20.03@gmail.com</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row gap-4 justify-center animate-slide-up" style="animation-delay: 0.2s;">
+            <a href="/" 
+               class="px-8 py-3 rounded-lg font-semibold transition-all duration-300 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-emerald-500/50 text-center">
+                <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Create API
+            </a>
+            
+            <a href="/profile" 
+               class="px-8 py-3 rounded-lg font-semibold transition-all duration-300 border border-slate-600 text-slate-300 hover:bg-slate-800/50 hover:border-emerald-500/50 hover:text-emerald-300 text-center">
+                <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+                </svg>
+                View Dashboard
+            </a>
+        </div>
+
+        <!-- Additional Info -->
+        <div class="mt-12 text-center text-slate-400 text-sm animate-fade-in" style="animation-delay: 0.3s;">
+            <p>
+                You can manage your subscription anytime from your 
+                <a href="/subscription" class="text-emerald-400 hover:text-emerald-300 underline">subscription page</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Confetti effect (optional, lightweight)
+    function createConfetti() {
+        const colors = ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'];
+        const confettiCount = 50;
+        
+        for (let i = 0; i < confettiCount; i++) {
+            setTimeout(() => {
+                const confetti = document.createElement('div');
+                confetti.style.position = 'fixed';
+                confetti.style.width = '10px';
+                confetti.style.height = '10px';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.left = Math.random() * window.innerWidth + 'px';
+                confetti.style.top = '-10px';
+                confetti.style.opacity = '1';
+                confetti.style.borderRadius = '50%';
+                confetti.style.pointerEvents = 'none';
+                confetti.style.zIndex = '9999';
+                
+                document.body.appendChild(confetti);
+                
+                const duration = 3000 + Math.random() * 2000;
+                const endX = (Math.random() - 0.5) * 200;
+                
+                confetti.animate([
+                    { transform: 'translateY(0) translateX(0) rotate(0deg)', opacity: 1 },
+                    { transform: `translateY(${window.innerHeight + 10}px) translateX(${endX}px) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+                ], {
+                    duration: duration,
+                    easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+                }).onfinish = () => confetti.remove();
+            }, i * 30);
+        }
+    }
+    
+    // Trigger confetti on page load
+    window.addEventListener('load', () => {
+        setTimeout(createConfetti, 500);
+    });
+</script>
+{% endblock %}
+
