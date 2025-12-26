@@ -287,12 +287,52 @@ class SubscriptionService:
             logger.error(f"Variant ID not found for tier: {tier}. Available env vars: LEMONSQUEEZY_STARTER_VARIANT_ID={os.getenv('LEMONSQUEEZY_STARTER_VARIANT_ID')}")
             raise HTTPException(status_code=500, detail=f"Variant ID not configured for tier: {tier}")
         
+        # Get LemonSqueezy API key
+        api_key = os.getenv("LEMONSQUEEZY_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
+        
+        # Verify variant exists before creating checkout
+        try:
+            async with httpx.AsyncClient() as client:
+                # First, verify the variant exists
+                variant_response = await client.get(
+                    f"https://api.lemonsqueezy.com/v1/variants/{variant_id}",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Accept": "application/vnd.api+json"
+                    }
+                )
+                
+                if variant_response.status_code == 404:
+                    # logger.error(f"Variant {variant_id} not found in LemonSqueezy. Please verify:")
+                    # logger.error(f"  1. The variant ID is correct in your LemonSqueezy dashboard")
+                    # logger.error(f"  2. The variant belongs to store {store_id}")
+                    # logger.error(f"  3. The variant is not archived or deleted")
+                    raise HTTPException(
+                        status_code=404, 
+                        detail=f"Variant ID {variant_id} not found in LemonSqueezy. Please verify the variant exists and belongs to your store."
+                    )
+                elif variant_response.status_code != 200:
+                    logger.warning(f"Could not verify variant {variant_id}: {variant_response.status_code} - {variant_response.text}")
+                    # Continue anyway - might be a permissions issue but variant could still exist
+                else:
+                    variant_data = variant_response.json()
+                    variant_store_id = variant_data.get("data", {}).get("relationships", {}).get("store", {}).get("data", {}).get("id")
+                    if variant_store_id and str(variant_store_id) != str(store_id):
+                        # logger.error(f"Variant {variant_id} belongs to store {variant_store_id}, but you're using store {store_id}")
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Variant {variant_id} belongs to a different store. Please use the correct store ID or variant ID."
+                        )
+                    # logger.info(f"✅ Verified variant {variant_id} exists and belongs to store {store_id}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Could not verify variant existence: {str(e)}. Continuing with checkout creation...")
+        
         try:
             # Create checkout using LemonSqueezy Checkouts API
-            api_key = os.getenv("LEMONSQUEEZY_API_KEY")
-            if not api_key:
-                raise HTTPException(status_code=500, detail="LemonSqueezy API key not configured")
-            
             checkout_data = {
                 "data": {
                     "type": "checkouts",
@@ -328,6 +368,8 @@ class SubscriptionService:
             }
             
             # Make API request to create checkout
+            # logger.info(f"Creating checkout with store_id={store_id}, variant_id={variant_id}")
+            
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     "https://api.lemonsqueezy.com/v1/checkouts",
@@ -340,8 +382,23 @@ class SubscriptionService:
                 )
                 
                 if response.status_code != 201:
-                    logger.error(f"LemonSqueezy API error: {response.status_code} - {response.text}")
-                    raise HTTPException(status_code=500, detail=f"Failed to create checkout: {response.text}")
+                    error_text = response.text
+                    logger.error(f"LemonSqueezy API error: {response.status_code} - {error_text}")
+                    
+                    # Provide more helpful error messages
+                    if response.status_code == 404:
+                        try:
+                            error_data = response.json()
+                            error_detail = error_data.get("errors", [{}])[0].get("detail", "")
+                            if "variant" in error_detail.lower():
+                                raise HTTPException(
+                                    status_code=404,
+                                    detail=f"Variant ID {variant_id} not found. Please verify the variant exists in your LemonSqueezy dashboard and belongs to store {store_id}."
+                                )
+                        except:
+                            pass
+                    
+                    raise HTTPException(status_code=500, detail=f"Failed to create checkout: {error_text}")
                 
                 checkout_response = response.json()
                 checkout_url = checkout_response["data"]["attributes"]["url"]
@@ -1436,6 +1493,8 @@ class SubscriptionService:
             # Update subscription via LemonSqueezy API
             lemonsqueezy_sub_id = current_subscription.lemonsqueezy_subscription_id
             
+            logger.info(f"Changing subscription {lemonsqueezy_sub_id} from {current_tier} to {new_tier} with variant_id: {new_variant_id}")
+            
             async with httpx.AsyncClient() as client:
                 response = await client.patch(
                     f"https://api.lemonsqueezy.com/v1/subscriptions/{lemonsqueezy_sub_id}",
@@ -1449,7 +1508,7 @@ class SubscriptionService:
                             "type": "subscriptions",
                             "id": str(lemonsqueezy_sub_id),
                             "attributes": {
-                                "variant_id": int(new_variant_id)
+                                "variant_id": str(new_variant_id)
                             }
                         }
                     }
