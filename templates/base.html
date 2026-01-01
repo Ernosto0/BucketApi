@@ -3,13 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Primary Meta Tags -->
     <title>{% block title %}BucketApi - AI-Powered API Generator{% endblock %}</title>
+    <meta name="title" content="{% block meta_title %}BucketApi - Transform Ideas into APIs Instantly with AI{% endblock %}">
+    <meta name="description" content="{% block meta_description %}Generate production-ready APIs in seconds using AI. Describe your API in plain English and get instant deployment with documentation, security, and testing included. No coding required.{% endblock %}">
+    <meta name="keywords" content="{% block meta_keywords %}AI API generator, API generation, AI-powered APIs, automatic API creation, no-code API, API builder, FastAPI generator, Python API generator, REST API generator, API development tool{% endblock %}">
+    <meta name="author" content="BucketApi">
+    <meta name="robots" content="{% block robots %}index, follow{% endblock %}">
+    <meta name="language" content="English">
+    <meta name="revisit-after" content="7 days">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="{% block canonical_url %}{{ request.url if request else '' }}{% endblock %}">
     
     <!-- App Icons -->
     <link rel="icon" type="image/png" href="/static/images/bucketapilogo.png">
     <link rel="apple-touch-icon" href="/static/images/bucketapilogo.png">
-    <meta property="og:image" content="/static/images/bucketapilogo.png">
-    <meta name="twitter:image" content="/static/images/bucketapilogo.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/images/bucketapilogo.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/images/bucketapilogo.png">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="{% block og_type %}website{% endblock %}">
+    <meta property="og:url" content="{% block og_url %}{{ request.url if request else '' }}{% endblock %}">
+    <meta property="og:title" content="{% block og_title %}BucketApi - AI-Powered API Generator{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Generate production-ready APIs in seconds using AI. Describe your API in plain English and get instant deployment.{% endblock %}">
+    <meta property="og:image" content="{% block og_image %}{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}/static/images/bucketapilogo.png{% endblock %}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="BucketApi Logo - AI-Powered API Generator">
+    <meta property="og:site_name" content="BucketApi">
+    <meta property="og:locale" content="en_US">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{% block twitter_url %}{{ request.url if request else '' }}{% endblock %}">
+    <meta name="twitter:title" content="{% block twitter_title %}BucketApi - AI-Powered API Generator{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}Generate production-ready APIs in seconds using AI. No coding required.{% endblock %}">
+    <meta name="twitter:image" content="{% block twitter_image %}{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}/static/images/bucketapilogo.png{% endblock %}">
+    <meta name="twitter:image:alt" content="BucketApi Logo - AI-Powered API Generator">
+    <meta name="twitter:creator" content="@bucketapi">
+    <meta name="twitter:site" content="@bucketapi">
+    
+    <!-- Additional SEO Meta Tags -->
+    <meta name="theme-color" content="#0f172a">
+    <meta name="msapplication-TileColor" content="#0f172a">
+    <meta name="application-name" content="BucketApi">
+    
+    <!-- Structured Data (JSON-LD) -->
+    {% block structured_data %}{% endblock %}
     
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lemon.js for checkout/payment modals -->
@@ -297,7 +339,7 @@
 
                 <!-- Contact Section -->
                 <div class="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4 text-center md:text-left">
-                    <a href="mailto:ernosto20.03@gmail.com" class="flex items-center space-x-2 hover:text-emerald-400 transition-colors duration-200">
+                    <a href="mailto:cinarcheaksoy@gmail.com" class="flex items-center space-x-2 hover:text-emerald-400 transition-colors duration-200">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                         </svg>

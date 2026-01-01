@@ -1,6 +1,84 @@
 {% extends "base.html" %}
 
-{% block title %}AI-Powered API Generator - Transform Ideas into APIs Instantly{% endblock %}
+{% block title %}AI-Powered API Generator - Transform Ideas into APIs Instantly | BucketApi{% endblock %}
+
+{% block meta_title %}AI-Powered API Generator - Transform Ideas into APIs Instantly{% endblock %}
+
+{% block meta_description %}The fastest way from idea to working API. Describe what you need in plain English, get a hosted, production-ready API in under 30 seconds. Powered by GPT-5 and Claude 4. No coding required.{% endblock %}
+
+{% block meta_keywords %}AI API generator, natural language API creation, instant API deployment, no-code API builder, AI-powered development, API automation, FastAPI generator, production-ready APIs, API development tool{% endblock %}
+
+{% block og_title %}AI-Powered API Generator - Transform Ideas into APIs Instantly{% endblock %}
+
+{% block og_description %}The fastest way from idea to working API. Describe what you need in plain English, get a hosted, production-ready API in under 30 seconds.{% endblock %}
+
+{% block twitter_title %}AI-Powered API Generator - Transform Ideas into APIs Instantly{% endblock %}
+
+{% block twitter_description %}The fastest way from idea to working API. Describe what you need in plain English, get a hosted, production-ready API in under 30 seconds.{% endblock %}
+
+{% block structured_data %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "BucketApi",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "5",
+    "ratingCount": "1"
+  },
+  "description": "AI-powered API generator that transforms natural language descriptions into production-ready APIs in seconds.",
+  "url": "{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}",
+  "logo": "{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}/static/images/bucketapilogo.png",
+  "featureList": [
+    "Natural language API generation",
+    "Instant deployment",
+    "Auto-generated documentation",
+    "Enterprise-grade security",
+    "No coding required"
+  ],
+  "screenshot": "{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}/static/images/bucketapilogo.png"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "BucketApi",
+  "url": "{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}",
+  "logo": "{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}/static/images/bucketapilogo.png",
+  "description": "AI-powered platform for generating production-ready APIs from natural language descriptions",
+  "contactPoint": {
+    "@type": "ContactPoint",
+    "email": "cinarcheaksoy@gmail.com",
+    "contactType": "Customer Service"
+  },
+  "sameAs": [
+    "https://www.linkedin.com/in/cinar-aksoy-5023a1240"
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "BucketApi",
+  "url": "{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": "{{ request.url.scheme }}://{{ request.url.hostname if request else 'bucketapi.com' }}/?q={search_term_string}",
+    "query-input": "required name=search_term_string"
+  }
+}
+</script>
+{% endblock %}
 
 {% block content %}
 <div class="min-h-screen" style="background: linear-gradient(135deg, #0D1117 0%, #1E1E2F 100%);">

@@ -571,6 +571,66 @@ async def api_documentation_page(request: Request, user_id: str, api_slug: str):
             detail=f"API documentation not found: {str(e)}"
         )
 
+@app.get("/sitemap.xml", response_class=Response)
+async def sitemap(request: Request):
+    """Generate and return sitemap.xml for SEO."""
+    from datetime import datetime
+    
+    base_url = f"{request.url.scheme}://{request.url.hostname}"
+    if request.url.port and request.url.port not in [80, 443]:
+        base_url += f":{request.url.port}"
+    
+    # Define static pages with their priorities and change frequencies
+    pages = [
+        {"url": f"{base_url}/landing", "priority": "1.0", "changefreq": "weekly"},
+        {"url": f"{base_url}/login", "priority": "0.8", "changefreq": "monthly"},
+        {"url": f"{base_url}/privacy_policy", "priority": "0.5", "changefreq": "yearly"},
+        {"url": f"{base_url}/terms_of_use", "priority": "0.5", "changefreq": "yearly"},
+    ]
+    
+    # Generate sitemap XML
+    sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    sitemap += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    
+    for page in pages:
+        sitemap += '  <url>\n'
+        sitemap += f'    <loc>{page["url"]}</loc>\n'
+        sitemap += f'    <lastmod>{datetime.utcnow().strftime("%Y-%m-%d")}</lastmod>\n'
+        sitemap += f'    <changefreq>{page["changefreq"]}</changefreq>\n'
+        sitemap += f'    <priority>{page["priority"]}</priority>\n'
+        sitemap += '  </url>\n'
+    
+    sitemap += '</urlset>'
+    
+    return Response(content=sitemap, media_type="application/xml")
+
+@app.get("/robots.txt", response_class=Response)
+async def robots_txt(request: Request):
+    """Generate and return robots.txt for SEO."""
+    
+    base_url = f"{request.url.scheme}://{request.url.hostname}"
+    if request.url.port and request.url.port not in [80, 443]:
+        base_url += f":{request.url.port}"
+    
+    robots = f"""User-agent: *
+Allow: /
+Allow: /landing
+Allow: /login
+Allow: /privacy_policy
+Allow: /terms_of_use
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /admin
+Disallow: /logs
+Disallow: /subscription
+Disallow: /health
+
+Sitemap: {base_url}/sitemap.xml
+"""
+    
+    return Response(content=robots, media_type="text/plain")
+
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint with MongoDB status."""
